@@ -1,0 +1,29 @@
+docs/superpowers/specs/2026-07-10-wallume-design.md
+  10467d98e5a101e0 1-440
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "e9654d1f7c87519c678522407dfd56c40654d0a3",
+  "prompts": {
+    "10467d98e5a101e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49d2-87e8-7a91-b618-53e1f293362d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "wangchao",
+      "messages": [],
+      "total_additions": 440,
+      "total_deletions": 0,
+      "accepted_lines": 440,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/superpowers/specs/2026-07-10-wallume-design.md": {
+          "additions": 440,
+          "accepted_lines": 440
+        }
+      }
+    }
+  }
+}
