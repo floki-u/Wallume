@@ -1,0 +1,30 @@
+docs/superpowers/plans/2026-07-10-wallume-lock-screen-safety-foundation.md
+  10467d98e5a101e0 1-1304
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "e400033bf7bd109da9de0b74ab13c3326f7b0db9",
+  "prompts": {
+    "10467d98e5a101e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49d2-87e8-7a91-b618-53e1f293362d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 1311,
+      "total_deletions": 7,
+      "accepted_lines": 1304,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/superpowers/plans/2026-07-10-wallume-lock-screen-safety-foundation.md": {
+          "additions": 1311,
+          "deletions": 7,
+          "accepted_lines": 1304
+        }
+      }
+    }
+  }
+}
