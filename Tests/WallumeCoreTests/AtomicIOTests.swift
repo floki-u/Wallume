@@ -6,12 +6,42 @@ private struct JournalFixture: Codable, Equatable, Sendable {
     let count: Int
 }
 
+private enum InjectedFailure: Error {
+    case replace
+    case synchronizeDirectory
+}
+
+private final class LockedFailures: @unchecked Sendable {
+    private let lock = NSLock()
+    private var failures: [Error] = []
+
+    func append(_ error: Error) {
+        lock.withLock {
+            failures.append(error)
+        }
+    }
+
+    var values: [Error] {
+        lock.withLock { failures }
+    }
+}
+
+private func itemNames(in directory: URL) throws -> Set<String> {
+    Set(
+        try FileManager.default
+            .contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .map(\.lastPathComponent)
+    )
+}
+
 final class AtomicIOTests: XCTestCase {
     func testAtomicJSONRoundTripLeavesNoTemporaryFile() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
         let target = root.appending(path: "journal.json")
         let files = LocalFileStore()
         let store = AtomicJSONStore(files: files)
+        try files.writeAtomically(Data("old".utf8), to: target)
 
         try store.write(JournalFixture(phase: "prepared", count: 2), to: target)
 
@@ -19,11 +49,12 @@ final class AtomicIOTests: XCTestCase {
             try store.read(JournalFixture.self, from: target),
             .init(phase: "prepared", count: 2)
         )
-        XCTAssertFalse(FileManager.default.fileExists(atPath: target.path + ".tmp"))
+        XCTAssertEqual(try itemNames(in: root), ["journal.json"])
     }
 
     func testSHA256UsesLowercaseHex() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let file = root.appending(path: "value")
         try Data("wallume".utf8).write(to: file)
@@ -32,5 +63,100 @@ final class AtomicIOTests: XCTestCase {
             try SHA256Digester().sha256(of: file),
             "66c0fb338a923a6b5af567f8489078f61fc52d070a952d6aa602b484a5c31e60"
         )
+    }
+
+    func testConcurrentAtomicWritesInstallOneCompletePayload() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let target = root.appending(path: "shared")
+        let files = LocalFileStore()
+        let payloads = (0..<32).map { Data(repeating: UInt8($0), count: 256 * 1_024) }
+        let failures = LockedFailures()
+
+        DispatchQueue.concurrentPerform(iterations: payloads.count) { index in
+            do {
+                try files.writeAtomically(payloads[index], to: target)
+            } catch {
+                failures.append(error)
+            }
+        }
+
+        XCTAssertTrue(failures.values.isEmpty, "Unexpected write failures: \(failures.values)")
+        XCTAssertTrue(payloads.contains(try files.read(target)))
+        XCTAssertEqual(try itemNames(in: root), ["shared"])
+    }
+
+    func testCopyAtomicallyOverwritesDestinationWithCompleteContents() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let source = root.appending(path: "source")
+        let destination = root.appending(path: "destination")
+        let expected = Data(repeating: 0xA5, count: 512 * 1_024)
+        try expected.write(to: source)
+        try Data("old".utf8).write(to: destination)
+        let files = LocalFileStore()
+
+        try files.copy(source, to: destination)
+
+        XCTAssertEqual(try files.read(destination), expected)
+        XCTAssertEqual(try itemNames(in: root), ["source", "destination"])
+    }
+
+    func testFailedAtomicWritePreservesDestinationAndCleansTemporaryFile() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appending(path: "target")
+        let old = Data("old".utf8)
+        try old.write(to: target)
+        let files = LocalFileStore(
+            replaceItem: { _, _ in throw InjectedFailure.replace },
+            synchronizeDirectory: { _ in }
+        )
+
+        XCTAssertThrowsError(try files.writeAtomically(Data("new".utf8), to: target))
+
+        XCTAssertEqual(try Data(contentsOf: target), old)
+        XCTAssertEqual(try itemNames(in: root), ["target"])
+    }
+
+    func testFailedCopyPreservesDestinationAndCleansTemporaryFile() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let source = root.appending(path: "source")
+        let destination = root.appending(path: "destination")
+        let old = Data("old".utf8)
+        try Data("new".utf8).write(to: source)
+        try old.write(to: destination)
+        let files = LocalFileStore(
+            replaceItem: { _, _ in throw InjectedFailure.replace },
+            synchronizeDirectory: { _ in }
+        )
+
+        XCTAssertThrowsError(try files.copy(source, to: destination))
+
+        XCTAssertEqual(try Data(contentsOf: destination), old)
+        XCTAssertEqual(try itemNames(in: root), ["source", "destination"])
+    }
+
+    func testDirectorySynchronizationFailureIsPropagated() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let target = root.appending(path: "target")
+        let files = LocalFileStore(
+            replaceItem: { source, destination in
+                try FileManager.default.moveItem(at: source, to: destination)
+            },
+            synchronizeDirectory: { _ in throw InjectedFailure.synchronizeDirectory }
+        )
+
+        XCTAssertThrowsError(try files.writeAtomically(Data("new".utf8), to: target)) { error in
+            guard case InjectedFailure.synchronizeDirectory = error else {
+                return XCTFail("Expected directory synchronization failure, got \(error)")
+            }
+        }
+        XCTAssertEqual(try itemNames(in: root), ["target"])
     }
 }

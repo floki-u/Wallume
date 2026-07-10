@@ -300,7 +300,7 @@ git commit -m "feat: add lock-screen environment routing"
 - Produces: `Digesting.sha256(of:) -> String`
 - Produces: `AtomicJSONStore.write(_:to:)` and `read(_:from:)`
 
-- [ ] **Step 1: Write failing atomic-write and digest tests**
+- [ ] **Step 1: Write failing atomic-write, copy, failure-cleanup, concurrency, and digest tests**
 
 ```swift
 // Tests/WallumeCoreTests/AtomicIOTests.swift
@@ -315,6 +315,7 @@ private struct JournalFixture: Codable, Equatable, Sendable {
 final class AtomicIOTests: XCTestCase {
     func testAtomicJSONRoundTripLeavesNoTemporaryFile() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
         let target = root.appending(path: "journal.json")
         let files = LocalFileStore()
         let store = AtomicJSONStore(files: files)
@@ -322,11 +323,12 @@ final class AtomicIOTests: XCTestCase {
         try store.write(JournalFixture(phase: "prepared", count: 2), to: target)
 
         XCTAssertEqual(try store.read(JournalFixture.self, from: target), .init(phase: "prepared", count: 2))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: target.path + ".tmp"))
+        XCTAssertEqual(try files.contents(root).map(\.lastPathComponent), ["journal.json"])
     }
 
     func testSHA256UsesLowercaseHex() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let file = root.appending(path: "value")
         try Data("wallume".utf8).write(to: file)
@@ -338,16 +340,19 @@ final class AtomicIOTests: XCTestCase {
 }
 ```
 
+Also add focused tests proving that an existing target can be replaced, concurrent writes always install one complete payload, `copy` atomically overwrites with complete contents, replacement failures preserve the old target and clean only the operation's own temporary file, directory-sync errors propagate, and every temporary test root is removed with `defer`.
+
 - [ ] **Step 2: Run and verify missing IO types**
 
 Run: `swift test --filter AtomicIOTests`
 
 Expected: compilation fails because the IO types do not exist.
 
-- [ ] **Step 3: Implement the filesystem boundary and durable same-directory write**
+- [ ] **Step 3: Implement the filesystem boundary and durable same-directory staging**
 
 ```swift
 // Sources/WallumeCore/IO/FileStore.swift
+import Darwin
 import Foundation
 
 public protocol FileStore: Sendable {
@@ -362,8 +367,21 @@ public protocol FileStore: Sendable {
 }
 
 public struct LocalFileStore: FileStore {
-    private let manager = FileManager.default
-    public init() {}
+    private let replaceItem: @Sendable (URL, URL) throws -> Void
+    private let synchronizeDirectory: @Sendable (URL) throws -> Void
+    private var manager: FileManager { .default }
+
+    public init() {
+        replaceItem = Self.renameItem
+        synchronizeDirectory = Self.synchronizeDirectoryEntry
+    }
+    init(
+        replaceItem: @escaping @Sendable (URL, URL) throws -> Void,
+        synchronizeDirectory: @escaping @Sendable (URL) throws -> Void
+    ) {
+        self.replaceItem = replaceItem
+        self.synchronizeDirectory = synchronizeDirectory
+    }
 
     public func exists(_ url: URL) -> Bool { manager.fileExists(atPath: url.path) }
     public func read(_ url: URL) throws -> Data { try Data(contentsOf: url) }
@@ -374,37 +392,83 @@ public struct LocalFileStore: FileStore {
         try manager.createDirectory(at: url, withIntermediateDirectories: true)
     }
     public func copy(_ source: URL, to destination: URL) throws {
-        try createDirectory(destination.deletingLastPathComponent())
-        try manager.copyItem(at: source, to: destination)
+        let sourceHandle = try FileHandle(forReadingFrom: source)
+        var sourceIsClosed = false
+        defer { if !sourceIsClosed { try? sourceHandle.close() } }
+        try installAtomically(to: destination) { destinationHandle in
+            while let chunk = try sourceHandle.read(upToCount: 1_048_576), !chunk.isEmpty {
+                try destinationHandle.write(contentsOf: chunk)
+            }
+            try sourceHandle.close()
+            sourceIsClosed = true
+        }
     }
     public func remove(_ url: URL) throws {
         if exists(url) { try manager.removeItem(at: url) }
     }
     public func writeAtomically(_ data: Data, to target: URL) throws {
-        try createDirectory(target.deletingLastPathComponent())
-        let temporary = target.appendingPathExtension("tmp")
-        try remove(temporary)
-        guard manager.createFile(atPath: temporary.path, contents: nil) else {
-            throw CocoaError(.fileWriteUnknown)
-        }
-        let handle = try FileHandle(forWritingTo: temporary)
-        do {
+        try installAtomically(to: target) { handle in
             try handle.write(contentsOf: data)
-            try handle.synchronize()
-            try handle.close()
-            try replace(target, with: temporary)
-        } catch {
-            try? handle.close()
-            try? remove(temporary)
-            throw error
         }
     }
     public func replace(_ target: URL, with preparedFile: URL) throws {
-        if exists(target) {
-            _ = try manager.replaceItemAt(target, withItemAt: preparedFile)
-        } else {
-            try manager.moveItem(at: preparedFile, to: target)
+        try replaceItem(preparedFile, target)
+        try synchronizeDirectory(target.deletingLastPathComponent())
+    }
+
+    private func installAtomically(
+        to target: URL,
+        writing contents: (FileHandle) throws -> Void
+    ) throws {
+        try createDirectory(target.deletingLastPathComponent())
+        let (temporary, handle) = try makeTemporaryFile(nextTo: target)
+        var handleIsClosed = false
+        defer {
+            if !handleIsClosed { try? handle.close() }
+            try? remove(temporary)
         }
+        try contents(handle)
+        try handle.synchronize()
+        try handle.close()
+        handleIsClosed = true
+        try replace(target, with: temporary)
+    }
+
+    private func makeTemporaryFile(nextTo target: URL) throws -> (URL, FileHandle) {
+        let directory = target.deletingLastPathComponent()
+        var template = Array(
+            directory.appending(path: ".\(target.lastPathComponent).wallume.tmp.XXXXXX")
+                .path.utf8CString
+        )
+        let descriptor = template.withUnsafeMutableBufferPointer { mkstemp($0.baseAddress) }
+        guard descriptor >= 0 else { throw Self.posixError() }
+        let path = String(
+            decoding: template.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
+            as: UTF8.self
+        )
+        return (
+            URL(fileURLWithPath: path),
+            FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        )
+    }
+
+    private static func renameItem(_ source: URL, _ destination: URL) throws {
+        guard Darwin.rename(source.path, destination.path) == 0 else { throw posixError() }
+    }
+
+    private static func synchronizeDirectoryEntry(_ directory: URL) throws {
+        let descriptor = Darwin.open(directory.path, O_RDONLY)
+        guard descriptor >= 0 else { throw posixError() }
+        if Darwin.fsync(descriptor) != 0 {
+            let error = posixError()
+            _ = Darwin.close(descriptor)
+            throw error
+        }
+        guard Darwin.close(descriptor) == 0 else { throw posixError() }
+    }
+
+    private static func posixError(_ code: Int32 = errno) -> POSIXError {
+        POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
     }
 }
 ```
