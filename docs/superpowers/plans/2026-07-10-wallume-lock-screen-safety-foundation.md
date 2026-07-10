@@ -816,6 +816,7 @@ public struct FileReplacementRecord: Codable, Equatable, Sendable {
     public let target: URL
     public let originalHash: String?
     public let installedHash: String
+    public let originalBackup: URL?
 }
 
 public struct LockScreenTransactionManifest: Codable, Equatable, Sendable {
@@ -873,7 +874,7 @@ public struct NoFaults: FaultInjecting { public init() {}; public func hit(_ poi
 2. Discover the exact requested slot and reject foreign modifications.
 3. Verify input files exist and compute their hashes.
 4. Read `Index.plist` and plan mutations before changing any file.
-5. Create primary and recovery backups; verify both hashes equal the original slot hash.
+5. Create primary and recovery video backups; verify both hashes equal the original slot hash. If `lockscreen.png` exists, create a separate poster backup and verify its hash before any replacement.
 6. Write the manifest as `.prepared` and call `faults.hit(.afterPreparedJournal)`.
 7. Update the same manifest to `.writing` before the first replacement.
 8. Replace the slot from a same-directory prepared copy; verify installed hash; hit `.afterVideoReplacement`.
@@ -1005,9 +1006,11 @@ The implementation must enforce these rules independently for the video, poster,
 
 - Restore a file only when its current hash equals `installedHash`.
 - When the current hash differs, record a conflict and do not touch the target.
+- When `originalHash` and `originalBackup` exist, restore from that verified backup.
+- When both are absent, the target did not exist before Wallume; remove it only when its current hash equals `installedHash`.
 - Restore a plist mutation only when the current fragment equals its `after` fragment.
 - Keep all backups when any conflict exists.
-- Delete a primary/recovery backup only after every owned value restored and the restored hashes match the manifest's original hashes.
+- Delete video and poster backups only after every owned value restored and the restored hashes match the manifest's original hashes.
 - Mark the manifest `.restored` on clean recovery and `.conflicted` on any conflict.
 - Refresh only if at least one target was actually restored.
 
