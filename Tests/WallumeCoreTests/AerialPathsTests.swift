@@ -11,6 +11,8 @@ final class AerialPathsTests: XCTestCase {
         XCTAssertEqual(paths.manifest.path, "/Users/tester/Library/Application Support/com.apple.wallpaper/aerials/manifest/entries.json")
         XCTAssertEqual(paths.wallpaperIndex.path, "/Users/tester/Library/Application Support/com.apple.wallpaper/Store/Index.plist")
         XCTAssertEqual(paths.lockScreenPoster.path, "/Library/Caches/Desktop Pictures/USER-UUID/lockscreen.png")
+        XCTAssertEqual(paths.applicationSupport.path, "/Users/tester/Library/Application Support/Wallume")
         XCTAssertEqual(paths.transactionsDirectory.path, "/Users/tester/Library/Application Support/Wallume/LockScreen/transactions")
+        XCTAssertEqual(paths.systemBackupsDirectory.path, "/Users/tester/Library/Application Support/Wallume/SystemBackups")
     }
 }

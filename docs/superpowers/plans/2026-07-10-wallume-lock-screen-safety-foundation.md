@@ -165,7 +165,7 @@ git commit -m "build: bootstrap Wallume core package"
 **Interfaces:**
 - Produces: `MacOSGeneration.init(version:) -> MacOSGeneration`
 - Produces: `AerialPaths.init(homeDirectory:userGeneratedID:)`
-- Consumes: `WallumeBuildInfo.bundleIdentifier`
+- Consumes: `WallumeBuildInfo.productName`
 
 - [ ] **Step 1: Write failing routing and path tests**
 
@@ -259,7 +259,7 @@ public struct AerialPaths: Equatable, Sendable {
     public init(homeDirectory: URL, userGeneratedID: String) {
         let support = homeDirectory.appending(path: "Library/Application Support")
         let wallpaper = support.appending(path: "com.apple.wallpaper")
-        let wallume = support.appending(path: "Wallume")
+        let wallume = support.appending(path: WallumeBuildInfo.productName)
         videosDirectory = wallpaper.appending(path: "aerials/videos")
         manifest = wallpaper.appending(path: "aerials/manifest/entries.json")
         wallpaperIndex = wallpaper.appending(path: "Store/Index.plist")
