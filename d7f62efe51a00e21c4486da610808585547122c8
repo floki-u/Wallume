@@ -1,0 +1,54 @@
+Tests/WallumeCoreTests/Fixtures/.gitkeep
+  10467d98e5a101e0 1
+Sources/WallumeCore/BuildInfo.swift
+  10467d98e5a101e0 1-5
+Tests/WallumeCoreTests/BuildInfoTests.swift
+  10467d98e5a101e0 1-9
+Package.swift
+  10467d98e5a101e0 1-20
+Sources/WallumeRestore/main.swift
+  10467d98e5a101e0 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "d7f62efe51a00e21c4486da610808585547122c8",
+  "prompts": {
+    "10467d98e5a101e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49d2-87e8-7a91-b618-53e1f293362d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 40,
+      "total_deletions": 1,
+      "accepted_lines": 39,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/Fixtures/.gitkeep": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        "Tests/WallumeCoreTests/BuildInfoTests.swift": {
+          "additions": 9,
+          "accepted_lines": 9
+        },
+        "Sources/WallumeRestore/main.swift": {
+          "additions": 4,
+          "accepted_lines": 4
+        },
+        "Package.swift": {
+          "additions": 20,
+          "accepted_lines": 20
+        },
+        "Sources/WallumeCore/BuildInfo.swift": {
+          "additions": 6,
+          "deletions": 1,
+          "accepted_lines": 5
+        }
+      }
+    }
+  }
+}
