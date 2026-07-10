@@ -76,6 +76,64 @@ final class WallpaperIndexPatcherTests: XCTestCase {
         XCTAssertEqual(result.data, externallyChanged)
     }
 
+    func testRestoreTreatsAMissingConfigurationAsAConflictWithoutChangingRoot() throws {
+        let original = try fixtureData("index-tahoe")
+        let patcher = WallpaperIndexPatcher()
+        let mutations = try patcher.plan(indexData: original, aerialID: "AERIAL-ONE")
+        let installed = try patcher.apply(mutations, to: original)
+        let configurationRemoved = try removingValue(at: mutations[0].path, in: installed)
+
+        let result = try patcher.restore(mutations, in: configurationRemoved)
+
+        XCTAssertEqual(result.conflicts, [mutations[0].path])
+        XCTAssertTrue(result.restoredPaths.isEmpty)
+        XCTAssertEqual(result.data, configurationRemoved)
+    }
+
+    func testRestoreTreatsAShortenedChoicesArrayAsAConflictWithoutOverwritingIt() throws {
+        let original = try fixtureData("index-tahoe")
+        let patcher = WallpaperIndexPatcher()
+        let mutations = try patcher.plan(indexData: original, aerialID: "AERIAL-ONE")
+        let installed = try patcher.apply(mutations, to: original)
+        let choiceIndex = try XCTUnwrap(
+            mutations[0].path.lastIndex(where: {
+                if case .index = $0 { return true }
+                return false
+            })
+        )
+        let choicesPath = Array(mutations[0].path[..<choiceIndex])
+        let choicesRemoved = try replacingValue([], at: choicesPath, in: installed)
+
+        let result = try patcher.restore(mutations, in: choicesRemoved)
+
+        XCTAssertEqual(result.conflicts, [mutations[0].path])
+        XCTAssertTrue(result.restoredPaths.isEmpty)
+        XCTAssertEqual(result.data, choicesRemoved)
+        XCTAssertTrue(try XCTUnwrap(value(at: choicesPath, in: result.data) as? [Any]).isEmpty)
+    }
+
+    func testRestoreContinuesAfterAnInvalidPathAndRestoresOtherMutations() throws {
+        let original = try indexDataWithTwoAerialChoices()
+        let patcher = WallpaperIndexPatcher()
+        let mutations = try patcher.plan(indexData: original, aerialID: "AERIAL-ONE")
+        XCTAssertEqual(mutations.count, 2)
+        let installed = try patcher.apply(mutations, to: original)
+        let firstConfigurationRemoved = try removingValue(at: mutations[0].path, in: installed)
+
+        let result = try patcher.restore(mutations, in: firstConfigurationRemoved)
+
+        XCTAssertEqual(result.conflicts, [mutations[0].path])
+        XCTAssertEqual(result.restoredPaths, [mutations[1].path])
+        let firstChoice = try XCTUnwrap(
+            value(at: Array(mutations[0].path.dropLast()), in: result.data) as? [String: Any]
+        )
+        XCTAssertNil(firstChoice["Configuration"])
+        XCTAssertEqual(
+            try value(at: mutations[1].path, in: result.data) as? Data,
+            try value(at: mutations[1].path, in: original) as? Data
+        )
+    }
+
     func testRestoreReinstatesOnlyMatchingAfterValues() throws {
         let original = try fixtureData("index-sonoma")
         let patcher = WallpaperIndexPatcher()
@@ -159,6 +217,58 @@ final class WallpaperIndexPatcherTests: XCTestCase {
         )
     }
 
+    private func replacingValue(
+        _ value: Any,
+        at path: [PlistPathComponent],
+        in data: Data
+    ) throws -> Data {
+        var root = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        try setValue(value, at: path[...], in: &root)
+        return try PropertyListSerialization.data(
+            fromPropertyList: root,
+            format: .binary,
+            options: 0
+        )
+    }
+
+    private func removingValue(at path: [PlistPathComponent], in data: Data) throws -> Data {
+        var root = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        try removeValue(at: path[...], in: &root)
+        return try PropertyListSerialization.data(
+            fromPropertyList: root,
+            format: .binary,
+            options: 0
+        )
+    }
+
+    private func indexDataWithTwoAerialChoices() throws -> Data {
+        let configuration = try PropertyListSerialization.data(
+            fromPropertyList: ["selectedID": "ORIGINAL", "showAsScreenSaver": false],
+            format: .binary,
+            options: 0
+        )
+        return try PropertyListSerialization.data(
+            fromPropertyList: [
+                "Idle": [
+                    "Content": [
+                        "Choices": [
+                            [
+                                "Provider": "com.apple.wallpaper.choice.aerials",
+                                "Configuration": configuration,
+                            ],
+                            [
+                                "Provider": "com.apple.wallpaper.choice.aerials",
+                                "Configuration": configuration,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            format: .binary,
+            options: 0
+        )
+    }
+
     private func value(at path: [PlistPathComponent], in data: Data) throws -> Any {
         var value = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
         for component in path {
@@ -193,6 +303,38 @@ final class WallpaperIndexPatcherTests: XCTestCase {
             var child = array[index]
             try setValue(value, at: path.dropFirst(), in: &child)
             array[index] = child
+            root = array
+        }
+    }
+
+    private func removeValue(
+        at path: ArraySlice<PlistPathComponent>,
+        in root: inout Any
+    ) throws {
+        guard let component = path.first else {
+            XCTFail("Cannot remove the plist root")
+            return
+        }
+        switch component {
+        case let .key(key):
+            var dictionary = try XCTUnwrap(root as? [String: Any])
+            if path.count == 1 {
+                dictionary.removeValue(forKey: key)
+            } else {
+                var child = try XCTUnwrap(dictionary[key])
+                try removeValue(at: path.dropFirst(), in: &child)
+                dictionary[key] = child
+            }
+            root = dictionary
+        case let .index(index):
+            var array = try XCTUnwrap(root as? [Any])
+            if path.count == 1 {
+                array.remove(at: index)
+            } else {
+                var child = array[index]
+                try removeValue(at: path.dropFirst(), in: &child)
+                array[index] = child
+            }
             root = array
         }
     }

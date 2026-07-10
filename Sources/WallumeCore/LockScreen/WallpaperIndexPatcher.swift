@@ -64,7 +64,13 @@ public struct WallpaperIndexPatcher: Sendable {
         var conflicts: [[PlistPathComponent]] = []
 
         for mutation in mutations {
-            let current = try value(at: mutation.path[...], in: root, fullPath: mutation.path)
+            let current: Any
+            do {
+                current = try value(at: mutation.path[...], in: root, fullPath: mutation.path)
+            } catch WallpaperIndexError.invalidPath(_) {
+                conflicts.append(mutation.path)
+                continue
+            }
             guard try fragment(for: current) == mutation.after else {
                 conflicts.append(mutation.path)
                 continue
