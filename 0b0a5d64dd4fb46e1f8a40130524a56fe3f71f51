@@ -1,0 +1,54 @@
+Sources/WallumeCore/LockScreen/WallpaperIndexPatcher.swift
+  10467d98e5a101e0 1-220
+Tests/WallumeCoreTests/WallpaperIndexPatcherTests.swift
+  10467d98e5a101e0 1-199
+Sources/WallumeCore/LockScreen/PlistMutation.swift
+  10467d98e5a101e0 1-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "0b0a5d64dd4fb46e1f8a40130524a56fe3f71f51",
+  "prompts": {
+    "10467d98e5a101e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49d2-87e8-7a91-b618-53e1f293362d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 578,
+      "total_deletions": 1,
+      "accepted_lines": 453,
+      "overriden_lines": 4,
+      "per_file_stats": {
+        "Sources/WallumeCore/LockScreen/WallpaperIndexPatcher.swift": {
+          "additions": 221,
+          "deletions": 1,
+          "accepted_lines": 220
+        },
+        "Tests/WallumeCoreTests/Fixtures/index-tahoe.plist": {
+          "additions": 38,
+          "overriden_lines": 1
+        },
+        "Tests/WallumeCoreTests/Fixtures/index-sequoia.plist": {
+          "additions": 43,
+          "overriden_lines": 2
+        },
+        "Tests/WallumeCoreTests/WallpaperIndexPatcherTests.swift": {
+          "additions": 199,
+          "accepted_lines": 199
+        },
+        "Sources/WallumeCore/LockScreen/PlistMutation.swift": {
+          "additions": 34,
+          "accepted_lines": 34
+        },
+        "Tests/WallumeCoreTests/Fixtures/index-sonoma.plist": {
+          "additions": 43,
+          "overriden_lines": 1
+        }
+      }
+    }
+  }
+}
