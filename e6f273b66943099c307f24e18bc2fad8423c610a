@@ -1,0 +1,44 @@
+Tests/WallumeCoreTests/AtomicIOTests.swift
+  10467d98e5a101e0 9-36,40,44,52,57,67-160
+docs/superpowers/plans/2026-07-10-wallume-lock-screen-safety-foundation.md
+  10467d98e5a101e0 303,318,326,331,343-344,351,355,370-384,395-404,410,415-428,430-471
+Sources/WallumeCore/IO/FileStore.swift
+  10467d98e5a101e0 1,16-17,20-31,50-64,68-69,79-87,89-94,96-103,105-113,116-138,141-142,144-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "e6f273b66943099c307f24e18bc2fad8423c610a",
+  "prompts": {
+    "10467d98e5a101e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49d2-87e8-7a91-b618-53e1f293362d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 327,
+      "total_deletions": 65,
+      "accepted_lines": 315,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/AtomicIOTests.swift": {
+          "additions": 135,
+          "deletions": 9,
+          "accepted_lines": 128
+        },
+        "Sources/WallumeCore/IO/FileStore.swift": {
+          "additions": 102,
+          "deletions": 30,
+          "accepted_lines": 97
+        },
+        "docs/superpowers/plans/2026-07-10-wallume-lock-screen-safety-foundation.md": {
+          "additions": 90,
+          "deletions": 26,
+          "accepted_lines": 90
+        }
+      }
+    }
+  }
+}
