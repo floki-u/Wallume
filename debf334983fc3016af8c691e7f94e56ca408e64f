@@ -4,7 +4,7 @@ docs/superpowers/specs/2026-07-10-wallume-design.md
 {
   "schema_version": "authorship/3.0.0",
   "git_ai_version": "1.2.8-ntes.9",
-  "base_commit_sha": "e9654d1f7c87519c678522407dfd56c40654d0a3",
+  "base_commit_sha": "debf334983fc3016af8c691e7f94e56ca408e64f",
   "prompts": {
     "10467d98e5a101e0": {
       "agent_id": {
