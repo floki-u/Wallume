@@ -1,0 +1,70 @@
+Tests/WallumeCoreTests/RecoveryCoordinatorTests.swift
+  10467d98e5a101e0 223-225,228,239-242,256-270,329-575,597-607,784-787,793,806-821,834-836,844-847,854-861,868,870-880
+Sources/WallumeCore/LockScreen/RecoveryCoordinator.swift
+  10467d98e5a101e0 39,87-88,97,101-109,111-121,124-134,138-142,145,150-156,158-163,186,189-191,207-222,227-228,231-234,237-259,268-269,275-280,284-297,310-337,340-361,408-412,416-417,420,423-434,439-487,490-494,497-519,538,540-549,551-557,559-567,587-693,696-699,727,735-738
+Tests/WallumeCoreTests/AtomicIOTests.swift
+  10467d98e5a101e0 70-86
+Sources/WallumeCore/IO/FileStore.swift
+  10467d98e5a101e0 14,16,58-65,74,115,120-121,128,145-149
+Sources/WallumeCore/LockScreen/TransactionModels.swift
+  10467d98e5a101e0 7,32
+.superpowers/sdd/task-7-report.md
+  10467d98e5a101e0 70-115
+Tests/WallumeCoreTests/LockScreenTransactionTests.swift
+  10467d98e5a101e0 329-331,338-339
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "d15afff8d136425ae2f9fc978443c324e053659a",
+  "prompts": {
+    "10467d98e5a101e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49d2-87e8-7a91-b618-53e1f293362d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 887,
+      "total_deletions": 108,
+      "accepted_lines": 855,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/IO/FileStore.swift": {
+          "additions": 24,
+          "deletions": 3,
+          "accepted_lines": 24
+        },
+        "Sources/WallumeCore/LockScreen/TransactionModels.swift": {
+          "additions": 2,
+          "deletions": 1,
+          "accepted_lines": 2
+        },
+        "Tests/WallumeCoreTests/RecoveryCoordinatorTests.swift": {
+          "additions": 342,
+          "deletions": 14,
+          "accepted_lines": 334
+        },
+        "Sources/WallumeCore/LockScreen/RecoveryCoordinator.swift": {
+          "additions": 445,
+          "deletions": 78,
+          "accepted_lines": 426
+        },
+        ".superpowers/sdd/task-7-report.md": {
+          "additions": 51,
+          "deletions": 12,
+          "accepted_lines": 46
+        },
+        "Tests/WallumeCoreTests/AtomicIOTests.swift": {
+          "additions": 17,
+          "accepted_lines": 17
+        },
+        "Tests/WallumeCoreTests/LockScreenTransactionTests.swift": {
+          "additions": 6,
+          "accepted_lines": 6
+        }
+      }
+    }
+  }
+}
