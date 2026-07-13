@@ -1,0 +1,48 @@
+Sources/WallumeCore/IO/Digester.swift
+  69e6a22be7a9e7eb 1-15
+Sources/WallumeCore/IO/AtomicJSONStore.swift
+  69e6a22be7a9e7eb 1-26
+Sources/WallumeCore/IO/FileStore.swift
+  69e6a22be7a9e7eb 1-76
+Tests/WallumeCoreTests/AtomicIOTests.swift
+  69e6a22be7a9e7eb 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "4e30715229bd7db3e8f6702b260af3bf3c90685b",
+  "prompts": {
+    "69e6a22be7a9e7eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5a95-e1d5-7121-a115-bb747ebf5ca0",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 150,
+      "total_deletions": 1,
+      "accepted_lines": 149,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/AtomicIOTests.swift": {
+          "additions": 32,
+          "accepted_lines": 32
+        },
+        "Sources/WallumeCore/IO/AtomicJSONStore.swift": {
+          "additions": 26,
+          "accepted_lines": 26
+        },
+        "Sources/WallumeCore/IO/Digester.swift": {
+          "additions": 15,
+          "accepted_lines": 15
+        },
+        "Sources/WallumeCore/IO/FileStore.swift": {
+          "additions": 77,
+          "deletions": 1,
+          "accepted_lines": 76
+        }
+      }
+    }
+  }
+}
