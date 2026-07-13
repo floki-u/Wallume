@@ -39,9 +39,15 @@ final class WallpaperIndexPatcherTests: XCTestCase {
         )
         let patcher = WallpaperIndexPatcher()
 
+        let binaryMutations = try patcher.plan(indexData: binary, aerialID: "AERIAL-ONE")
         let mutations = try patcher.plan(indexData: xml, aerialID: "AERIAL-ONE")
         let changed = try patcher.apply(mutations, to: xml)
 
+        XCTAssertEqual(mutations.map(\.choiceIdentity), binaryMutations.map(\.choiceIdentity))
+        XCTAssertEqual(
+            String(decoding: mutations[0].choiceIdentity.prefix(6), as: UTF8.self),
+            "bplist"
+        )
         XCTAssertEqual(String(decoding: mutations[0].before.prefix(6), as: UTF8.self), "bplist")
         XCTAssertEqual(String(decoding: mutations[0].after.prefix(6), as: UTF8.self), "bplist")
         XCTAssertEqual(String(decoding: changed.prefix(6), as: UTF8.self), "bplist")
@@ -113,7 +119,7 @@ final class WallpaperIndexPatcherTests: XCTestCase {
     }
 
     func testRestoreContinuesAfterAnInvalidPathAndRestoresOtherMutations() throws {
-        let original = try indexDataWithTwoAerialChoices()
+        let original = try indexDataWithTwoDistinctAerialChoices()
         let patcher = WallpaperIndexPatcher()
         let mutations = try patcher.plan(indexData: original, aerialID: "AERIAL-ONE")
         XCTAssertEqual(mutations.count, 2)
@@ -132,6 +138,43 @@ final class WallpaperIndexPatcherTests: XCTestCase {
             try value(at: mutations[1].path, in: result.data) as? Data,
             try value(at: mutations[1].path, in: original) as? Data
         )
+    }
+
+    func testRestoreTreatsReorderedAerialChoicesAsConflictsWithoutChangingThem() throws {
+        let original = try indexDataWithTwoDistinctAerialChoices()
+        let patcher = WallpaperIndexPatcher()
+        let mutations = try patcher.plan(indexData: original, aerialID: "AERIAL-ONE")
+        let installed = try patcher.apply(mutations, to: original)
+        let choicesPath = Array(mutations[0].path.dropLast(2))
+        let choices = try XCTUnwrap(value(at: choicesPath, in: installed) as? [Any])
+        let reordered = try replacingValue(
+            Array(choices.reversed()),
+            at: choicesPath,
+            in: installed
+        )
+
+        let result = try patcher.restore(mutations, in: reordered)
+
+        XCTAssertEqual(result.conflicts, mutations.map(\.path))
+        XCTAssertTrue(result.restoredPaths.isEmpty)
+        XCTAssertEqual(result.data, reordered)
+    }
+
+    func testApplyRejectsReorderedChoicesEvenWhenTheirConfigurationsMatch() throws {
+        let original = try indexDataWithDistinctAerialChoicesSharingConfiguration()
+        let patcher = WallpaperIndexPatcher()
+        let mutations = try patcher.plan(indexData: original, aerialID: "AERIAL-ONE")
+        let choicesPath = Array(mutations[0].path.dropLast(2))
+        let choices = try XCTUnwrap(value(at: choicesPath, in: original) as? [Any])
+        let reordered = try replacingValue(
+            Array(choices.reversed()),
+            at: choicesPath,
+            in: original
+        )
+
+        XCTAssertThrowsError(try patcher.apply(mutations, to: reordered)) {
+            XCTAssertEqual($0 as? WallpaperIndexError, .staleValue(mutations[0].path))
+        }
     }
 
     func testRestoreReinstatesOnlyMatchingAfterValues() throws {
@@ -181,6 +224,37 @@ final class WallpaperIndexPatcherTests: XCTestCase {
         ) {
             XCTAssertEqual($0 as? WallpaperIndexError, .noAerialIdleChoice)
         }
+    }
+
+    func testPlanRejectsIndistinguishableAerialChoicesInTheSameChoicesArray() throws {
+        let data = try indexDataWithTwoAerialChoices()
+        let choicesPath: [PlistPathComponent] = [
+            .key("Idle"),
+            .key("Content"),
+            .key("Choices"),
+        ]
+
+        XCTAssertThrowsError(
+            try WallpaperIndexPatcher().plan(indexData: data, aerialID: "AERIAL-ONE")
+        ) {
+            XCTAssertEqual(
+                $0 as? WallpaperIndexError,
+                .ambiguousChoiceIdentity(choicesPath)
+            )
+        }
+    }
+
+    func testMutationChoiceIdentitySurvivesCodableRoundTrip() throws {
+        let mutation = try XCTUnwrap(
+            WallpaperIndexPatcher()
+                .plan(indexData: fixtureData("index-sonoma"), aerialID: "AERIAL-ONE")
+                .first
+        )
+
+        let encoded = try PropertyListEncoder().encode(mutation)
+        let decoded = try PropertyListDecoder().decode(PlistMutation.self, from: encoded)
+
+        XCTAssertEqual(decoded, mutation)
     }
 
     private func fixtureData(_ name: String) throws -> Data {
@@ -242,6 +316,74 @@ final class WallpaperIndexPatcherTests: XCTestCase {
     }
 
     private func indexDataWithTwoAerialChoices() throws -> Data {
+        let firstConfiguration = try PropertyListSerialization.data(
+            fromPropertyList: ["selectedID": "ORIGINAL-FIRST", "showAsScreenSaver": false],
+            format: .binary,
+            options: 0
+        )
+        let secondConfiguration = try PropertyListSerialization.data(
+            fromPropertyList: ["selectedID": "ORIGINAL-SECOND", "showAsScreenSaver": false],
+            format: .binary,
+            options: 0
+        )
+        return try PropertyListSerialization.data(
+            fromPropertyList: [
+                "Idle": [
+                    "Content": [
+                        "Choices": [
+                            [
+                                "Provider": "com.apple.wallpaper.choice.aerials",
+                                "Configuration": firstConfiguration,
+                            ],
+                            [
+                                "Provider": "com.apple.wallpaper.choice.aerials",
+                                "Configuration": secondConfiguration,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            format: .binary,
+            options: 0
+        )
+    }
+
+    private func indexDataWithTwoDistinctAerialChoices() throws -> Data {
+        let firstConfiguration = try PropertyListSerialization.data(
+            fromPropertyList: ["selectedID": "ORIGINAL-FIRST", "showAsScreenSaver": false],
+            format: .binary,
+            options: 0
+        )
+        let secondConfiguration = try PropertyListSerialization.data(
+            fromPropertyList: ["selectedID": "ORIGINAL-SECOND", "showAsScreenSaver": false],
+            format: .binary,
+            options: 0
+        )
+        return try PropertyListSerialization.data(
+            fromPropertyList: [
+                "Idle": [
+                    "Content": [
+                        "Choices": [
+                            [
+                                "AssetID": "FIRST",
+                                "Provider": "com.apple.wallpaper.choice.aerials",
+                                "Configuration": firstConfiguration,
+                            ],
+                            [
+                                "AssetID": "SECOND",
+                                "Provider": "com.apple.wallpaper.choice.aerials",
+                                "Configuration": secondConfiguration,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            format: .binary,
+            options: 0
+        )
+    }
+
+    private func indexDataWithDistinctAerialChoicesSharingConfiguration() throws -> Data {
         let configuration = try PropertyListSerialization.data(
             fromPropertyList: ["selectedID": "ORIGINAL", "showAsScreenSaver": false],
             format: .binary,
@@ -253,10 +395,12 @@ final class WallpaperIndexPatcherTests: XCTestCase {
                     "Content": [
                         "Choices": [
                             [
+                                "AssetID": "FIRST",
                                 "Provider": "com.apple.wallpaper.choice.aerials",
                                 "Configuration": configuration,
                             ],
                             [
+                                "AssetID": "SECOND",
                                 "Provider": "com.apple.wallpaper.choice.aerials",
                                 "Configuration": configuration,
                             ],

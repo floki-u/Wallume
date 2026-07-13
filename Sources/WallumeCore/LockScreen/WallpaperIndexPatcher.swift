@@ -5,6 +5,7 @@ public enum WallpaperIndexError: Error, Equatable {
     case noAerialIdleChoice
     case staleValue([PlistPathComponent])
     case invalidPath([PlistPathComponent])
+    case ambiguousChoiceIdentity([PlistPathComponent])
 }
 
 public struct WallpaperIndexPatcher: Sendable {
@@ -34,12 +35,18 @@ public struct WallpaperIndexPatcher: Sendable {
         guard !mutations.isEmpty else {
             throw WallpaperIndexError.noAerialIdleChoice
         }
+        try validateUniqueChoiceIdentities(mutations)
         return mutations
     }
 
     public func apply(_ mutations: [PlistMutation], to indexData: Data) throws -> Data {
         var root = try decode(indexData)
         for mutation in mutations {
+            let choicePath = Array(mutation.path.dropLast())
+            let choice = try value(at: choicePath[...], in: root, fullPath: mutation.path)
+            guard try choiceIdentity(for: choice) == mutation.choiceIdentity else {
+                throw WallpaperIndexError.staleValue(mutation.path)
+            }
             let current = try value(at: mutation.path[...], in: root, fullPath: mutation.path)
             guard try fragment(for: current) == mutation.before else {
                 throw WallpaperIndexError.staleValue(mutation.path)
@@ -66,6 +73,12 @@ public struct WallpaperIndexPatcher: Sendable {
         for mutation in mutations {
             let current: Any
             do {
+                let choicePath = Array(mutation.path.dropLast())
+                let choice = try value(at: choicePath[...], in: root, fullPath: mutation.path)
+                guard try choiceIdentity(for: choice) == mutation.choiceIdentity else {
+                    conflicts.append(mutation.path)
+                    continue
+                }
                 current = try value(at: mutation.path[...], in: root, fullPath: mutation.path)
             } catch WallpaperIndexError.invalidPath(_) {
                 conflicts.append(mutation.path)
@@ -108,6 +121,7 @@ public struct WallpaperIndexPatcher: Sendable {
                 mutations.append(
                     PlistMutation(
                         path: configurationPath,
+                        choiceIdentity: try choiceIdentity(for: dictionary),
                         before: try fragment(for: configuration),
                         after: after
                     )
@@ -222,5 +236,53 @@ public struct WallpaperIndexPatcher: Sendable {
 
     private func encodeRoot(_ root: Any) throws -> Data {
         try fragment(for: root)
+    }
+
+    private func validateUniqueChoiceIdentities(_ mutations: [PlistMutation]) throws {
+        for index in mutations.indices {
+            guard mutations[index].path.count >= 2,
+                  case .index = mutations[index].path[mutations[index].path.count - 2] else {
+                continue
+            }
+            let choicesPath = Array(mutations[index].path.dropLast(2))
+            for earlierIndex in mutations.indices where earlierIndex < index {
+                guard mutations[earlierIndex].path.count >= 2,
+                      case .index = mutations[earlierIndex]
+                        .path[mutations[earlierIndex].path.count - 2] else {
+                    continue
+                }
+                let earlierChoicesPath = Array(mutations[earlierIndex].path.dropLast(2))
+                if earlierChoicesPath == choicesPath,
+                   mutations[earlierIndex].choiceIdentity == mutations[index].choiceIdentity {
+                    throw WallpaperIndexError.ambiguousChoiceIdentity(choicesPath)
+                }
+            }
+        }
+    }
+
+    private func choiceIdentity(for value: Any) throws -> Data {
+        guard var dictionary = value as? [String: Any] else {
+            throw WallpaperIndexError.invalidPropertyList
+        }
+        dictionary.removeValue(forKey: "Configuration")
+        return try fragment(for: canonicalIdentityValue(dictionary))
+    }
+
+    private func canonicalIdentityValue(_ value: Any) throws -> Any {
+        if let dictionary = value as? [String: Any] {
+            var result: [Any] = ["dictionary"]
+            for key in dictionary.keys.sorted() {
+                guard let child = dictionary[key] else { continue }
+                result.append([key, try canonicalIdentityValue(child)])
+            }
+            return result
+        }
+        if let array = value as? [Any] {
+            return try ["array"] + array.map(canonicalIdentityValue)
+        }
+        guard PropertyListSerialization.propertyList(value, isValidFor: .binary) else {
+            throw WallpaperIndexError.invalidPropertyList
+        }
+        return value
     }
 }

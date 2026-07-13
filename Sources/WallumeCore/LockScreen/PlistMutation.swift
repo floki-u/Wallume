@@ -7,11 +7,18 @@ public enum PlistPathComponent: Codable, Equatable, Sendable {
 
 public struct PlistMutation: Codable, Equatable, Sendable {
     public let path: [PlistPathComponent]
+    public let choiceIdentity: Data
     public let before: Data
     public let after: Data
 
-    public init(path: [PlistPathComponent], before: Data, after: Data) {
+    public init(
+        path: [PlistPathComponent],
+        choiceIdentity: Data,
+        before: Data,
+        after: Data
+    ) {
         self.path = path
+        self.choiceIdentity = choiceIdentity
         self.before = before
         self.after = after
     }
