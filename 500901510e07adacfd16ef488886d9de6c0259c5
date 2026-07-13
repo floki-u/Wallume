@@ -1,0 +1,70 @@
+Sources/WallumeCore/IO/FileStore.swift
+  10467d98e5a101e0 12,99-100,155-156
+Sources/WallumeCore/IO/PathSafetyValidator.swift
+  10467d98e5a101e0 1-29
+Sources/WallumeCore/LockScreen/RecoveryCoordinator.swift
+  10467d98e5a101e0 47,71-73,101-104,183,213-215,276,281,323-326,379-382,469,528-531,718-719,731,733,736,933,936-940,944,949-959,962-977,980
+Sources/WallumeCore/LockScreen/LockScreenTransaction.swift
+  10467d98e5a101e0 11,26,62,66-85,88,96,101-102,115,137,140,144,193-215
+.superpowers/sdd/task-7-report.md
+  10467d98e5a101e0 210-246
+Tests/WallumeCoreTests/RecoveryCoordinatorTests.swift
+  10467d98e5a101e0 6-114,375-393,1161-1165
+Tests/WallumeCoreTests/LockScreenTransactionTests.swift
+  10467d98e5a101e0 6-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "500901510e07adacfd16ef488886d9de6c0259c5",
+  "prompts": {
+    "10467d98e5a101e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49d2-87e8-7a91-b618-53e1f293362d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 429,
+      "total_deletions": 69,
+      "accepted_lines": 400,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/LockScreen/LockScreenTransaction.swift": {
+          "additions": 80,
+          "deletions": 42,
+          "accepted_lines": 56
+        },
+        "Sources/WallumeCore/IO/FileStore.swift": {
+          "additions": 5,
+          "deletions": 2,
+          "accepted_lines": 5
+        },
+        "Tests/WallumeCoreTests/LockScreenTransactionTests.swift": {
+          "additions": 72,
+          "deletions": 1,
+          "accepted_lines": 71
+        },
+        "Sources/WallumeCore/LockScreen/RecoveryCoordinator.swift": {
+          "additions": 69,
+          "deletions": 22,
+          "accepted_lines": 67
+        },
+        "Sources/WallumeCore/IO/PathSafetyValidator.swift": {
+          "additions": 29,
+          "accepted_lines": 29
+        },
+        "Tests/WallumeCoreTests/RecoveryCoordinatorTests.swift": {
+          "additions": 137,
+          "deletions": 2,
+          "accepted_lines": 135
+        },
+        ".superpowers/sdd/task-7-report.md": {
+          "additions": 37,
+          "accepted_lines": 37
+        }
+      }
+    }
+  }
+}
