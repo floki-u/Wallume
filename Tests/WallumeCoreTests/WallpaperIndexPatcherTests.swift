@@ -220,6 +220,18 @@ final class WallpaperIndexPatcherTests: XCTestCase {
         )
     }
 
+    func testRestoreTreatsMatchingBeforeValueAsAlreadyRestored() throws {
+        let original = try fixtureData("index-tahoe")
+        let patcher = WallpaperIndexPatcher()
+        let mutations = try patcher.plan(indexData: original, aerialID: "AERIAL-ONE")
+
+        let result = try patcher.restore(mutations, in: original)
+
+        XCTAssertTrue(result.restoredPaths.isEmpty)
+        XCTAssertTrue(result.conflicts.isEmpty)
+        XCTAssertEqual(result.data, original)
+    }
+
     func testPlanRejectsAPlistWithoutAnAerialIdleChoice() throws {
         let data = try PropertyListSerialization.data(
             fromPropertyList: ["Idle": ["Provider": "com.apple.wallpaper.choice.photos"]],

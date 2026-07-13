@@ -87,7 +87,11 @@ public struct WallpaperIndexPatcher: Sendable {
                 conflicts.append(mutation.path)
                 continue
             }
-            guard try fragment(for: current) == mutation.after else {
+            let currentFragment = try fragment(for: current)
+            if currentFragment == mutation.before {
+                continue
+            }
+            guard currentFragment == mutation.after else {
                 conflicts.append(mutation.path)
                 continue
             }
