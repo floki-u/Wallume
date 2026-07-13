@@ -8,6 +8,7 @@ public enum LockScreenTransactionError: Error, Equatable {
     case indexVerificationFailed
     case targetChanged(URL)
     case guardedReplacementRecoveryFailed(URL)
+    case unsafePath(URL)
 }
 
 public struct LockScreenTransaction: Sendable {
@@ -22,6 +23,7 @@ public struct LockScreenTransaction: Sendable {
     private let now: @Sendable () -> Date
     private let makeID: @Sendable () -> UUID
     private let advisoryLock: any AdvisoryLocking
+    private var pathSafety: PathSafetyValidator { PathSafetyValidator(files: files) }
 
     public init(
         paths: AerialPaths,
@@ -57,36 +59,47 @@ public struct LockScreenTransaction: Sendable {
             throw LockScreenTransactionError.unsupportedOS(request.systemVersion.majorVersion)
         }
 
+        try validateStaticPaths(for: request)
         let lockToken = try advisoryLock.acquire()
         defer { withExtendedLifetime(lockToken) {} }
 
-        let slot = try discovery.selectSlot(id: request.aerialID, paths: paths)
+        try validateStaticPaths(for: request)
+
+        let id = makeID()
+        let slotVideo = paths.videosDirectory.appending(path: "\(request.aerialID).mov")
+        let primaryBackup = slotVideo.deletingLastPathComponent().appending(
+            path: slotVideo.lastPathComponent + WallumeBuildInfo.backupMarker
+        )
+        let recoveryBackup = paths.systemBackupsDirectory
+            .appending(path: "\(id.uuidString)-\(slotVideo.lastPathComponent).original")
+        let posterBackupPath = paths.systemBackupsDirectory
+            .appending(path: "\(id.uuidString)-lockscreen.png.original")
+        let journalURL = paths.transactionsDirectory.appending(path: "\(id.uuidString).json")
+        for url in [primaryBackup, recoveryBackup, posterBackupPath, journalURL,
+                    siblingPreparation(of: slotVideo, id: id),
+                    siblingPreparation(of: paths.wallpaperIndex, id: id),
+                    siblingPreparation(of: paths.lockScreenPoster, id: id)] {
+            try requireSafe(url, as: .regularFileIfPresent)
+        }
+
+        _ = try discovery.selectSlot(id: request.aerialID, paths: paths)
         try requireInput(request.optimizedVideo)
         try requireInput(request.poster)
-        let originalVideoHash = try digester.sha256(of: slot.videoURL)
+        let originalVideoHash = try digester.sha256(of: slotVideo)
         let installedVideoHash = try digester.sha256(of: request.optimizedVideo)
         let installedPosterHash = try digester.sha256(of: request.poster)
         let originalIndex = try files.read(paths.wallpaperIndex)
         let mutations = try patcher.plan(indexData: originalIndex, aerialID: request.aerialID)
 
-        let id = makeID()
-        let primaryBackup = slot.videoURL.deletingLastPathComponent().appending(
-            path: slot.videoURL.lastPathComponent + WallumeBuildInfo.backupMarker
-        )
-        let recoveryBackup = paths.systemBackupsDirectory
-            .appending(path: "\(id.uuidString)-\(slot.videoURL.lastPathComponent).original")
         let posterExists = files.exists(paths.lockScreenPoster)
         let originalPosterHash = posterExists ? try digester.sha256(of: paths.lockScreenPoster) : nil
-        let posterBackup = posterExists
-            ? paths.systemBackupsDirectory.appending(path: "\(id.uuidString)-lockscreen.png.original")
-            : nil
-        let journalURL = paths.transactionsDirectory.appending(path: "\(id.uuidString).json")
+        let posterBackup = posterExists ? posterBackupPath : nil
 
         try files.createDirectory(paths.systemBackupsDirectory)
         try files.createDirectory(paths.transactionsDirectory)
         try files.createDirectory(paths.lockScreenPoster.deletingLastPathComponent())
-        try verifiedBackup(slot.videoURL, to: primaryBackup, expectedHash: originalVideoHash)
-        try verifiedBackup(slot.videoURL, to: recoveryBackup, expectedHash: originalVideoHash)
+        try verifiedBackup(slotVideo, to: primaryBackup, expectedHash: originalVideoHash)
+        try verifiedBackup(slotVideo, to: recoveryBackup, expectedHash: originalVideoHash)
         if let posterBackup, let originalPosterHash {
             try verifiedBackup(paths.lockScreenPoster, to: posterBackup, expectedHash: originalPosterHash)
         }
@@ -99,7 +112,7 @@ public struct LockScreenTransaction: Sendable {
             osMajorVersion: request.systemVersion.majorVersion,
             aerialID: request.aerialID,
             video: FileReplacementRecord(
-                target: slot.videoURL,
+                target: slotVideo,
                 originalHash: originalVideoHash,
                 installedHash: installedVideoHash,
                 originalBackup: primaryBackup
@@ -121,14 +134,14 @@ public struct LockScreenTransaction: Sendable {
         manifest.phase = .writing
         try journals.write(manifest, to: journalURL)
 
-        let preparedVideo = siblingPreparation(of: slot.videoURL, id: id)
+        let preparedVideo = siblingPreparation(of: slotVideo, id: id)
         try files.copy(request.optimizedVideo, to: preparedVideo)
         try guardedExchange(
-            slot.videoURL,
+            slotVideo,
             with: preparedVideo,
             expectedOriginalHash: originalVideoHash
         )
-        try verify(slot.videoURL, expectedHash: installedVideoHash)
+        try verify(slotVideo, expectedHash: installedVideoHash)
         try files.remove(preparedVideo)
         try faults.hit(.afterVideoReplacement)
 
@@ -175,6 +188,31 @@ public struct LockScreenTransaction: Sendable {
 
     private func requireInput(_ url: URL) throws {
         guard files.exists(url) else { throw LockScreenTransactionError.missingInput(url) }
+    }
+
+    private func requireSafe(_ url: URL, as requirement: PathRequirement) throws {
+        guard try pathSafety.accepts(url, as: requirement) else {
+            throw LockScreenTransactionError.unsafePath(url)
+        }
+    }
+
+    private func validateStaticPaths(for request: LockScreenTransactionRequest) throws {
+        let expectedSlot = paths.videosDirectory.appending(path: "\(request.aerialID).mov")
+        let expectedPrimary = expectedSlot.deletingLastPathComponent().appending(
+            path: expectedSlot.lastPathComponent + WallumeBuildInfo.backupMarker
+        )
+        try requireSafe(paths.videosDirectory, as: .existingDirectory)
+        try requireSafe(paths.manifest, as: .existingRegularFile)
+        try requireSafe(paths.wallpaperIndex, as: .existingRegularFile)
+        try requireSafe(paths.lockScreenPoster.deletingLastPathComponent(), as: .existingDirectory)
+        try requireSafe(paths.lockScreenPoster, as: .regularFileIfPresent)
+        try requireSafe(paths.applicationSupport, as: .directoryIfPresent)
+        try requireSafe(paths.transactionsDirectory, as: .directoryIfPresent)
+        try requireSafe(paths.systemBackupsDirectory, as: .directoryIfPresent)
+        try requireSafe(expectedSlot, as: .existingRegularFile)
+        try requireSafe(expectedPrimary, as: .regularFileIfPresent)
+        try requireSafe(request.optimizedVideo, as: .existingRegularFile)
+        try requireSafe(request.poster, as: .existingRegularFile)
     }
 
     private func verifiedBackup(_ source: URL, to destination: URL, expectedHash: String) throws {

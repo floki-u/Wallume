@@ -9,6 +9,7 @@ public struct FileIdentity: Equatable, Sendable {
     public let device: UInt64
     public let inode: UInt64
     public let isDirectory: Bool
+    public let isRegularFile: Bool
 }
 
 public protocol FileStore: Sendable {
@@ -95,7 +96,8 @@ public struct LocalFileStore: FileStore {
         return FileIdentity(
             device: UInt64(info.st_dev),
             inode: UInt64(info.st_ino),
-            isDirectory: (info.st_mode & S_IFMT) == S_IFDIR
+            isDirectory: (info.st_mode & S_IFMT) == S_IFDIR,
+            isRegularFile: (info.st_mode & S_IFMT) == S_IFREG
         )
     }
 
@@ -150,7 +152,8 @@ public struct LocalFileStore: FileStore {
         let observed = FileIdentity(
             device: UInt64(info.st_dev),
             inode: UInt64(info.st_ino),
-            isDirectory: (info.st_mode & S_IFMT) == S_IFDIR
+            isDirectory: (info.st_mode & S_IFMT) == S_IFDIR,
+            isRegularFile: (info.st_mode & S_IFMT) == S_IFREG
         )
         guard observed == identity else { return false }
         let flags = identity.isDirectory ? AT_REMOVEDIR : 0

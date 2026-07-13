@@ -3,6 +3,115 @@ import XCTest
 @testable import WallumeCore
 
 final class RecoveryCoordinatorTests: XCTestCase {
+    func testRestoreRejectsSymlinkJournalBeforeReadingItsExternalManifest() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let external = fixture.root.appending(path: "external-journal.json")
+        try fixture.files.copy(fixture.journalURL, to: external)
+        try fixture.files.remove(fixture.journalURL)
+        try FileManager.default.createSymbolicLink(at: fixture.journalURL, withDestinationURL: external)
+        let installed = try fixture.files.read(fixture.manifest.video.target)
+
+        XCTAssertThrowsError(try fixture.recovery.restore(id: fixture.manifest.id)) {
+            XCTAssertEqual($0 as? RecoveryCoordinatorError, .invalidJournalFile(fixture.journalURL))
+        }
+        XCTAssertEqual(try fixture.files.read(fixture.manifest.video.target), installed)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: external.path))
+    }
+
+    func testInspectFailsClosedForSymlinkJournal() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let external = fixture.root.appending(path: "inspect-external-journal.json")
+        try fixture.files.copy(fixture.journalURL, to: external)
+        try fixture.files.remove(fixture.journalURL)
+        try FileManager.default.createSymbolicLink(at: fixture.journalURL, withDestinationURL: external)
+
+        XCTAssertThrowsError(try fixture.recovery.inspect()) {
+            guard case let .invalidJournalFile(url) = $0 as? RecoveryCoordinatorError else {
+                return XCTFail("unexpected error: \($0)")
+            }
+            XCTAssertEqual(url.lastPathComponent, fixture.journalURL.lastPathComponent)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: external.path))
+    }
+
+    func testRestoreRejectsSymlinkedTransactionsDirectory() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let directory = fixture.paths.transactionsDirectory
+        let sentinel = fixture.root.appending(path: "external-transactions")
+        try FileManager.default.moveItem(at: directory, to: sentinel)
+        try FileManager.default.createSymbolicLink(at: directory, withDestinationURL: sentinel)
+        let installed = try fixture.files.read(fixture.manifest.video.target)
+
+        XCTAssertThrowsError(try fixture.recovery.restore(id: fixture.manifest.id)) {
+            XCTAssertEqual($0 as? RecoveryCoordinatorError, .invalidJournalFile(fixture.journalURL))
+        }
+        XCTAssertEqual(try fixture.files.read(fixture.manifest.video.target), installed)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel.path))
+    }
+
+    func testVideoRestoreSymlinkIsConflictAndNeverInstalled() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let artifact = fixture.artifact(for: fixture.manifest.video.target, role: "restore")
+        try FileManager.default.createSymbolicLink(
+            at: artifact,
+            withDestinationURL: fixture.manifest.primaryBackup
+        )
+        let backupBefore = try fixture.files.read(fixture.manifest.primaryBackup)
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.video.target))
+        XCTAssertEqual(
+            try fixture.digest.sha256(of: fixture.manifest.video.target),
+            fixture.manifest.video.installedHash
+        )
+        XCTAssertEqual(try fixture.files.read(fixture.manifest.primaryBackup), backupBefore)
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+    }
+
+    func testIndexRestoreSymlinkIsConflictAndReferentIsUntouched() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let installed = try fixture.files.read(fixture.manifest.indexURL)
+        let restored = try WallpaperIndexPatcher().restore(
+            fixture.manifest.indexMutations,
+            in: installed
+        ).data
+        let sentinel = fixture.root.appending(path: "external-index-stage")
+        try fixture.files.writeAtomically(restored, to: sentinel)
+        let artifact = fixture.artifact(for: fixture.manifest.indexURL, role: "restore")
+        try FileManager.default.createSymbolicLink(at: artifact, withDestinationURL: sentinel)
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.indexURL))
+        XCTAssertEqual(try fixture.files.read(fixture.manifest.indexURL), installed)
+        XCTAssertEqual(try fixture.files.read(sentinel), restored)
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+    }
+
+    func testPosterRestoreSymlinkIsConflictAndBackupReferentIsUntouched() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let posterBackup = try XCTUnwrap(fixture.manifest.poster.originalBackup)
+        let backupBefore = try fixture.files.read(posterBackup)
+        let artifact = fixture.artifact(for: fixture.manifest.poster.target, role: "restore")
+        try fixture.files.createSymbolicLink(at: artifact, withDestinationURL: posterBackup)
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.poster.target))
+        XCTAssertEqual(
+            try fixture.digest.sha256(of: fixture.manifest.poster.target),
+            fixture.manifest.poster.installedHash
+        )
+        XCTAssertEqual(try fixture.files.read(posterBackup), backupBefore)
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+    }
     func testRejectsManifestPointingAtUntrustedTargetBeforeMutation() throws {
         let fixture = try RecoveryFixture.installed()
         defer { fixture.remove() }
@@ -260,6 +369,25 @@ final class RecoveryCoordinatorTests: XCTestCase {
         XCTAssertTrue(report.conflicts.contains(capture))
         XCTAssertTrue(report.retainedBackups.contains(capture))
         XCTAssertEqual(try fixture.files.read(capture), Data("unowned".utf8))
+        XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
+    }
+
+    func testAmbiguousFirstBackupPreventsDeletionOfEntireBackupGroup() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let backup = fixture.manifest.primaryBackup
+        let directory = backup.deletingLastPathComponent().appending(
+            path: ".wallume-cleanup-\(fixture.manifest.id.uuidString)"
+        )
+        let capture = directory.appending(path: backup.lastPathComponent)
+        try fixture.files.createPrivateDirectory(directory)
+        try fixture.files.copy(backup, to: capture)
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.video.target))
+        XCTAssertTrue(fixture.files.exists(capture))
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
         XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
     }
 
@@ -1028,6 +1156,13 @@ private final class RecoveryTestFileStore: FileStore, @unchecked Sendable {
         guard url.path.hasPrefix("/Library/") else { return url }
         return root.appending(path: "Synthetic-System-Library")
             .appending(path: String(url.path.dropFirst("/Library/".count)))
+    }
+
+    func createSymbolicLink(at url: URL, withDestinationURL destination: URL) throws {
+        try FileManager.default.createSymbolicLink(
+            at: mapped(url),
+            withDestinationURL: mapped(destination)
+        )
     }
 
     func exists(_ url: URL) -> Bool { local.exists(mapped(url)) }

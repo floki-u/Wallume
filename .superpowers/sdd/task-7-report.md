@@ -207,3 +207,40 @@ precisely replace a private-directory entry in the final syscall window.
 - Regression coverage includes directory-symlink sentinel rejection, two-install lock
   ordering and primary-backup preservation, owned/unowned backup captures, empty/unknown
   cleanup directories, and no-follow guarded deletion through a symlinked parent.
+
+## Third Safety Review Follow-up
+
+- Added a shared `PathSafetyValidator` used by install and recovery. It combines
+  component-by-component no-follow traversal with explicit existing/maybe-missing
+  regular-file and directory requirements.
+- Every deterministic restore/quarantine/index/cleanup artifact is validated before any
+  read, hash, exchange, exclusive install, or reconciliation. Symlink artifacts remain
+  untouched, never enter system targets, and retain the whole backup set.
+- Transaction preflight runs once before lock-file creation for zero-mutation rejection,
+  then again while holding the flock. Transaction-id-derived backup, journal, and stage
+  paths are validated before discovery, hashing, index reads, planning, or directory writes.
+- Backup cleanup now validates the complete unique group before durable authorization.
+  Source-only, owned-capture-only, and previously-authorized-complete are the only accepted
+  states; source-plus-capture, non-regular entries, bad hashes, and unknown cleanup entries
+  block deletion of every backup.
+- Restore and inspect validate the transactions directory and journal as no-follow regular
+  files before decoding. External manifests reached through journal or parent symlinks
+  cannot drive recovery or receive a writeback.
+
+### Third Review RED
+
+1. A journal symlink drove a full restore from an external valid manifest.
+2. Video `.restore` symlinks could be atomically exchanged into the target and remove the
+   primary backup referent; index and poster deterministic stages had the same trust gap.
+3. Install had no explicit unsafe-path preflight for symlinked videos, Store, or backup
+   directories.
+4. A source-plus-capture ambiguity on the first backup allowed later backups in the group
+   to be deleted before the conflict was finalized.
+
+### Third Review GREEN
+
+- Focused recovery/atomic-I/O/transaction/patcher suite: 99 tests, 0 failures.
+- Full package suite: 106 tests, 0 failures.
+- `git diff --check`: clean.
+- Covers video/index/poster stage symlinks, journal and transactions-parent symlinks,
+  install sentinel trees, and all-or-nothing backup-group rejection.

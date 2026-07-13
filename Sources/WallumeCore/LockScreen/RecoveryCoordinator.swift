@@ -44,6 +44,7 @@ public struct RecoveryCoordinator: Sendable {
     private let patcher: WallpaperIndexPatcher
     private let refresher: any WallpaperRefreshing
     private let advisoryLock: any AdvisoryLocking
+    private var pathSafety: PathSafetyValidator { PathSafetyValidator(files: files) }
 
     public init(
         paths: AerialPaths,
@@ -67,6 +68,9 @@ public struct RecoveryCoordinator: Sendable {
 
     public func inspect() throws -> [RecoveryCandidate] {
         guard files.exists(paths.transactionsDirectory) else { return [] }
+        guard try pathSafety.accepts(paths.transactionsDirectory, as: .existingDirectory) else {
+            throw RecoveryCoordinatorError.invalidJournalFile(paths.transactionsDirectory)
+        }
         var candidates: [RecoveryCandidate] = []
         for journalURL in try files.contents(paths.transactionsDirectory)
             .sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
@@ -94,6 +98,10 @@ public struct RecoveryCoordinator: Sendable {
         let lockToken = try advisoryLock.acquire()
         defer { withExtendedLifetime(lockToken) {} }
         let journalURL = paths.transactionsDirectory.appending(path: "\(id.uuidString).json")
+        guard try pathSafety.accepts(paths.transactionsDirectory, as: .existingDirectory),
+              try pathSafety.accepts(journalURL, as: .regularFileIfPresent) else {
+            throw RecoveryCoordinatorError.invalidJournalFile(journalURL)
+        }
         guard files.exists(journalURL) else {
             throw RecoveryCoordinatorError.transactionNotFound(id)
         }
@@ -172,7 +180,7 @@ public struct RecoveryCoordinator: Sendable {
         if !videoOriginalVerified { conflicts.append(manifest.video.target) }
         if !posterOriginalVerified { conflicts.append(manifest.poster.target) }
         if !indexOriginalVerified { conflicts.append(manifest.indexURL) }
-        conflicts.append(contentsOf: try changedBackups(in: manifest))
+        conflicts.append(contentsOf: try invalidBackupGroup(in: manifest))
         conflicts = unique(conflicts)
         let originalsVerified = videoOriginalVerified && posterOriginalVerified && indexOriginalVerified
         if conflicts.isEmpty && originalsVerified {
@@ -202,6 +210,9 @@ public struct RecoveryCoordinator: Sendable {
     }
 
     private func readManifest(from journalURL: URL) throws -> LockScreenTransactionManifest {
+        guard try pathSafety.accepts(journalURL, as: .existingRegularFile) else {
+            throw RecoveryCoordinatorError.invalidJournalFile(journalURL)
+        }
         let manifest: LockScreenTransactionManifest
         do {
             manifest = try journals.read(LockScreenTransactionManifest.self, from: journalURL)
@@ -262,12 +273,12 @@ public struct RecoveryCoordinator: Sendable {
             manifest.primaryBackup, manifest.recoveryBackup,
             manifest.video.originalBackup, manifest.poster.originalBackup,
         ].compactMap { $0 }
-        for url in trustedURLs where try !files.hasNoSymlinkComponents(url) {
+        for url in trustedURLs where try !pathSafety.accepts(url, as: .regularFileIfPresent) {
             return false
         }
         for url in trustedURLs {
             let cleanup = cleanupDirectory(for: url, id: manifest.id)
-            if try !files.hasNoSymlinkComponents(cleanup) { return false }
+            if try !pathSafety.accepts(cleanup, as: .directoryIfPresent) { return false }
         }
         return true
     }
@@ -309,6 +320,10 @@ public struct RecoveryCoordinator: Sendable {
         if let originalHash = record.originalHash {
             let prepared = sibling(of: record.target, id: id, role: "restore")
             let unexpectedQuarantine = sibling(of: record.target, id: id, role: "quarantine")
+            guard try pathSafety.accepts(prepared, as: .regularFileIfPresent),
+                  try pathSafety.accepts(unexpectedQuarantine, as: .regularFileIfPresent) else {
+                return .conflict
+            }
             if files.exists(unexpectedQuarantine) { return .conflict }
             guard try reconcileCleanupCapture(for: prepared, id: id) else { return .conflict }
             guard files.exists(record.target) else { return .conflict }
@@ -361,6 +376,10 @@ public struct RecoveryCoordinator: Sendable {
 
         let quarantine = sibling(of: record.target, id: id, role: "quarantine")
         let unexpectedPrepared = sibling(of: record.target, id: id, role: "restore")
+        guard try pathSafety.accepts(quarantine, as: .regularFileIfPresent),
+              try pathSafety.accepts(unexpectedPrepared, as: .regularFileIfPresent) else {
+            return .conflict
+        }
         if files.exists(unexpectedPrepared) { return .conflict }
         guard try reconcileCleanupCapture(for: quarantine, id: id) else { return .conflict }
         if files.exists(quarantine) {
@@ -447,6 +466,7 @@ public struct RecoveryCoordinator: Sendable {
     ) throws -> URL? {
         for candidate in unique([primary, fallback].compactMap { $0 }) {
             guard files.exists(candidate) else { continue }
+            guard try pathSafety.accepts(candidate, as: .existingRegularFile) else { continue }
             if try digester.sha256(of: candidate) == expectedHash { return candidate }
         }
         return nil
@@ -505,6 +525,10 @@ public struct RecoveryCoordinator: Sendable {
             id: id,
             role: "quarantine"
         )
+        guard try pathSafety.accepts(prepared, as: .regularFileIfPresent),
+              try pathSafety.accepts(unexpectedQuarantine, as: .regularFileIfPresent) else {
+            return IndexRestoreResult(changed: false, conflicted: true, cleanupArtifact: nil)
+        }
         if files.exists(unexpectedQuarantine) {
             return IndexRestoreResult(changed: false, conflicted: true, cleanupArtifact: nil)
         }
@@ -691,6 +715,8 @@ public struct RecoveryCoordinator: Sendable {
 
     private func reconcileCleanupCapture(for artifact: URL, id: UUID) throws -> Bool {
         let capture = cleanupCapture(for: artifact, id: id)
+        guard try pathSafety.accepts(artifact, as: .regularFileIfPresent),
+              try pathSafety.accepts(capture, as: .regularFileIfPresent) else { return false }
         guard files.exists(capture) else { return true }
         guard !files.exists(artifact) else { return false }
         do {
@@ -702,10 +728,12 @@ public struct RecoveryCoordinator: Sendable {
     }
 
     private func cleanup(_ artifact: ArtifactCleanup, id: UUID) throws -> Bool {
-        guard files.exists(artifact.url) else { return false }
+        guard try pathSafety.accepts(artifact.url, as: .existingRegularFile) else { return false }
         let directory = cleanupDirectory(for: artifact.url, id: id)
+        guard try pathSafety.accepts(directory, as: .directoryIfPresent) else { return false }
         try files.createPrivateDirectory(directory)
         let capture = cleanupCapture(for: artifact.url, id: id)
+        guard try pathSafety.accepts(capture, as: .regularFileIfPresent) else { return false }
         guard !files.exists(capture) else { return false }
         do {
             try files.installExclusively(capture, from: artifact.url)
@@ -902,35 +930,54 @@ public struct RecoveryCoordinator: Sendable {
         return conflicts
     }
 
-    private func changedBackups(
+    private func invalidBackupGroup(
         in manifest: LockScreenTransactionManifest
     ) throws -> [URL] {
-        var expected: [URL: String] = [:]
+        struct ExpectedBackup {
+            let hash: String
+            let owner: URL
+        }
+        var expected: [URL: ExpectedBackup] = [:]
         if let videoHash = manifest.video.originalHash {
             for url in [manifest.video.originalBackup, manifest.primaryBackup,
                         manifest.recoveryBackup].compactMap({ $0 }) {
-                expected[url] = videoHash
+                expected[url] = ExpectedBackup(hash: videoHash, owner: manifest.video.target)
             }
         }
         if let posterHash = manifest.poster.originalHash,
            let posterBackup = manifest.poster.originalBackup {
-            expected[posterBackup] = posterHash
+            expected[posterBackup] = ExpectedBackup(
+                hash: posterHash,
+                owner: manifest.poster.target
+            )
         }
-        var changed: [URL] = []
-        for (url, hash) in expected {
-            if !files.exists(url), manifest.backupCleanupAuthorized == true {
-                let capture = cleanupCapture(for: url, id: manifest.id)
-                if files.exists(capture), try digester.sha256(of: capture) != hash {
-                    changed.append(capture)
+        var conflicts: [URL] = []
+        for (url, expectation) in expected {
+            let capture = cleanupCapture(for: url, id: manifest.id)
+            guard try pathSafety.accepts(url, as: .regularFileIfPresent),
+                  try pathSafety.accepts(capture, as: .regularFileIfPresent) else {
+                conflicts.append(expectation.owner)
+                continue
+            }
+            let sourceExists = files.exists(url)
+            let captureExists = files.exists(capture)
+            if sourceExists && captureExists {
+                conflicts.append(expectation.owner)
+            } else if sourceExists {
+                if try digester.sha256(of: url) != expectation.hash {
+                    conflicts.append(expectation.owner)
+                    conflicts.append(url)
                 }
-                continue
-            }
-            guard files.exists(url), try digester.sha256(of: url) == hash else {
-                changed.append(url)
-                continue
+            } else if captureExists {
+                if try digester.sha256(of: capture) != expectation.hash {
+                    conflicts.append(expectation.owner)
+                    conflicts.append(capture)
+                }
+            } else if manifest.backupCleanupAuthorized != true {
+                conflicts.append(expectation.owner)
             }
         }
-        return changed
+        return unique(conflicts)
     }
 
     private func finishCapturedCleanup(

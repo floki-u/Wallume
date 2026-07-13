@@ -3,6 +3,77 @@ import XCTest
 @testable import WallumeCore
 
 final class LockScreenTransactionTests: XCTestCase {
+    func testInstallRejectsSymlinkedVideosDirectoryWithoutMutatingSentinel() throws {
+        let fixture = try TransactionFixture.make()
+        defer { fixture.remove() }
+        let sentinel = fixture.root.appending(path: "sentinel-install-videos")
+        try FileManager.default.moveItem(at: fixture.paths.videosDirectory, to: sentinel)
+        try FileManager.default.createSymbolicLink(
+            at: fixture.paths.videosDirectory,
+            withDestinationURL: sentinel
+        )
+        let sentinelVideo = sentinel.appending(path: fixture.slotVideo.lastPathComponent)
+        let before = try Data(contentsOf: sentinelVideo)
+
+        XCTAssertThrowsError(try fixture.transaction.install(fixture.request)) {
+            XCTAssertEqual($0 as? LockScreenTransactionError, .unsafePath(fixture.paths.videosDirectory))
+        }
+        XCTAssertEqual(try Data(contentsOf: sentinelVideo), before)
+        XCTAssertFalse(fixture.files.exists(fixture.paths.transactionsDirectory))
+        XCTAssertFalse(
+            fixture.files.exists(fixture.paths.applicationSupport.appending(path: ".wallume.lock"))
+        )
+        XCTAssertFalse(
+            fixture.files.exists(
+                sentinel.appending(path: fixture.slotVideo.lastPathComponent + WallumeBuildInfo.backupMarker)
+            )
+        )
+    }
+
+    func testInstallRejectsSymlinkedStoreWithoutReadingOrWritingSentinel() throws {
+        let fixture = try TransactionFixture.make()
+        defer { fixture.remove() }
+        let store = fixture.paths.wallpaperIndex.deletingLastPathComponent()
+        let sentinel = fixture.root.appending(path: "sentinel-store")
+        try FileManager.default.moveItem(at: store, to: sentinel)
+        try FileManager.default.createSymbolicLink(at: store, withDestinationURL: sentinel)
+        let sentinelIndex = sentinel.appending(path: "Index.plist")
+        let before = try Data(contentsOf: sentinelIndex)
+
+        XCTAssertThrowsError(try fixture.transaction.install(fixture.request)) {
+            XCTAssertEqual($0 as? LockScreenTransactionError, .unsafePath(fixture.paths.wallpaperIndex))
+        }
+        XCTAssertEqual(try Data(contentsOf: sentinelIndex), before)
+        XCTAssertFalse(fixture.files.exists(fixture.paths.transactionsDirectory))
+        XCTAssertFalse(
+            fixture.files.exists(fixture.paths.applicationSupport.appending(path: ".wallume.lock"))
+        )
+    }
+
+    func testInstallRejectsSymlinkedBackupDirectoryWithoutWritingSentinel() throws {
+        let fixture = try TransactionFixture.make()
+        defer { fixture.remove() }
+        try fixture.files.createDirectory(fixture.paths.applicationSupport)
+        let sentinel = fixture.root.appending(path: "sentinel-backups")
+        try fixture.files.createDirectory(sentinel)
+        try FileManager.default.createSymbolicLink(
+            at: fixture.paths.systemBackupsDirectory,
+            withDestinationURL: sentinel
+        )
+
+        XCTAssertThrowsError(try fixture.transaction.install(fixture.request)) {
+            XCTAssertEqual(
+                $0 as? LockScreenTransactionError,
+                .unsafePath(fixture.paths.systemBackupsDirectory)
+            )
+        }
+        XCTAssertEqual(try fixture.files.contents(sentinel), [])
+        XCTAssertFalse(fixture.files.exists(fixture.paths.transactionsDirectory))
+        XCTAssertFalse(
+            fixture.files.exists(fixture.paths.applicationSupport.appending(path: ".wallume.lock"))
+        )
+    }
+
     func testWaitingInstallReReadsStateAfterTheFirstInstallCompletes() throws {
         let fixture = try TransactionFixture.make()
         defer { fixture.remove() }
