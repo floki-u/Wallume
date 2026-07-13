@@ -1,0 +1,42 @@
+Sources/WallumeCore/IO/FileStore.swift
+  69e6a22be7a9e7eb 5,24-25
+Sources/WallumeCore/LockScreen/AerialDiscovery.swift
+  69e6a22be7a9e7eb 45-51,53
+Tests/WallumeCoreTests/AerialDiscoveryTests.swift
+  69e6a22be7a9e7eb 31-66,98-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "f6eb482616ebc55f7dc0d5044574a03f7f90aaba",
+  "prompts": {
+    "69e6a22be7a9e7eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5a95-e1d5-7121-a115-bb747ebf5ca0",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 60,
+      "total_deletions": 4,
+      "accepted_lines": 60,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/LockScreen/AerialDiscovery.swift": {
+          "additions": 8,
+          "deletions": 4,
+          "accepted_lines": 8
+        },
+        "Sources/WallumeCore/IO/FileStore.swift": {
+          "additions": 5,
+          "accepted_lines": 5
+        },
+        "Tests/WallumeCoreTests/AerialDiscoveryTests.swift": {
+          "additions": 47,
+          "accepted_lines": 47
+        }
+      }
+    }
+  }
+}
