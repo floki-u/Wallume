@@ -140,6 +140,33 @@ final class WallpaperIndexPatcherTests: XCTestCase {
         )
     }
 
+    func testRestoreContinuesWhenAChoiceWasReplacedWithANonDictionaryValue() throws {
+        let original = try indexDataWithTwoDistinctAerialChoices()
+        let patcher = WallpaperIndexPatcher()
+        let mutations = try patcher.plan(indexData: original, aerialID: "AERIAL-ONE")
+        XCTAssertEqual(mutations.count, 2)
+        let installed = try patcher.apply(mutations, to: original)
+        let firstChoicePath = Array(mutations[0].path.dropLast())
+        let externallyChanged = try replacingValue(
+            "EXTERNAL-CHOICE",
+            at: firstChoicePath,
+            in: installed
+        )
+
+        let result = try patcher.restore(mutations, in: externallyChanged)
+
+        XCTAssertEqual(result.conflicts, [mutations[0].path])
+        XCTAssertEqual(result.restoredPaths, [mutations[1].path])
+        XCTAssertEqual(
+            try value(at: firstChoicePath, in: result.data) as? String,
+            "EXTERNAL-CHOICE"
+        )
+        XCTAssertEqual(
+            try value(at: mutations[1].path, in: result.data) as? Data,
+            try value(at: mutations[1].path, in: original) as? Data
+        )
+    }
+
     func testRestoreTreatsReorderedAerialChoicesAsConflictsWithoutChangingThem() throws {
         let original = try indexDataWithTwoDistinctAerialChoices()
         let patcher = WallpaperIndexPatcher()

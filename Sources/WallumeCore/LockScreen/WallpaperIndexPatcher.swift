@@ -83,6 +83,9 @@ public struct WallpaperIndexPatcher: Sendable {
             } catch WallpaperIndexError.invalidPath(_) {
                 conflicts.append(mutation.path)
                 continue
+            } catch WallpaperIndexError.invalidPropertyList {
+                conflicts.append(mutation.path)
+                continue
             }
             guard try fragment(for: current) == mutation.after else {
                 conflicts.append(mutation.path)
