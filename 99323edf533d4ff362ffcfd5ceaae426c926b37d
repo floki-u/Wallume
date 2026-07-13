@@ -1,0 +1,49 @@
+Sources/WallumeCore/IO/FileStore.swift
+  10467d98e5a101e0 12-13,74-83,142-162
+Tests/WallumeCoreTests/LockScreenTransactionTests.swift
+  10467d98e5a101e0 35-36,110-112,156,220-223,230,253-254,261-284,344-380,393-397,412,417,627-630
+Tests/WallumeCoreTests/AtomicIOTests.swift
+  10467d98e5a101e0 38-69
+Sources/WallumeCore/LockScreen/LockScreenTransaction.swift
+  10467d98e5a101e0 10,118-122,124,131-135,139,144-156,158,185-203,208-258,260-261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "99323edf533d4ff362ffcfd5ceaae426c926b37d",
+  "prompts": {
+    "10467d98e5a101e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49d2-87e8-7a91-b618-53e1f293362d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 266,
+      "total_deletions": 72,
+      "accepted_lines": 262,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/AtomicIOTests.swift": {
+          "additions": 32,
+          "accepted_lines": 32
+        },
+        "Tests/WallumeCoreTests/LockScreenTransactionTests.swift": {
+          "additions": 89,
+          "deletions": 43,
+          "accepted_lines": 88
+        },
+        "Sources/WallumeCore/IO/FileStore.swift": {
+          "additions": 36,
+          "accepted_lines": 36
+        },
+        "Sources/WallumeCore/LockScreen/LockScreenTransaction.swift": {
+          "additions": 109,
+          "deletions": 29,
+          "accepted_lines": 106
+        }
+      }
+    }
+  }
+}
