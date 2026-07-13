@@ -32,8 +32,8 @@ final class LockScreenTransactionTests: XCTestCase {
         )
         assertOrder(
             ["journal:prepared", "fault:afterPreparedJournal", "journal:writing",
-             "replace:video", "fault:afterVideoReplacement", "replace:index",
-             "fault:afterIndexReplacement", "replace:poster",
+             "exchange:video", "fault:afterVideoReplacement", "exchange:index",
+             "fault:afterIndexReplacement", "exchange:poster",
              "fault:afterPosterReplacement", "refresh", "fault:beforeCommit",
              "journal:committed"],
             in: fixture.events
@@ -107,9 +107,9 @@ final class LockScreenTransactionTests: XCTestCase {
 
     func testVerificationFailuresNeverCommitOrAdvanceToLaterReplacement() throws {
         let cases: [(FileCorruption, String, [String])] = [
-            (.installedVideo, "replace:video", ["replace:index", "replace:poster", "refresh"]),
-            (.installedIndex, "replace:index", ["replace:poster", "refresh"]),
-            (.installedPoster, "replace:poster", ["refresh"]),
+            (.installedVideo, "exchange:video", ["exchange:index", "exchange:poster", "refresh"]),
+            (.installedIndex, "exchange:index", ["exchange:poster", "refresh"]),
+            (.installedPoster, "exchange:poster", ["refresh"]),
         ]
         for (corruption, reached, forbidden) in cases {
             let fixture = try TransactionFixture.make(corrupting: corruption)
@@ -153,6 +153,7 @@ final class LockScreenTransactionTests: XCTestCase {
         XCTAssertNil(manifest.poster.originalHash)
         XCTAssertNil(manifest.poster.originalBackup)
         XCTAssertEqual(manifest.poster.installedHash, try fixture.digest.sha256(of: fixture.posterTarget))
+        XCTAssertTrue(fixture.events.contains("exclusive:poster"))
         XCTAssertEqual(manifest.phase, .committed)
     }
 
@@ -216,16 +217,17 @@ final class LockScreenTransactionTests: XCTestCase {
         let fixture = try TransactionFixture.make(corrupting: .raceIndex)
         defer { fixture.remove() }
         XCTAssertThrowsError(try fixture.transaction.install(fixture.request)) {
-            guard case .staleValue = $0 as? WallpaperIndexError else {
-                return XCTFail("unexpected error: \($0)")
-            }
+            XCTAssertEqual(
+                $0 as? LockScreenTransactionError,
+                .targetChanged(fixture.paths.wallpaperIndex)
+            )
         }
 
         XCTAssertEqual(
             try selectedAerialID(in: fixture.files.read(fixture.paths.wallpaperIndex)),
             "EXTERNAL-AERIAL"
         )
-        XCTAssertTrue(fixture.events.contains("replace:video"))
+        XCTAssertTrue(fixture.events.contains("exchange:video"))
         XCTAssertFalse(fixture.events.contains("replace:index"))
         XCTAssertFalse(fixture.events.contains("replace:poster"))
         XCTAssertFalse(fixture.events.contains("refresh"))
@@ -248,9 +250,33 @@ final class LockScreenTransactionTests: XCTestCase {
             try fixture.files.read(fixture.posterTarget),
             Data("external-poster".utf8)
         )
-        XCTAssertTrue(fixture.events.contains("replace:video"))
-        XCTAssertTrue(fixture.events.contains("replace:index"))
+        XCTAssertTrue(fixture.events.contains("exchange:video"))
+        XCTAssertTrue(fixture.events.contains("exchange:index"))
         XCTAssertFalse(fixture.events.contains("replace:poster"))
+        XCTAssertFalse(fixture.events.contains("refresh"))
+        XCTAssertFalse(fixture.events.contains("journal:committed"))
+        XCTAssertEqual(try fixture.persistedManifest().phase, .writing)
+    }
+
+    func testMismatchRollbackFailureIsReportedAsSeriousRecoveryFailure() throws {
+        let fixture = try TransactionFixture.make(corrupting: .raceVideoRollbackFailure)
+        defer { fixture.remove() }
+
+        XCTAssertThrowsError(try fixture.transaction.install(fixture.request)) {
+            guard case let .guardedReplacementRecoveryFailed(target) =
+                $0 as? LockScreenTransactionError else {
+                return XCTFail("unexpected error: \($0)")
+            }
+            XCTAssertEqual(target.lastPathComponent, "AERIAL-ONE.mov")
+        }
+
+        XCTAssertEqual(try fixture.files.read(fixture.slotVideo), Data("optimized-video".utf8))
+        XCTAssertEqual(
+            try fixture.files.read(fixture.preparedURL(for: fixture.slotVideo)),
+            Data("external-video".utf8)
+        )
+        XCTAssertEqual(fixture.events.filter { $0 == "exchange:video" }.count, 1)
+        XCTAssertFalse(fixture.events.contains("exchange:index"))
         XCTAssertFalse(fixture.events.contains("refresh"))
         XCTAssertFalse(fixture.events.contains("journal:committed"))
         XCTAssertEqual(try fixture.persistedManifest().phase, .writing)
@@ -299,27 +325,11 @@ private struct TestFileStore: FileStore {
             recorder.append("journal:\(phase)")
         }
         try local.writeAtomically(data, to: mapped(target))
-        if corruption.racesPreparedIndex(target) {
-            let index = target.deletingLastPathComponent().appending(path: "Index.plist")
-            let external = try externallyChangedIndex(local.read(mapped(index)))
-            try local.writeAtomically(external, to: mapped(index))
-            recorder.append("race:index")
-        }
     }
     func copy(_ source: URL, to destination: URL) throws {
         try local.copy(mapped(source), to: mapped(destination))
         if corruption.matches(destination) {
             try local.writeAtomically(Data("corrupted-copy".utf8), to: mapped(destination))
-        }
-        if corruption.racesPreparedCopy(destination) {
-            let target = destination.deletingLastPathComponent().appending(path: "AERIAL-ONE.mov")
-            try local.writeAtomically(Data("external-video".utf8), to: mapped(target))
-            recorder.append("race:video")
-        }
-        if corruption.racesPreparedPoster(destination) {
-            let target = destination.deletingLastPathComponent().appending(path: "lockscreen.png")
-            try local.writeAtomically(Data("external-poster".utf8), to: mapped(target))
-            recorder.append("race:poster")
         }
     }
     func replace(_ target: URL, with preparedFile: URL) throws {
@@ -330,6 +340,43 @@ private struct TestFileStore: FileStore {
         if corruption.matchesReplacement(target) {
             try local.writeAtomically(Data("corrupted-replacement".utf8), to: mapped(target))
         }
+    }
+    func exchange(_ target: URL, with preparedFile: URL) throws {
+        let kind = targetKind(target)
+        if corruption == .raceVideoRollbackFailure,
+           kind == "video",
+           recorder.events.contains("exchange:video") {
+            throw TestError.injected
+        }
+        if !recorder.events.contains("race:\(kind)") {
+            switch (corruption, kind) {
+            case (.raceVideo, "video"), (.raceVideoRollbackFailure, "video"):
+                try local.writeAtomically(Data("external-video".utf8), to: mapped(target))
+                recorder.append("race:video")
+            case (.raceIndex, "index"):
+                let external = try externallyChangedIndex(local.read(mapped(target)))
+                try local.writeAtomically(external, to: mapped(target))
+                recorder.append("race:index")
+            case (.racePoster, "poster"):
+                try local.writeAtomically(Data("external-poster".utf8), to: mapped(target))
+                recorder.append("race:poster")
+            default:
+                break
+            }
+        }
+        try local.exchange(mapped(target), with: mapped(preparedFile))
+        recorder.append("exchange:\(kind)")
+        if corruption.matchesReplacement(target) {
+            try local.writeAtomically(Data("corrupted-replacement".utf8), to: mapped(target))
+        }
+    }
+    func installExclusively(_ target: URL, from preparedFile: URL) throws {
+        if corruption == .racePoster {
+            try local.writeAtomically(Data("external-poster".utf8), to: mapped(target))
+            recorder.append("race:poster")
+        }
+        try local.installExclusively(mapped(target), from: mapped(preparedFile))
+        recorder.append("exclusive:\(targetKind(target))")
     }
     func remove(_ url: URL) throws { try local.remove(mapped(url)) }
 
@@ -342,6 +389,12 @@ private struct TestFileStore: FileStore {
     private func unmapped(_ url: URL, from requestedDirectory: URL) -> URL {
         guard requestedDirectory.path.hasPrefix("/Library/Caches/Desktop Pictures/") else { return url }
         return requestedDirectory.appending(path: url.lastPathComponent)
+    }
+
+    private func targetKind(_ target: URL) -> String {
+        if target.lastPathComponent == "Index.plist" { return "index" }
+        if target.lastPathComponent == "lockscreen.png" { return "poster" }
+        return "video"
     }
 }
 
@@ -356,11 +409,12 @@ private enum FileCorruption: Sendable, Equatable {
     case raceVideo
     case raceIndex
     case racePoster
+    case raceVideoRollbackFailure
 
     func matches(_ destination: URL) -> Bool {
         switch self {
         case .none, .installedVideo, .installedIndex, .installedPoster,
-             .raceVideo, .raceIndex, .racePoster:
+             .raceVideo, .raceIndex, .racePoster, .raceVideoRollbackFailure:
             false
         case .primaryVideoBackup:
             destination.lastPathComponent.hasSuffix(WallumeBuildInfo.backupMarker)
@@ -380,20 +434,6 @@ private enum FileCorruption: Sendable, Equatable {
         }
     }
 
-    func racesPreparedCopy(_ destination: URL) -> Bool {
-        self == .raceVideo
-            && destination.lastPathComponent.hasPrefix(".AERIAL-ONE.mov.wallume.")
-    }
-
-    func racesPreparedPoster(_ destination: URL) -> Bool {
-        self == .racePoster
-            && destination.lastPathComponent.hasPrefix(".lockscreen.png.wallume.")
-    }
-
-    func racesPreparedIndex(_ destination: URL) -> Bool {
-        self == .raceIndex
-            && destination.lastPathComponent.hasPrefix(".Index.plist.wallume.")
-    }
 }
 
 private func externallyChangedIndex(_ data: Data) throws -> Data {
@@ -582,6 +622,12 @@ private struct TransactionFixture {
 
     func persistedManifest() throws -> LockScreenTransactionManifest {
         try journals.read(LockScreenTransactionManifest.self, from: onlyJournalURL())
+    }
+
+    func preparedURL(for target: URL) -> URL {
+        target.deletingLastPathComponent().appending(
+            path: ".\(target.lastPathComponent).wallume.00000000-0000-0000-0000-000000000006.prepared"
+        )
     }
 
     func remove() { try? FileManager.default.removeItem(at: root) }

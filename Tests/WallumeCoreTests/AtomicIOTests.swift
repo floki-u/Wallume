@@ -35,6 +35,59 @@ private func itemNames(in directory: URL) throws -> Set<String> {
 }
 
 final class AtomicIOTests: XCTestCase {
+    func testAtomicExchangeSwapsTwoExistingFiles() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appending(path: "target")
+        let prepared = root.appending(path: "prepared")
+        try Data("old".utf8).write(to: target)
+        try Data("new".utf8).write(to: prepared)
+        let files = LocalFileStore()
+
+        try files.exchange(target, with: prepared)
+
+        XCTAssertEqual(try files.read(target), Data("new".utf8))
+        XCTAssertEqual(try files.read(prepared), Data("old".utf8))
+    }
+
+    func testExclusiveInstallNeverOverwritesAnExistingTarget() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appending(path: "target")
+        let prepared = root.appending(path: "prepared")
+        try Data("external".utf8).write(to: target)
+        try Data("new".utf8).write(to: prepared)
+        let files = LocalFileStore()
+
+        XCTAssertThrowsError(try files.installExclusively(target, from: prepared))
+
+        XCTAssertEqual(try files.read(target), Data("external".utf8))
+        XCTAssertEqual(try files.read(prepared), Data("new".utf8))
+    }
+
+    func testExchangeSynchronizationFailureRestoresOriginalNames() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appending(path: "target")
+        let prepared = root.appending(path: "prepared")
+        try Data("old".utf8).write(to: target)
+        try Data("new".utf8).write(to: prepared)
+        let files = LocalFileStore(
+            replaceItem: { _, _ in },
+            synchronizeDirectory: { _ in throw InjectedFailure.synchronizeDirectory }
+        )
+
+        XCTAssertThrowsError(try files.exchange(target, with: prepared)) {
+            XCTAssertEqual($0 as? AtomicFileStoreError, .exchangeRecoveryFailed(target))
+        }
+
+        XCTAssertEqual(try Data(contentsOf: target), Data("old".utf8))
+        XCTAssertEqual(try Data(contentsOf: prepared), Data("new".utf8))
+    }
+
     func testAtomicJSONRoundTripLeavesNoTemporaryFile() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

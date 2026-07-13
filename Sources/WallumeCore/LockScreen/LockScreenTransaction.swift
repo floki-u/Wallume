@@ -7,6 +7,7 @@ public enum LockScreenTransactionError: Error, Equatable {
     case installedFileVerificationFailed(URL)
     case indexVerificationFailed
     case targetChanged(URL)
+    case guardedReplacementRecoveryFailed(URL)
 }
 
 public struct LockScreenTransaction: Sendable {
@@ -114,31 +115,47 @@ public struct LockScreenTransaction: Sendable {
 
         let preparedVideo = siblingPreparation(of: slot.videoURL, id: id)
         try files.copy(request.optimizedVideo, to: preparedVideo)
-        try requireUnchanged(slot.videoURL, expectedHash: originalVideoHash)
-        try files.replace(slot.videoURL, with: preparedVideo)
+        try guardedExchange(
+            slot.videoURL,
+            with: preparedVideo,
+            expectedOriginalHash: originalVideoHash
+        )
         try verify(slot.videoURL, expectedHash: installedVideoHash)
+        try files.remove(preparedVideo)
         try faults.hit(.afterVideoReplacement)
 
         let currentIndex = try files.read(paths.wallpaperIndex)
         let installedIndex = try patcher.apply(mutations, to: currentIndex)
         let preparedIndex = siblingPreparation(of: paths.wallpaperIndex, id: id)
         try files.writeAtomically(installedIndex, to: preparedIndex)
-        let latestIndex = try files.read(paths.wallpaperIndex)
-        _ = try patcher.apply(mutations, to: latestIndex)
-        guard latestIndex == currentIndex else {
-            throw LockScreenTransactionError.targetChanged(paths.wallpaperIndex)
-        }
-        try files.replace(paths.wallpaperIndex, with: preparedIndex)
+        try guardedExchange(
+            paths.wallpaperIndex,
+            with: preparedIndex,
+            expectedOriginalData: currentIndex
+        )
         guard try files.read(paths.wallpaperIndex) == installedIndex else {
             throw LockScreenTransactionError.indexVerificationFailed
         }
+        try files.remove(preparedIndex)
         try faults.hit(.afterIndexReplacement)
 
         let preparedPoster = siblingPreparation(of: paths.lockScreenPoster, id: id)
         try files.copy(request.poster, to: preparedPoster)
-        try requirePosterUnchanged(originalHash: originalPosterHash)
-        try files.replace(paths.lockScreenPoster, with: preparedPoster)
+        if let originalPosterHash {
+            try guardedExchange(
+                paths.lockScreenPoster,
+                with: preparedPoster,
+                expectedOriginalHash: originalPosterHash
+            )
+        } else {
+            do {
+                try files.installExclusively(paths.lockScreenPoster, from: preparedPoster)
+            } catch let error as POSIXError where error.code == .EEXIST {
+                throw LockScreenTransactionError.targetChanged(paths.lockScreenPoster)
+            }
+        }
         try verify(paths.lockScreenPoster, expectedHash: installedPosterHash)
+        try files.remove(preparedPoster)
         try faults.hit(.afterPosterReplacement)
 
         try refresher.refresh()
@@ -165,20 +182,83 @@ public struct LockScreenTransaction: Sendable {
         }
     }
 
-    private func requireUnchanged(_ target: URL, expectedHash: String) throws {
-        guard try digester.sha256(of: target) == expectedHash else {
+    private func guardedExchange(
+        _ target: URL,
+        with preparedFile: URL,
+        expectedOriginalHash: String
+    ) throws {
+        try files.exchange(target, with: preparedFile)
+        let swappedOutHash: String
+        do {
+            swappedOutHash = try digester.sha256(of: preparedFile)
+        } catch {
+            try restoreAfterFailedGuard(target, preparedFile: preparedFile, expectedHash: nil)
+            throw error
+        }
+        guard swappedOutHash == expectedOriginalHash else {
+            try restoreAfterFailedGuard(
+                target,
+                preparedFile: preparedFile,
+                expectedHash: swappedOutHash
+            )
             throw LockScreenTransactionError.targetChanged(target)
         }
     }
 
-    private func requirePosterUnchanged(originalHash: String?) throws {
-        if let originalHash {
-            guard files.exists(paths.lockScreenPoster) else {
-                throw LockScreenTransactionError.targetChanged(paths.lockScreenPoster)
+    private func restoreAfterFailedGuard(
+        _ target: URL,
+        preparedFile: URL,
+        expectedHash: String?
+    ) throws {
+        do {
+            try files.exchange(target, with: preparedFile)
+            if let expectedHash {
+                guard try digester.sha256(of: target) == expectedHash else {
+                    throw LockScreenTransactionError.guardedReplacementRecoveryFailed(target)
+                }
             }
-            try requireUnchanged(paths.lockScreenPoster, expectedHash: originalHash)
-        } else if files.exists(paths.lockScreenPoster) {
-            throw LockScreenTransactionError.targetChanged(paths.lockScreenPoster)
+        } catch {
+            throw LockScreenTransactionError.guardedReplacementRecoveryFailed(target)
+        }
+    }
+
+    private func guardedExchange(
+        _ target: URL,
+        with preparedFile: URL,
+        expectedOriginalData: Data
+    ) throws {
+        try files.exchange(target, with: preparedFile)
+        let swappedOutData: Data
+        do {
+            swappedOutData = try files.read(preparedFile)
+        } catch {
+            try restoreDataAfterFailedGuard(target, preparedFile: preparedFile, expectedData: nil)
+            throw error
+        }
+        guard swappedOutData == expectedOriginalData else {
+            try restoreDataAfterFailedGuard(
+                target,
+                preparedFile: preparedFile,
+                expectedData: swappedOutData
+            )
+            throw LockScreenTransactionError.targetChanged(target)
+        }
+    }
+
+    private func restoreDataAfterFailedGuard(
+        _ target: URL,
+        preparedFile: URL,
+        expectedData: Data?
+    ) throws {
+        do {
+            try files.exchange(target, with: preparedFile)
+            if let expectedData {
+                guard try files.read(target) == expectedData else {
+                    throw LockScreenTransactionError.guardedReplacementRecoveryFailed(target)
+                }
+            }
+        } catch {
+            throw LockScreenTransactionError.guardedReplacementRecoveryFailed(target)
         }
     }
 

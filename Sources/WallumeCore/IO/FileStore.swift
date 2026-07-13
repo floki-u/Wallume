@@ -1,6 +1,10 @@
 import Darwin
 import Foundation
 
+public enum AtomicFileStoreError: Error, Equatable {
+    case exchangeRecoveryFailed(URL)
+}
+
 public protocol FileStore: Sendable {
     func exists(_ url: URL) -> Bool
     func read(_ url: URL) throws -> Data
@@ -9,6 +13,8 @@ public protocol FileStore: Sendable {
     func writeAtomically(_ data: Data, to target: URL) throws
     func copy(_ source: URL, to destination: URL) throws
     func replace(_ target: URL, with preparedFile: URL) throws
+    func exchange(_ target: URL, with preparedFile: URL) throws
+    func installExclusively(_ target: URL, from preparedFile: URL) throws
     func remove(_ url: URL) throws
 }
 
@@ -69,6 +75,26 @@ public struct LocalFileStore: FileStore {
         try synchronizeDirectory(target.deletingLastPathComponent())
     }
 
+    public func exchange(_ target: URL, with preparedFile: URL) throws {
+        try Self.renameItem(target, preparedFile, flags: UInt32(RENAME_SWAP))
+        do {
+            try synchronizeDirectories(for: target, and: preparedFile)
+        } catch let synchronizationError {
+            do {
+                try Self.renameItem(target, preparedFile, flags: UInt32(RENAME_SWAP))
+                try synchronizeDirectories(for: target, and: preparedFile)
+            } catch {
+                throw AtomicFileStoreError.exchangeRecoveryFailed(target)
+            }
+            throw synchronizationError
+        }
+    }
+
+    public func installExclusively(_ target: URL, from preparedFile: URL) throws {
+        try Self.renameItem(preparedFile, target, flags: UInt32(RENAME_EXCL))
+        try synchronizeDirectory(target.deletingLastPathComponent())
+    }
+
     public func remove(_ url: URL) throws {
         if exists(url) {
             try manager.removeItem(at: url)
@@ -124,6 +150,30 @@ public struct LocalFileStore: FileStore {
     private static func renameItem(_ source: URL, _ destination: URL) throws {
         guard Darwin.rename(source.path, destination.path) == 0 else {
             throw posixError()
+        }
+    }
+
+    private static func renameItem(_ source: URL, _ destination: URL, flags: UInt32) throws {
+        let result = source.path.withCString { sourcePath in
+            destination.path.withCString { destinationPath in
+                Darwin.renameatx_np(
+                    AT_FDCWD,
+                    sourcePath,
+                    AT_FDCWD,
+                    destinationPath,
+                    flags
+                )
+            }
+        }
+        guard result == 0 else { throw posixError() }
+    }
+
+    private func synchronizeDirectories(for first: URL, and second: URL) throws {
+        let firstDirectory = first.deletingLastPathComponent()
+        let secondDirectory = second.deletingLastPathComponent()
+        try synchronizeDirectory(firstDirectory)
+        if secondDirectory != firstDirectory {
+            try synchronizeDirectory(secondDirectory)
         }
     }
 
