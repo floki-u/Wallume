@@ -41,6 +41,7 @@ public struct LockScreenTransactionManifest: Codable, Equatable, Sendable {
     public let indexMutations: [PlistMutation]
     public let primaryBackup: URL
     public let recoveryBackup: URL
+    public var backupCleanupAuthorized: Bool?
 
     public init(
         schemaVersion: Int,
@@ -54,7 +55,8 @@ public struct LockScreenTransactionManifest: Codable, Equatable, Sendable {
         indexURL: URL,
         indexMutations: [PlistMutation],
         primaryBackup: URL,
-        recoveryBackup: URL
+        recoveryBackup: URL,
+        backupCleanupAuthorized: Bool? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.id = id
@@ -68,6 +70,7 @@ public struct LockScreenTransactionManifest: Codable, Equatable, Sendable {
         self.indexMutations = indexMutations
         self.primaryBackup = primaryBackup
         self.recoveryBackup = recoveryBackup
+        self.backupCleanupAuthorized = backupCleanupAuthorized
     }
 }
 

@@ -113,3 +113,48 @@ The initial review concerns were resolved in a second strict TDD cycle:
 - `swift test --filter WallpaperIndexPatcherTests`: 16 tests, 0 failures.
 - `swift test`: 81 tests, 0 failures.
 - `git diff --check`: clean.
+
+## Trust-Boundary and Cross-Process Follow-up
+
+The final review batch tightened recovery around hostile journals, concurrent processes,
+and deletion races:
+
+- New installs write schema 2; schema 1 remains readable, while unknown schemas and
+  schema-1-only misuse of v2 recovery fields fail closed.
+- Recovery validates every journal URL against `AerialPaths` before deriving artifacts
+  or mutating anything. Video, poster, index, primary/recovery backups, and poster backup
+  must match their canonical transaction-derived locations; traversal and symlink escape
+  are rejected.
+- Install and restore share an injectable Darwin `flock` advisory lock at a fixed file
+  under application support. Independent lock instances serialize across processes.
+- Cleanup captures are stored in manifest-scoped, owner-only `0700` directories beside
+  each target. Deletion uses parent-directory descriptors, no-follow inode identity,
+  `unlinkat`, and parent `fsync`; identity mismatch retains the unknown entity and records
+  a conflict. Ordinary successful removal also syncs its parent directory.
+- Backup hashes are revalidated as a complete set before cleanup. Cleanup authorization
+  is journaled before the first deletion so a crash between backup deletions can converge,
+  while changed backups remain untouched and force a conflict.
+- Video, poster, and index ownership are re-read after refresh and artifact cleanup.
+  Final index ownership requires `restore` to report no restored paths and no conflicts;
+  a late index write therefore retains all backups.
+
+### Final Follow-up RED
+
+1. Schema and durable-remove tests showed new writers still emitted v1 and `remove` did
+   not synchronize its parent.
+2. A malicious target URL was accepted before allowlist validation and could reach the
+   recovery mutation path.
+3. A refresh-time index write was absent from the final report, and a changed redundant
+   backup was deleted.
+4. Replacing a validated cleanup capture immediately before deletion showed the old
+   path-based unlink could remove an unowned inode.
+5. Two independent advisory locks initially had no shared cross-process exclusion.
+
+### Final Follow-up GREEN
+
+- Focused recovery/atomic-I/O/transaction/patcher suite: 81 tests, 0 failures.
+- Full package suite: 89 tests, 0 failures.
+- `git diff --check`: clean.
+- Includes malicious sentinel URL, late index ownership, changed backup, authorized
+  partial-cleanup restart, last-instant capture replacement, durable parent sync, schema
+  v2 writer, and independent advisory lock competition regressions.

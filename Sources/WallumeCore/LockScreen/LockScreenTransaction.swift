@@ -21,6 +21,7 @@ public struct LockScreenTransaction: Sendable {
     private let faults: any FaultInjecting
     private let now: @Sendable () -> Date
     private let makeID: @Sendable () -> UUID
+    private let advisoryLock: any AdvisoryLocking
 
     public init(
         paths: AerialPaths,
@@ -32,7 +33,8 @@ public struct LockScreenTransaction: Sendable {
         refresher: any WallpaperRefreshing,
         faults: any FaultInjecting = NoFaults(),
         now: @escaping @Sendable () -> Date = Date.init,
-        makeID: @escaping @Sendable () -> UUID = UUID.init
+        makeID: @escaping @Sendable () -> UUID = UUID.init,
+        advisoryLock: (any AdvisoryLocking)? = nil
     ) {
         self.paths = paths
         self.files = files
@@ -44,6 +46,9 @@ public struct LockScreenTransaction: Sendable {
         self.faults = faults
         self.now = now
         self.makeID = makeID
+        self.advisoryLock = advisoryLock ?? FileAdvisoryLock(
+            url: paths.applicationSupport.appending(path: ".wallume.lock")
+        )
     }
 
     public func install(_ request: LockScreenTransactionRequest) throws -> LockScreenTransactionManifest {
@@ -60,6 +65,9 @@ public struct LockScreenTransaction: Sendable {
         let installedPosterHash = try digester.sha256(of: request.poster)
         let originalIndex = try files.read(paths.wallpaperIndex)
         let mutations = try patcher.plan(indexData: originalIndex, aerialID: request.aerialID)
+
+        let lockToken = try advisoryLock.acquire()
+        defer { withExtendedLifetime(lockToken) {} }
 
         let id = makeID()
         let primaryBackup = slot.videoURL.deletingLastPathComponent().appending(
@@ -84,7 +92,7 @@ public struct LockScreenTransaction: Sendable {
         }
 
         var manifest = LockScreenTransactionManifest(
-            schemaVersion: 1,
+            schemaVersion: 2,
             id: id,
             phase: .prepared,
             createdAt: now(),

@@ -5,11 +5,20 @@ public enum AtomicFileStoreError: Error, Equatable {
     case exchangeRecoveryFailed(URL)
 }
 
+public struct FileIdentity: Equatable, Sendable {
+    public let device: UInt64
+    public let inode: UInt64
+    public let isDirectory: Bool
+}
+
 public protocol FileStore: Sendable {
     func exists(_ url: URL) -> Bool
     func read(_ url: URL) throws -> Data
     func contents(_ directory: URL) throws -> [URL]
     func createDirectory(_ url: URL) throws
+    func createPrivateDirectory(_ url: URL) throws
+    func identity(of url: URL) throws -> FileIdentity
+    func removeDurably(_ url: URL, ifIdentityMatches identity: FileIdentity) throws -> Bool
     func writeAtomically(_ data: Data, to target: URL) throws
     func writeExclusively(_ data: Data, to target: URL) throws
     func copy(_ source: URL, to destination: URL) throws
@@ -52,6 +61,55 @@ public struct LocalFileStore: FileStore {
 
     public func createDirectory(_ url: URL) throws {
         try manager.createDirectory(at: url, withIntermediateDirectories: true)
+    }
+
+    public func createPrivateDirectory(_ url: URL) throws {
+        try createDirectory(url.deletingLastPathComponent())
+        if Darwin.mkdir(url.path, 0o700) != 0, errno != EEXIST { throw Self.posixError() }
+        var info = stat()
+        guard Darwin.lstat(url.path, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFDIR,
+              info.st_uid == geteuid(),
+              (info.st_mode & 0o777) == 0o700 else { throw Self.posixError(EACCES) }
+    }
+
+    public func identity(of url: URL) throws -> FileIdentity {
+        var info = stat()
+        guard Darwin.lstat(url.path, &info) == 0 else { throw Self.posixError() }
+        return FileIdentity(
+            device: UInt64(info.st_dev),
+            inode: UInt64(info.st_ino),
+            isDirectory: (info.st_mode & S_IFMT) == S_IFDIR
+        )
+    }
+
+    public func removeDurably(
+        _ url: URL,
+        ifIdentityMatches identity: FileIdentity
+    ) throws -> Bool {
+        let parent = url.deletingLastPathComponent()
+        let descriptor = Darwin.open(parent.path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        guard descriptor >= 0 else { throw Self.posixError() }
+        defer { _ = Darwin.close(descriptor) }
+        var info = stat()
+        let status = url.lastPathComponent.withCString {
+            Darwin.fstatat(descriptor, $0, &info, AT_SYMLINK_NOFOLLOW)
+        }
+        if status != 0, errno == ENOENT { return false }
+        guard status == 0 else { throw Self.posixError() }
+        let observed = FileIdentity(
+            device: UInt64(info.st_dev),
+            inode: UInt64(info.st_ino),
+            isDirectory: (info.st_mode & S_IFMT) == S_IFDIR
+        )
+        guard observed == identity else { return false }
+        let flags = identity.isDirectory ? AT_REMOVEDIR : 0
+        let removed = url.lastPathComponent.withCString {
+            Darwin.unlinkat(descriptor, $0, flags)
+        }
+        guard removed == 0 else { throw Self.posixError() }
+        guard Darwin.fsync(descriptor) == 0 else { throw Self.posixError() }
+        return true
     }
 
     public func copy(_ source: URL, to destination: URL) throws {
@@ -102,12 +160,13 @@ public struct LocalFileStore: FileStore {
 
     public func installExclusively(_ target: URL, from preparedFile: URL) throws {
         try Self.renameItem(preparedFile, target, flags: UInt32(RENAME_EXCL))
-        try synchronizeDirectory(target.deletingLastPathComponent())
+        try synchronizeDirectories(for: target, and: preparedFile)
     }
 
     public func remove(_ url: URL) throws {
         if exists(url) {
             try manager.removeItem(at: url)
+            try synchronizeDirectory(url.deletingLastPathComponent())
         }
     }
 

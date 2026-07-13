@@ -26,6 +26,13 @@ private final class LockedFailures: @unchecked Sendable {
     }
 }
 
+private final class LockedURLs: @unchecked Sendable {
+    private let lock = NSLock()
+    private var urls: [URL] = []
+    func append(_ url: URL) { lock.withLock { urls.append(url) } }
+    var values: [URL] { lock.withLock { urls } }
+}
+
 private func itemNames(in directory: URL) throws -> Set<String> {
     Set(
         try FileManager.default
@@ -35,6 +42,60 @@ private func itemNames(in directory: URL) throws -> Set<String> {
 }
 
 final class AtomicIOTests: XCTestCase {
+    func testPrivateCleanupDirectoryIsOwnerOnly() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = root.appending(path: "cleanup")
+
+        try LocalFileStore().createPrivateDirectory(directory)
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: directory.path)
+        XCTAssertEqual(attributes[.posixPermissions] as? NSNumber, NSNumber(value: 0o700))
+    }
+
+    func testIndependentAdvisoryLocksSerializeAccess() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appending(path: "shared.lock")
+        var first: (any AdvisoryLockToken)? = try FileAdvisoryLock(url: url).acquire()
+        XCTAssertNotNil(first)
+        let acquired = expectation(description: "second lock acquired")
+        let state = LockedURLs()
+        DispatchQueue.global().async {
+            do {
+                let second = try FileAdvisoryLock(url: url).acquire()
+                state.append(url)
+                withExtendedLifetime(second) {}
+                acquired.fulfill()
+            } catch {
+                acquired.fulfill()
+            }
+        }
+        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertTrue(state.values.isEmpty)
+        first = nil
+        wait(for: [acquired], timeout: 2)
+        XCTAssertEqual(state.values, [url])
+    }
+
+    func testRemoveSynchronizesItsParentDirectory() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appending(path: "target")
+        try Data("value".utf8).write(to: target)
+        let synchronized = LockedURLs()
+        let files = LocalFileStore(
+            replaceItem: { source, destination in
+                try FileManager.default.moveItem(at: source, to: destination)
+            },
+            synchronizeDirectory: { synchronized.append($0) }
+        )
+
+        try files.remove(target)
+
+        XCTAssertEqual(synchronized.values.map(\.standardizedFileURL), [root.standardizedFileURL])
+    }
     func testAtomicExchangeSwapsTwoExistingFiles() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

@@ -10,6 +10,7 @@ final class LockScreenTransactionTests: XCTestCase {
         let result = try fixture.transaction.install(fixture.request)
 
         XCTAssertEqual(result.phase, .committed)
+        XCTAssertEqual(result.schemaVersion, 2)
         XCTAssertEqual(try fixture.digest.sha256(of: fixture.slotVideo), result.video.installedHash)
         XCTAssertEqual(try fixture.digest.sha256(of: fixture.posterTarget), result.poster.installedHash)
         XCTAssertEqual(fixture.refresher.refreshCount, 1)
@@ -318,6 +319,11 @@ private struct TestFileStore: FileStore {
         try local.contents(mapped(directory)).map { unmapped($0, from: directory) }
     }
     func createDirectory(_ url: URL) throws { try local.createDirectory(mapped(url)) }
+    func createPrivateDirectory(_ url: URL) throws { try local.createPrivateDirectory(mapped(url)) }
+    func identity(of url: URL) throws -> FileIdentity { try local.identity(of: mapped(url)) }
+    func removeDurably(_ url: URL, ifIdentityMatches identity: FileIdentity) throws -> Bool {
+        try local.removeDurably(mapped(url), ifIdentityMatches: identity)
+    }
     func writeAtomically(_ data: Data, to target: URL) throws {
         if target.path.contains("/LockScreen/transactions/"),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

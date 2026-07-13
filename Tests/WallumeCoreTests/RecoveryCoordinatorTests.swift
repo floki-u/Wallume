@@ -3,6 +3,26 @@ import XCTest
 @testable import WallumeCore
 
 final class RecoveryCoordinatorTests: XCTestCase {
+    func testRejectsManifestPointingAtUntrustedTargetBeforeMutation() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let sentinel = fixture.root.appending(path: "sensitive-sentinel")
+        try fixture.files.writeAtomically(Data("keep".utf8), to: sentinel)
+        let malicious = FileReplacementRecord(
+            target: sentinel,
+            originalHash: fixture.manifest.video.originalHash,
+            installedHash: fixture.manifest.video.installedHash,
+            originalBackup: fixture.manifest.video.originalBackup
+        )
+        try fixture.writeManifest(fixture.manifestWith(video: malicious))
+
+        XCTAssertThrowsError(try fixture.recovery.restore(id: fixture.manifest.id)) {
+            XCTAssertEqual($0 as? RecoveryCoordinatorError, .invalidManifest(fixture.manifest.id))
+        }
+        XCTAssertEqual(try fixture.files.read(sentinel), Data("keep".utf8))
+        XCTAssertEqual(fixture.refresher.refreshCount, 0)
+    }
+
     func testRestoresEveryOwnedValueWhenCurrentHashesStillMatchInstalledHashes() throws {
         let fixture = try RecoveryFixture.installed()
         defer { fixture.remove() }
@@ -127,6 +147,44 @@ final class RecoveryCoordinatorTests: XCTestCase {
         XCTAssertEqual(try fixture.digest.sha256(of: fixture.manifest.video.target), fixture.manifest.video.installedHash)
         XCTAssertTrue(report.retainedBackups.contains(fixture.manifest.primaryBackup))
         XCTAssertTrue(report.retainedBackups.contains(fixture.manifest.recoveryBackup))
+    }
+
+    func testChangedRedundantBackupIsRetainedAndBlocksCleanup() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        try fixture.files.writeAtomically(
+            Data("external-backup".utf8),
+            to: fixture.manifest.recoveryBackup
+        )
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.recoveryBackup))
+        XCTAssertEqual(try fixture.files.read(fixture.manifest.recoveryBackup), Data("external-backup".utf8))
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+        XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
+    }
+
+    func testRestartAfterAuthorizedPartialBackupCleanupConverges() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        try fixture.setCrashState(
+            phase: .restoring,
+            videoInstalled: false,
+            indexInstalled: false,
+            posterInstalled: false
+        )
+        var manifest = try fixture.loadManifest()
+        manifest.schemaVersion = 2
+        manifest.backupCleanupAuthorized = true
+        try fixture.writeManifest(manifest)
+        try fixture.files.remove(fixture.manifest.recoveryBackup)
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.isEmpty)
+        XCTAssertEqual(try fixture.loadManifest().phase, .restored)
+        XCTAssertTrue(fixture.allBackups.allSatisfy { !fixture.files.exists($0) })
     }
 
     func testPartialIndexConflictRestoresOnlyStillOwnedMutation() throws {
@@ -346,7 +404,11 @@ final class RecoveryCoordinatorTests: XCTestCase {
         let fixture = try RecoveryFixture.installed()
         defer { fixture.remove() }
         let artifact = fixture.artifact(for: fixture.manifest.video.target, role: "restore")
-        let cleanup = artifact.appendingPathExtension("cleanup")
+        let cleanupDirectory = artifact.deletingLastPathComponent().appending(
+            path: ".wallume-cleanup-\(fixture.manifest.id.uuidString)"
+        )
+        try fixture.files.createPrivateDirectory(cleanupDirectory)
+        let cleanup = cleanupDirectory.appending(path: artifact.lastPathComponent)
         try fixture.files.copy(fixture.manifest.video.target, to: cleanup)
         try fixture.files.copy(fixture.manifest.primaryBackup, to: fixture.manifest.video.target)
         try fixture.writeManifest(fixture.manifestWith(schemaVersion: 2, phase: .restoring))
@@ -450,6 +512,22 @@ final class RecoveryCoordinatorTests: XCTestCase {
         XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
     }
 
+    func testLastInstantCleanupCaptureReplacementIsNeverUnlinked() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let artifact = fixture.artifact(for: fixture.manifest.video.target, role: "restore")
+        fixture.files.replaceCaptureBeforeGuardedRemove = artifact.lastPathComponent
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        let capture = artifact.deletingLastPathComponent()
+            .appending(path: ".wallume-cleanup-\(fixture.manifest.id.uuidString)")
+            .appending(path: artifact.lastPathComponent)
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.video.target))
+        XCTAssertEqual(try fixture.files.read(capture), Data("last-instant-external".utf8))
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+    }
+
     func testArtifactChangedImmediatelyBeforeExchangeIsSwappedBackAndRetained() throws {
         let fixture = try RecoveryFixture.installed()
         defer { fixture.remove() }
@@ -475,6 +553,18 @@ final class RecoveryCoordinatorTests: XCTestCase {
         let report = try fixture.recovery.restore(id: fixture.manifest.id)
 
         XCTAssertTrue(report.conflicts.contains(fixture.manifest.video.target))
+        XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+    }
+
+    func testLateIndexWriteAfterRefreshIsAConflictAndRetainsBackups() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        fixture.refresher.onRefresh = { try fixture.externallyChangeIndex() }
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.indexURL))
         XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
         XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
     }
@@ -614,18 +704,24 @@ private struct RecoveryFixture {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "Wallume-RecoveryTests-\(UUID().uuidString)")
         let paths = AerialPaths(homeDirectory: root, userGeneratedID: "TEST")
-        let files = RecoveryTestFileStore()
+        let files = RecoveryTestFileStore(root: root)
         let digest = RecoveryTestDigester(files: files)
         let journals = AtomicJSONStore(files: files)
         let refresher = RecoveryTestRefresher()
         let id = UUID(uuidString: "00000000-0000-0000-0000-000000000007")!
         let fixtureDirectory = root.appending(path: "fixture")
-        let video = fixtureDirectory.appending(path: "video.mov")
-        let poster = fixtureDirectory.appending(path: "poster.png")
-        let index = fixtureDirectory.appending(path: "Index.plist")
-        let videoBackup = fixtureDirectory.appending(path: "video.original")
-        let recoveryBackup = fixtureDirectory.appending(path: "video.recovery")
-        let posterBackup = fixtureDirectory.appending(path: "poster.original")
+        let video = paths.videosDirectory.appending(path: "AERIAL-ONE.mov")
+        let poster = paths.lockScreenPoster
+        let index = paths.wallpaperIndex
+        let videoBackup = video.deletingLastPathComponent().appending(
+            path: video.lastPathComponent + WallumeBuildInfo.backupMarker
+        )
+        let recoveryBackup = paths.systemBackupsDirectory.appending(
+            path: "\(id.uuidString)-\(video.lastPathComponent).original"
+        )
+        let posterBackup = paths.systemBackupsDirectory.appending(
+            path: "\(id.uuidString)-lockscreen.png.original"
+        )
 
         try files.createDirectory(paths.transactionsDirectory)
         try files.createDirectory(fixtureDirectory)
@@ -732,21 +828,40 @@ private struct RecoveryFixture {
         id: UUID? = nil,
         phase: TransactionPhase? = nil,
         createdAt: Date? = nil,
+        video: FileReplacementRecord? = nil,
         poster: FileReplacementRecord? = nil
     ) -> LockScreenTransactionManifest {
-        LockScreenTransactionManifest(
+        let selectedID = id ?? manifest.id
+        let adjustedPoster: FileReplacementRecord
+        if let poster {
+            adjustedPoster = poster
+        } else if id != nil {
+            adjustedPoster = FileReplacementRecord(
+                target: manifest.poster.target,
+                originalHash: manifest.poster.originalHash,
+                installedHash: manifest.poster.installedHash,
+                originalBackup: manifest.poster.originalHash == nil ? nil : paths.systemBackupsDirectory.appending(
+                    path: "\(selectedID.uuidString)-lockscreen.png.original"
+                )
+            )
+        } else {
+            adjustedPoster = manifest.poster
+        }
+        return LockScreenTransactionManifest(
             schemaVersion: schemaVersion,
-            id: id ?? manifest.id,
+            id: selectedID,
             phase: phase ?? manifest.phase,
             createdAt: createdAt ?? manifest.createdAt,
             osMajorVersion: manifest.osMajorVersion,
             aerialID: manifest.aerialID,
-            video: manifest.video,
-            poster: poster ?? manifest.poster,
+            video: video ?? manifest.video,
+            poster: adjustedPoster,
             indexURL: manifest.indexURL,
             indexMutations: manifest.indexMutations,
             primaryBackup: manifest.primaryBackup,
-            recoveryBackup: manifest.recoveryBackup
+            recoveryBackup: paths.systemBackupsDirectory.appending(
+                path: "\(selectedID.uuidString)-\(manifest.video.target.lastPathComponent).original"
+            )
         )
     }
 
@@ -776,6 +891,7 @@ private struct RecoveryTestDigester: Digesting {
 
 private final class RecoveryTestFileStore: FileStore, @unchecked Sendable {
     private let local = LocalFileStore()
+    private let root: URL
     private let lock = NSLock()
     var raceTarget: URL?
     var failRollbackTarget: URL?
@@ -785,10 +901,19 @@ private final class RecoveryTestFileStore: FileStore, @unchecked Sendable {
     var raceRemoveTarget: URL?
     var racePreparedExchangeTarget: URL?
     var mutateTargetAfterCleanup: URL?
+    var replaceCaptureBeforeGuardedRemove: String?
     private var exchangeCounts: [URL: Int] = [:]
     private var preparedReadCount = 0
 
-    func exists(_ url: URL) -> Bool { local.exists(url) }
+    init(root: URL) { self.root = root }
+
+    private func mapped(_ url: URL) -> URL {
+        guard url.path.hasPrefix("/Library/") else { return url }
+        return root.appending(path: "Synthetic-System-Library")
+            .appending(path: String(url.path.dropFirst("/Library/".count)))
+    }
+
+    func exists(_ url: URL) -> Bool { local.exists(mapped(url)) }
     func read(_ url: URL) throws -> Data {
         if url.lastPathComponent.hasSuffix(".restore") {
             preparedReadCount += 1
@@ -796,32 +921,34 @@ private final class RecoveryTestFileStore: FileStore, @unchecked Sendable {
                 throw RecoveryFixtureError.injected
             }
         }
-        return try local.read(url)
+        return try local.read(mapped(url))
     }
-    func contents(_ directory: URL) throws -> [URL] { try local.contents(directory) }
-    func createDirectory(_ url: URL) throws { try local.createDirectory(url) }
+    func contents(_ directory: URL) throws -> [URL] { try local.contents(mapped(directory)) }
+    func createDirectory(_ url: URL) throws { try local.createDirectory(mapped(url)) }
+    func createPrivateDirectory(_ url: URL) throws { try local.createPrivateDirectory(mapped(url)) }
+    func identity(of url: URL) throws -> FileIdentity { try local.identity(of: mapped(url)) }
     func writeAtomically(_ data: Data, to target: URL) throws {
-        try local.writeAtomically(data, to: target)
+        try local.writeAtomically(data, to: mapped(target))
     }
     func writeExclusively(_ data: Data, to target: URL) throws {
-        try local.writeExclusively(data, to: target)
+        try local.writeExclusively(data, to: mapped(target))
     }
     func copy(_ source: URL, to destination: URL) throws {
         if raceCopyDestination == destination {
             raceCopyDestination = nil
-            try local.writeAtomically(Data("external-artifact".utf8), to: destination)
+            try local.writeAtomically(Data("external-artifact".utf8), to: mapped(destination))
         }
-        try local.copy(source, to: destination)
+        try local.copy(mapped(source), to: mapped(destination))
     }
     func copyExclusively(_ source: URL, to destination: URL) throws {
         if raceCopyDestination == destination {
             raceCopyDestination = nil
-            try local.writeAtomically(Data("external-artifact".utf8), to: destination)
+            try local.writeAtomically(Data("external-artifact".utf8), to: mapped(destination))
         }
-        try local.copyExclusively(source, to: destination)
+        try local.copyExclusively(mapped(source), to: mapped(destination))
     }
     func replace(_ target: URL, with preparedFile: URL) throws {
-        try local.replace(target, with: preparedFile)
+        try local.replace(mapped(target), with: mapped(preparedFile))
     }
     func exchange(_ target: URL, with preparedFile: URL) throws {
         let count = lock.withLock { () -> Int in
@@ -829,36 +956,49 @@ private final class RecoveryTestFileStore: FileStore, @unchecked Sendable {
             return exchangeCounts[target]!
         }
         if raceTarget == target, count == 1 {
-            try local.writeAtomically(Data("external-race".utf8), to: target)
+            try local.writeAtomically(Data("external-race".utf8), to: mapped(target))
         }
         if racePreparedExchangeTarget == target, count == 1 {
             racePreparedExchangeTarget = nil
-            try local.writeAtomically(Data("external-artifact".utf8), to: preparedFile)
+            try local.writeAtomically(Data("external-artifact".utf8), to: mapped(preparedFile))
         }
         if failRollbackTarget == target, count == 2 {
             throw RecoveryFixtureError.injected
         }
-        try local.exchange(target, with: preparedFile)
+        try local.exchange(mapped(target), with: mapped(preparedFile))
     }
     func installExclusively(_ target: URL, from preparedFile: URL) throws {
-        if raceRemoveTarget == preparedFile, target.lastPathComponent.hasSuffix(".cleanup") {
+        if raceRemoveTarget == preparedFile,
+           target.deletingLastPathComponent().lastPathComponent.hasPrefix(".wallume-cleanup-") {
             raceRemoveTarget = nil
-            try local.writeAtomically(Data("external-artifact".utf8), to: preparedFile)
+            try local.writeAtomically(Data("external-artifact".utf8), to: mapped(preparedFile))
         }
         if raceQuarantineSource == preparedFile {
             raceQuarantineSource = nil
-            try local.writeAtomically(Data("external-race".utf8), to: preparedFile)
+            try local.writeAtomically(Data("external-race".utf8), to: mapped(preparedFile))
         }
-        try local.installExclusively(target, from: preparedFile)
+        try local.installExclusively(mapped(target), from: mapped(preparedFile))
     }
     func remove(_ url: URL) throws {
-        try local.remove(url)
-        if url.lastPathComponent.hasSuffix(".cleanup"),
+        try local.remove(mapped(url))
+    }
+
+    func removeDurably(_ url: URL, ifIdentityMatches identity: FileIdentity) throws -> Bool {
+        if url.lastPathComponent == replaceCaptureBeforeGuardedRemove,
+           url.deletingLastPathComponent().lastPathComponent.hasPrefix(".wallume-cleanup-") {
+            replaceCaptureBeforeGuardedRemove = nil
+            try local.remove(mapped(url))
+            try local.writeAtomically(Data("last-instant-external".utf8), to: mapped(url))
+        }
+        let removed = try local.removeDurably(mapped(url), ifIdentityMatches: identity)
+        if removed,
+           url.deletingLastPathComponent().lastPathComponent.hasPrefix(".wallume-cleanup-"),
            let target = mutateTargetAfterCleanup,
            url.lastPathComponent.contains(target.lastPathComponent) {
             mutateTargetAfterCleanup = nil
-            try local.writeAtomically(Data("late-external-target".utf8), to: target)
+            try local.writeAtomically(Data("late-external-target".utf8), to: mapped(target))
         }
+        return removed
     }
 }
 
@@ -866,6 +1006,7 @@ private final class RecoveryTestRefresher: WallpaperRefreshing, @unchecked Senda
     private let lock = NSLock()
     private var count = 0
     var remainingFailures = 0
+    var onRefresh: (() throws -> Void)?
     var refreshCount: Int { lock.withLock { count } }
     func refresh() throws {
         let shouldFail = lock.withLock { () -> Bool in
@@ -877,6 +1018,7 @@ private final class RecoveryTestRefresher: WallpaperRefreshing, @unchecked Senda
             return false
         }
         if shouldFail { throw RecoveryFixtureError.injected }
+        try onRefresh?()
     }
 }
 
