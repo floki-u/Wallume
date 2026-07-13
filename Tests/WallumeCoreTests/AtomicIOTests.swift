@@ -67,6 +67,23 @@ final class AtomicIOTests: XCTestCase {
         XCTAssertEqual(try files.read(prepared), Data("new".utf8))
     }
 
+    func testExclusiveWriteAndCopyNeverOverwriteExistingArtifacts() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appending(path: "target")
+        let source = root.appending(path: "source")
+        let files = LocalFileStore()
+        try files.writeAtomically(Data("external".utf8), to: target)
+        try files.writeAtomically(Data("source".utf8), to: source)
+
+        XCTAssertThrowsError(try files.writeExclusively(Data("new".utf8), to: target))
+        XCTAssertThrowsError(try files.copyExclusively(source, to: target))
+
+        XCTAssertEqual(try files.read(target), Data("external".utf8))
+        XCTAssertEqual(try itemNames(in: root), ["source", "target"])
+    }
+
     func testExchangeSynchronizationFailureRestoresOriginalNames() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

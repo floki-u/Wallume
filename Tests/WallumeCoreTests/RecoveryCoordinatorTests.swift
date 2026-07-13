@@ -220,9 +220,12 @@ final class RecoveryCoordinatorTests: XCTestCase {
         let fixture = try RecoveryFixture.installed()
         defer { fixture.remove() }
         try fixture.files.remove(fixture.journalURL)
-        let phases: [TransactionPhase] = [.conflicted, .restored, .committed, .prepared, .writing]
+        let phases: [TransactionPhase] = [
+            .conflicted, .restored, .committed, .prepared, .writing, .restoring,
+        ]
         for (offset, phase) in phases.enumerated() {
             var manifest = fixture.manifestWith(
+                schemaVersion: phase == .restoring ? 2 : 1,
                 id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", offset + 1))!,
                 phase: phase,
                 createdAt: Date(timeIntervalSince1970: Double(100 - offset))
@@ -233,7 +236,10 @@ final class RecoveryCoordinatorTests: XCTestCase {
 
         let candidates = try fixture.recovery.inspect()
 
-        XCTAssertEqual(candidates.map(\.phase), [.writing, .prepared, .committed, .conflicted])
+        XCTAssertEqual(
+            candidates.map(\.phase),
+            [.restoring, .writing, .prepared, .committed, .conflicted]
+        )
     }
 
     func testInspectFailsClosedForUnknownSchema() throws {
@@ -244,6 +250,21 @@ final class RecoveryCoordinatorTests: XCTestCase {
 
         XCTAssertThrowsError(try fixture.recovery.inspect()) {
             XCTAssertEqual($0 as? RecoveryCoordinatorError, .unsupportedSchema(99))
+        }
+    }
+
+    func testSchemaOneJournalCannotClaimSchemaTwoRestoringPhase() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        try fixture.writeManifest(
+            fixture.manifestWith(schemaVersion: 1, phase: .restoring)
+        )
+
+        XCTAssertThrowsError(try fixture.recovery.inspect()) {
+            XCTAssertEqual(
+                $0 as? RecoveryCoordinatorError,
+                .invalidManifest(fixture.manifest.id)
+            )
         }
     }
 
@@ -305,6 +326,253 @@ final class RecoveryCoordinatorTests: XCTestCase {
         )
         XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
     }
+
+    func testRestartReconcilesExistingFileArtifactAfterExchange() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let artifact = fixture.artifact(for: fixture.manifest.video.target, role: "restore")
+        try fixture.files.copy(fixture.manifest.video.target, to: artifact)
+        try fixture.files.copy(fixture.manifest.primaryBackup, to: fixture.manifest.video.target)
+        try fixture.writeManifest(fixture.manifestWith(schemaVersion: 2, phase: .restoring))
+
+        _ = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertEqual(try fixture.loadManifest().phase, .restored)
+        XCTAssertFalse(fixture.files.exists(artifact))
+        XCTAssertEqual(fixture.refresher.refreshCount, 1)
+    }
+
+    func testRestartReconcilesArtifactAlreadyMovedIntoCleanupCapture() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let artifact = fixture.artifact(for: fixture.manifest.video.target, role: "restore")
+        let cleanup = artifact.appendingPathExtension("cleanup")
+        try fixture.files.copy(fixture.manifest.video.target, to: cleanup)
+        try fixture.files.copy(fixture.manifest.primaryBackup, to: fixture.manifest.video.target)
+        try fixture.writeManifest(fixture.manifestWith(schemaVersion: 2, phase: .restoring))
+
+        _ = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertFalse(fixture.files.exists(artifact))
+        XCTAssertFalse(fixture.files.exists(cleanup))
+        XCTAssertEqual(try fixture.loadManifest().phase, .restored)
+        XCTAssertEqual(fixture.refresher.refreshCount, 1)
+    }
+
+    func testRestartContinuesFromExistingPreparedArtifactWithoutOverwritingIt() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let artifact = fixture.artifact(for: fixture.manifest.video.target, role: "restore")
+        try fixture.files.copy(fixture.manifest.primaryBackup, to: artifact)
+
+        _ = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertEqual(
+            try fixture.digest.sha256(of: fixture.manifest.video.target),
+            fixture.manifest.video.originalHash
+        )
+        XCTAssertFalse(fixture.files.exists(artifact))
+    }
+
+    func testRestartCompletesOriginallyAbsentQuarantine() throws {
+        let fixture = try RecoveryFixture.installed(originalPosterExists: false)
+        defer { fixture.remove() }
+        let quarantine = fixture.artifact(for: fixture.manifest.poster.target, role: "quarantine")
+        try fixture.files.installExclusively(quarantine, from: fixture.manifest.poster.target)
+        try fixture.writeManifest(fixture.manifestWith(schemaVersion: 2, phase: .restoring))
+
+        _ = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertFalse(fixture.files.exists(fixture.manifest.poster.target))
+        XCTAssertFalse(fixture.files.exists(quarantine))
+        XCTAssertEqual(fixture.refresher.refreshCount, 1)
+    }
+
+    func testUnexplainedArtifactAndTargetCombinationFailsClosed() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let artifact = fixture.artifact(for: fixture.manifest.video.target, role: "restore")
+        try fixture.files.writeAtomically(Data("unknown-artifact".utf8), to: artifact)
+        try fixture.files.writeAtomically(Data("external-target".utf8), to: fixture.manifest.video.target)
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.video.target))
+        XCTAssertEqual(try fixture.files.read(artifact), Data("unknown-artifact".utf8))
+        XCTAssertEqual(try fixture.files.read(fixture.manifest.video.target), Data("external-target".utf8))
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+    }
+
+    func testExternalIndexArtifactMatchingExternalTargetIsRetained() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        try fixture.externallyChangeIndex()
+        let artifact = fixture.artifact(for: fixture.manifest.indexURL, role: "restore")
+        let external = try fixture.files.read(fixture.manifest.indexURL)
+        try fixture.files.writeAtomically(external, to: artifact)
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.indexURL))
+        XCTAssertEqual(try fixture.files.read(fixture.manifest.indexURL), external)
+        XCTAssertEqual(try fixture.files.read(artifact), external)
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+    }
+
+    func testArtifactCreatedDuringExclusiveStageInstallIsNeverOverwritten() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let artifact = fixture.artifact(for: fixture.manifest.video.target, role: "restore")
+        fixture.files.raceCopyDestination = artifact
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.video.target))
+        XCTAssertEqual(try fixture.files.read(artifact), Data("external-artifact".utf8))
+        XCTAssertEqual(
+            try fixture.digest.sha256(of: fixture.manifest.video.target),
+            fixture.manifest.video.installedHash
+        )
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+    }
+
+    func testArtifactChangedAtCleanupIsAtomicallyRetainedAsConflict() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let artifact = fixture.artifact(for: fixture.manifest.video.target, role: "restore")
+        fixture.files.raceRemoveTarget = artifact
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.video.target))
+        XCTAssertEqual(try fixture.files.read(artifact), Data("external-artifact".utf8))
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+        XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
+    }
+
+    func testArtifactChangedImmediatelyBeforeExchangeIsSwappedBackAndRetained() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let artifact = fixture.artifact(for: fixture.manifest.video.target, role: "restore")
+        fixture.files.racePreparedExchangeTarget = fixture.manifest.video.target
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.video.target))
+        XCTAssertEqual(
+            try fixture.digest.sha256(of: fixture.manifest.video.target),
+            fixture.manifest.video.installedHash
+        )
+        XCTAssertEqual(try fixture.files.read(artifact), Data("external-artifact".utf8))
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+    }
+
+    func testLateTargetChangeIsIncludedInRecoveryReportConflicts() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        fixture.files.mutateTargetAfterCleanup = fixture.manifest.video.target
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.video.target))
+        XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+    }
+
+    func testRestartReconcilesIndexArtifactAfterExchange() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let artifact = fixture.artifact(for: fixture.manifest.indexURL, role: "restore")
+        let installed = try fixture.files.read(fixture.manifest.indexURL)
+        let restored = try WallpaperIndexPatcher().restore(
+            fixture.manifest.indexMutations,
+            in: installed
+        ).data
+        try fixture.files.writeAtomically(installed, to: artifact)
+        try fixture.files.writeAtomically(restored, to: fixture.manifest.indexURL)
+        try fixture.writeManifest(fixture.manifestWith(schemaVersion: 2, phase: .restoring))
+
+        _ = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertFalse(fixture.files.exists(artifact))
+        XCTAssertEqual(try fixture.files.read(fixture.manifest.indexURL), restored)
+        XCTAssertEqual(fixture.refresher.refreshCount, 1)
+    }
+
+    func testRestartReconcilesPartiallyRestoredIndexArtifactAfterExchange() throws {
+        let fixture = try RecoveryFixture.installed(indexOriginal: recoveryIndexWithTwoChoices())
+        defer { fixture.remove() }
+        let mutation = fixture.manifest.indexMutations[0]
+        let externalFragment = try PropertyListSerialization.data(
+            fromPropertyList: ["selectedID": "EXTERNAL", "showAsScreenSaver": false],
+            format: .binary,
+            options: 0
+        )
+        let snapshot = try recoveryReplacingValue(
+            externalFragment,
+            at: mutation.path,
+            in: fixture.files.read(fixture.manifest.indexURL)
+        )
+        let outcome = try WallpaperIndexPatcher().restore(
+            fixture.manifest.indexMutations,
+            in: snapshot
+        )
+        let artifact = fixture.artifact(for: fixture.manifest.indexURL, role: "restore")
+        try fixture.files.writeAtomically(snapshot, to: artifact)
+        try fixture.files.writeAtomically(outcome.data, to: fixture.manifest.indexURL)
+        try fixture.writeManifest(fixture.manifestWith(schemaVersion: 2, phase: .restoring))
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.indexURL))
+        XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
+        XCTAssertEqual(try fixture.files.read(fixture.manifest.indexURL), outcome.data)
+        XCTAssertFalse(fixture.files.exists(artifact))
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+    }
+
+    func testRefreshFailureRetainsRestoringJournalBackupsAndArtifactsThenRetries() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        fixture.refresher.remainingFailures = 1
+
+        XCTAssertThrowsError(try fixture.recovery.restore(id: fixture.manifest.id))
+
+        XCTAssertEqual(try fixture.loadManifest().phase, .restoring)
+        XCTAssertEqual(try fixture.loadManifest().schemaVersion, 2)
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+        XCTAssertTrue(fixture.restoreArtifacts.contains(where: fixture.files.exists))
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.isEmpty)
+        XCTAssertEqual(try fixture.loadManifest().phase, .restored)
+        XCTAssertEqual(try fixture.loadManifest().schemaVersion, 2)
+        XCTAssertEqual(fixture.refresher.refreshCount, 2)
+        XCTAssertTrue(fixture.restoreArtifacts.allSatisfy { !fixture.files.exists($0) })
+        XCTAssertTrue(fixture.allBackups.allSatisfy { !fixture.files.exists($0) })
+    }
+
+    func testRefreshRetryFinishesConflictedAndRetainsBackupsAfterPartialRestore() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        try fixture.files.writeAtomically(
+            Data("external-video".utf8),
+            to: fixture.manifest.video.target
+        )
+        fixture.refresher.remainingFailures = 1
+
+        XCTAssertThrowsError(try fixture.recovery.restore(id: fixture.manifest.id))
+        XCTAssertEqual(try fixture.loadManifest().phase, .restoring)
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.video.target))
+        XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
+        XCTAssertEqual(fixture.refresher.refreshCount, 2)
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+        XCTAssertTrue(fixture.restoreArtifacts.allSatisfy { !fixture.files.exists($0) })
+    }
 }
 
 private struct RecoveryFixture {
@@ -324,6 +592,19 @@ private struct RecoveryFixture {
     var allBackups: [URL] {
         [manifest.video.originalBackup, manifest.poster.originalBackup,
          Optional(manifest.primaryBackup), Optional(manifest.recoveryBackup)].compactMap { $0 }
+    }
+
+    var restoreArtifacts: [URL] {
+        [artifact(for: manifest.video.target, role: "restore"),
+         artifact(for: manifest.poster.target, role: "restore"),
+         artifact(for: manifest.poster.target, role: "quarantine"),
+         artifact(for: manifest.indexURL, role: "restore")]
+    }
+
+    func artifact(for target: URL, role: String) -> URL {
+        target.deletingLastPathComponent().appending(
+            path: ".\(target.lastPathComponent).wallume.\(manifest.id.uuidString).\(role)"
+        )
     }
 
     static func installed(
@@ -500,12 +781,16 @@ private final class RecoveryTestFileStore: FileStore, @unchecked Sendable {
     var failRollbackTarget: URL?
     var raceQuarantineSource: URL?
     var failPreparedReadNumber: Int?
+    var raceCopyDestination: URL?
+    var raceRemoveTarget: URL?
+    var racePreparedExchangeTarget: URL?
+    var mutateTargetAfterCleanup: URL?
     private var exchangeCounts: [URL: Int] = [:]
     private var preparedReadCount = 0
 
     func exists(_ url: URL) -> Bool { local.exists(url) }
     func read(_ url: URL) throws -> Data {
-        if url.lastPathComponent.contains(".restore.") {
+        if url.lastPathComponent.hasSuffix(".restore") {
             preparedReadCount += 1
             if failPreparedReadNumber == preparedReadCount {
                 throw RecoveryFixtureError.injected
@@ -518,7 +803,23 @@ private final class RecoveryTestFileStore: FileStore, @unchecked Sendable {
     func writeAtomically(_ data: Data, to target: URL) throws {
         try local.writeAtomically(data, to: target)
     }
-    func copy(_ source: URL, to destination: URL) throws { try local.copy(source, to: destination) }
+    func writeExclusively(_ data: Data, to target: URL) throws {
+        try local.writeExclusively(data, to: target)
+    }
+    func copy(_ source: URL, to destination: URL) throws {
+        if raceCopyDestination == destination {
+            raceCopyDestination = nil
+            try local.writeAtomically(Data("external-artifact".utf8), to: destination)
+        }
+        try local.copy(source, to: destination)
+    }
+    func copyExclusively(_ source: URL, to destination: URL) throws {
+        if raceCopyDestination == destination {
+            raceCopyDestination = nil
+            try local.writeAtomically(Data("external-artifact".utf8), to: destination)
+        }
+        try local.copyExclusively(source, to: destination)
+    }
     func replace(_ target: URL, with preparedFile: URL) throws {
         try local.replace(target, with: preparedFile)
     }
@@ -530,26 +831,53 @@ private final class RecoveryTestFileStore: FileStore, @unchecked Sendable {
         if raceTarget == target, count == 1 {
             try local.writeAtomically(Data("external-race".utf8), to: target)
         }
+        if racePreparedExchangeTarget == target, count == 1 {
+            racePreparedExchangeTarget = nil
+            try local.writeAtomically(Data("external-artifact".utf8), to: preparedFile)
+        }
         if failRollbackTarget == target, count == 2 {
             throw RecoveryFixtureError.injected
         }
         try local.exchange(target, with: preparedFile)
     }
     func installExclusively(_ target: URL, from preparedFile: URL) throws {
+        if raceRemoveTarget == preparedFile, target.lastPathComponent.hasSuffix(".cleanup") {
+            raceRemoveTarget = nil
+            try local.writeAtomically(Data("external-artifact".utf8), to: preparedFile)
+        }
         if raceQuarantineSource == preparedFile {
             raceQuarantineSource = nil
             try local.writeAtomically(Data("external-race".utf8), to: preparedFile)
         }
         try local.installExclusively(target, from: preparedFile)
     }
-    func remove(_ url: URL) throws { try local.remove(url) }
+    func remove(_ url: URL) throws {
+        try local.remove(url)
+        if url.lastPathComponent.hasSuffix(".cleanup"),
+           let target = mutateTargetAfterCleanup,
+           url.lastPathComponent.contains(target.lastPathComponent) {
+            mutateTargetAfterCleanup = nil
+            try local.writeAtomically(Data("late-external-target".utf8), to: target)
+        }
+    }
 }
 
 private final class RecoveryTestRefresher: WallpaperRefreshing, @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
+    var remainingFailures = 0
     var refreshCount: Int { lock.withLock { count } }
-    func refresh() throws { lock.withLock { count += 1 } }
+    func refresh() throws {
+        let shouldFail = lock.withLock { () -> Bool in
+            count += 1
+            if remainingFailures > 0 {
+                remainingFailures -= 1
+                return true
+            }
+            return false
+        }
+        if shouldFail { throw RecoveryFixtureError.injected }
+    }
 }
 
 private enum RecoveryFixtureError: Error { case missingIndexFixture, injected }

@@ -11,7 +11,9 @@ public protocol FileStore: Sendable {
     func contents(_ directory: URL) throws -> [URL]
     func createDirectory(_ url: URL) throws
     func writeAtomically(_ data: Data, to target: URL) throws
+    func writeExclusively(_ data: Data, to target: URL) throws
     func copy(_ source: URL, to destination: URL) throws
+    func copyExclusively(_ source: URL, to destination: URL) throws
     func replace(_ target: URL, with preparedFile: URL) throws
     func exchange(_ target: URL, with preparedFile: URL) throws
     func installExclusively(_ target: URL, from preparedFile: URL) throws
@@ -53,6 +55,14 @@ public struct LocalFileStore: FileStore {
     }
 
     public func copy(_ source: URL, to destination: URL) throws {
+        try copy(source, to: destination, exclusively: false)
+    }
+
+    public func copyExclusively(_ source: URL, to destination: URL) throws {
+        try copy(source, to: destination, exclusively: true)
+    }
+
+    private func copy(_ source: URL, to destination: URL, exclusively: Bool) throws {
         let sourceHandle = try FileHandle(forReadingFrom: source)
         var sourceIsClosed = false
         defer {
@@ -61,7 +71,7 @@ public struct LocalFileStore: FileStore {
             }
         }
 
-        try installAtomically(to: destination) { destinationHandle in
+        try installAtomically(to: destination, exclusively: exclusively) { destinationHandle in
             while let chunk = try sourceHandle.read(upToCount: 1_048_576), !chunk.isEmpty {
                 try destinationHandle.write(contentsOf: chunk)
             }
@@ -102,13 +112,20 @@ public struct LocalFileStore: FileStore {
     }
 
     public func writeAtomically(_ data: Data, to target: URL) throws {
-        try installAtomically(to: target) { handle in
+        try installAtomically(to: target, exclusively: false) { handle in
+            try handle.write(contentsOf: data)
+        }
+    }
+
+    public func writeExclusively(_ data: Data, to target: URL) throws {
+        try installAtomically(to: target, exclusively: true) { handle in
             try handle.write(contentsOf: data)
         }
     }
 
     private func installAtomically(
         to target: URL,
+        exclusively: Bool,
         writing contents: (FileHandle) throws -> Void
     ) throws {
         try createDirectory(target.deletingLastPathComponent())
@@ -125,7 +142,11 @@ public struct LocalFileStore: FileStore {
         try handle.synchronize()
         try handle.close()
         handleIsClosed = true
-        try replace(target, with: temporary)
+        if exclusively {
+            try installExclusively(target, from: temporary)
+        } else {
+            try replace(target, with: temporary)
+        }
     }
 
     private func makeTemporaryFile(nextTo target: URL) throws -> (URL, FileHandle) {

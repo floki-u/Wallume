@@ -4,6 +4,7 @@ public enum TransactionPhase: String, Codable, Sendable {
     case prepared
     case writing
     case committed
+    case restoring
     case restored
     case conflicted
 }
@@ -28,7 +29,7 @@ public struct FileReplacementRecord: Codable, Equatable, Sendable {
 }
 
 public struct LockScreenTransactionManifest: Codable, Equatable, Sendable {
-    public let schemaVersion: Int
+    public var schemaVersion: Int
     public let id: UUID
     public var phase: TransactionPhase
     public let createdAt: Date

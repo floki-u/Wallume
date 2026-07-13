@@ -326,11 +326,17 @@ private struct TestFileStore: FileStore {
         }
         try local.writeAtomically(data, to: mapped(target))
     }
+    func writeExclusively(_ data: Data, to target: URL) throws {
+        try local.writeExclusively(data, to: mapped(target))
+    }
     func copy(_ source: URL, to destination: URL) throws {
         try local.copy(mapped(source), to: mapped(destination))
         if corruption.matches(destination) {
             try local.writeAtomically(Data("corrupted-copy".utf8), to: mapped(destination))
         }
+    }
+    func copyExclusively(_ source: URL, to destination: URL) throws {
+        try local.copyExclusively(mapped(source), to: mapped(destination))
     }
     func replace(_ target: URL, with preparedFile: URL) throws {
         if target.lastPathComponent == "Index.plist" { recorder.append("replace:index") }

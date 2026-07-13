@@ -36,6 +36,7 @@ public enum RecoveryCoordinatorError: Error, Equatable {
 }
 
 public struct RecoveryCoordinator: Sendable {
+    private static let restoreLock = NSLock()
     private let paths: AerialPaths
     private let files: any FileStore
     private let digester: any Digesting
@@ -83,6 +84,8 @@ public struct RecoveryCoordinator: Sendable {
     }
 
     public func restore(id: UUID) throws -> RecoveryReport {
+        Self.restoreLock.lock()
+        defer { Self.restoreLock.unlock() }
         let journalURL = paths.transactionsDirectory.appending(path: "\(id.uuidString).json")
         guard files.exists(journalURL) else {
             throw RecoveryCoordinatorError.transactionNotFound(id)
@@ -91,30 +94,73 @@ public struct RecoveryCoordinator: Sendable {
         if manifest.phase == .restored {
             return RecoveryReport(restored: [], conflicts: [], retainedBackups: [])
         }
+        let enteredWhileRestoring = manifest.phase == .restoring
 
         var restored: [URL] = []
         var conflicts: [URL] = []
+        var artifactsToClean: [ArtifactCleanup] = []
+        var wroteRestoringJournal = enteredWhileRestoring
+        func prepareForMutation() throws {
+            guard !wroteRestoringJournal else { return }
+            manifest.schemaVersion = 2
+            manifest.phase = .restoring
+            try journals.write(manifest, to: journalURL)
+            wroteRestoringJournal = true
+        }
 
-        switch try restoreFile(manifest.video, fallbackBackup: manifest.recoveryBackup, id: id) {
-        case .changed: restored.append(manifest.video.target)
-        case .alreadyOriginal: break
+        switch try restoreFile(
+            manifest.video,
+            fallbackBackup: manifest.recoveryBackup,
+            id: id,
+            prepareForMutation: prepareForMutation
+        ) {
+        case let .changed(artifact):
+            restored.append(manifest.video.target)
+            artifactsToClean.append(artifact)
+        case let .alreadyOriginal(artifact):
+            if let artifact { artifactsToClean.append(artifact) }
         case .conflict: conflicts.append(manifest.video.target)
         }
-        switch try restoreFile(manifest.poster, fallbackBackup: nil, id: id) {
-        case .changed: restored.append(manifest.poster.target)
-        case .alreadyOriginal: break
+        switch try restoreFile(
+            manifest.poster,
+            fallbackBackup: nil,
+            id: id,
+            prepareForMutation: prepareForMutation
+        ) {
+        case let .changed(artifact):
+            restored.append(manifest.poster.target)
+            artifactsToClean.append(artifact)
+        case let .alreadyOriginal(artifact):
+            if let artifact { artifactsToClean.append(artifact) }
         case .conflict: conflicts.append(manifest.poster.target)
         }
 
-        let indexResult = try restoreIndex(manifest, id: id)
+        let indexResult = try restoreIndex(
+            manifest,
+            id: id,
+            prepareForMutation: prepareForMutation
+        )
         if indexResult.changed { restored.append(manifest.indexURL) }
         if indexResult.conflicted { conflicts.append(manifest.indexURL) }
+        if let artifact = indexResult.cleanupArtifact { artifactsToClean.append(artifact) }
 
         conflicts = unique(conflicts)
         restored = unique(restored)
 
-        let originalsVerified = try originalStateIsVerified(manifest.video)
-            && originalStateIsVerified(manifest.poster)
+        if enteredWhileRestoring || !restored.isEmpty {
+            try refresher.refresh()
+        }
+        for artifact in uniqueArtifacts(artifactsToClean) {
+            if try !cleanup(artifact) { conflicts.append(artifact.target) }
+        }
+        conflicts = unique(conflicts)
+
+        let videoOriginalVerified = try originalStateIsVerified(manifest.video)
+        let posterOriginalVerified = try originalStateIsVerified(manifest.poster)
+        if !videoOriginalVerified { conflicts.append(manifest.video.target) }
+        if !posterOriginalVerified { conflicts.append(manifest.poster.target) }
+        conflicts = unique(conflicts)
+        let originalsVerified = videoOriginalVerified && posterOriginalVerified
         if conflicts.isEmpty && originalsVerified {
             try removeBackups(for: manifest)
             manifest.phase = .restored
@@ -122,7 +168,6 @@ public struct RecoveryCoordinator: Sendable {
             manifest.phase = .conflicted
         }
         try journals.write(manifest, to: journalURL)
-        if !restored.isEmpty { try refresher.refresh() }
 
         return RecoveryReport(
             restored: restored,
@@ -138,8 +183,11 @@ public struct RecoveryCoordinator: Sendable {
         } catch {
             throw RecoveryCoordinatorError.invalidJournalFile(journalURL)
         }
-        guard manifest.schemaVersion == 1 else {
+        guard (1...2).contains(manifest.schemaVersion) else {
             throw RecoveryCoordinatorError.unsupportedSchema(manifest.schemaVersion)
+        }
+        guard manifest.schemaVersion == 2 || manifest.phase != .restoring else {
+            throw RecoveryCoordinatorError.invalidManifest(manifest.id)
         }
         guard journalURL.deletingPathExtension().lastPathComponent == manifest.id.uuidString else {
             throw RecoveryCoordinatorError.invalidJournalFile(journalURL)
@@ -156,17 +204,59 @@ public struct RecoveryCoordinator: Sendable {
         (record.originalHash == nil) == (record.originalBackup == nil)
     }
 
-    private enum FileRestoreResult { case changed, alreadyOriginal, conflict }
+    private enum FileRestoreResult {
+        case changed(ArtifactCleanup)
+        case alreadyOriginal(ArtifactCleanup?)
+        case conflict
+    }
+
+    private enum ArtifactExpectation {
+        case hash(String)
+        case data(Data)
+    }
+
+    private struct ArtifactCleanup {
+        let url: URL
+        let target: URL
+        let expectation: ArtifactExpectation
+    }
 
     private func restoreFile(
         _ record: FileReplacementRecord,
         fallbackBackup: URL?,
-        id: UUID
+        id: UUID,
+        prepareForMutation: () throws -> Void
     ) throws -> FileRestoreResult {
         if let originalHash = record.originalHash {
+            let prepared = sibling(of: record.target, id: id, role: "restore")
+            let unexpectedQuarantine = sibling(of: record.target, id: id, role: "quarantine")
+            if files.exists(unexpectedQuarantine) { return .conflict }
+            guard try reconcileCleanupCapture(for: prepared) else { return .conflict }
             guard files.exists(record.target) else { return .conflict }
             let observedHash = try digester.sha256(of: record.target)
-            if observedHash == originalHash { return .alreadyOriginal }
+            if files.exists(prepared) {
+                let preparedHash = try digester.sha256(of: prepared)
+                switch (observedHash, preparedHash) {
+                case (originalHash, record.installedHash):
+                    return .changed(
+                        artifact(prepared, target: record.target, hash: record.installedHash)
+                    )
+                case (originalHash, originalHash):
+                    return .alreadyOriginal(
+                        artifact(prepared, target: record.target, hash: originalHash)
+                    )
+                case (record.installedHash, originalHash):
+                    try prepareForMutation()
+                    return try exchangePreparedFile(
+                        record,
+                        originalHash: originalHash,
+                        prepared: prepared
+                    )
+                default:
+                    return .conflict
+                }
+            }
+            if observedHash == originalHash { return .alreadyOriginal(nil) }
             guard observedHash == record.installedHash else { return .conflict }
             guard let backup = try verifiedBackup(
                 primary: record.originalBackup,
@@ -174,41 +264,37 @@ public struct RecoveryCoordinator: Sendable {
                 expectedHash: originalHash
             ) else { return .conflict }
 
-            let prepared = sibling(of: record.target, id: id, role: "restore")
-            try files.copy(backup, to: prepared)
-            guard try digester.sha256(of: prepared) == originalHash else {
-                try? files.remove(prepared)
-                return .conflict
-            }
-            try files.exchange(record.target, with: prepared)
-            let swappedOutHash: String
             do {
-                swappedOutHash = try digester.sha256(of: prepared)
-            } catch {
-                try revertExchange(
-                    target: record.target,
-                    prepared: prepared,
-                    expectedRestoredHash: record.installedHash
-                )
-                throw error
-            }
-            guard swappedOutHash == record.installedHash else {
-                try revertExchange(
-                    target: record.target,
-                    prepared: prepared,
-                    expectedRestoredHash: swappedOutHash
-                )
+                try files.copyExclusively(backup, to: prepared)
+            } catch let error as POSIXError where error.code == .EEXIST {
                 return .conflict
             }
-            guard try digester.sha256(of: record.target) == originalHash else {
-                throw RecoveryCoordinatorError.restoredFileVerificationFailed(record.target)
+            guard try digester.sha256(of: prepared) == originalHash else {
+                return .conflict
             }
-            try files.remove(prepared)
-            return .changed
+            try prepareForMutation()
+            return try exchangePreparedFile(
+                record,
+                originalHash: originalHash,
+                prepared: prepared
+            )
         }
 
-        guard files.exists(record.target) else { return .alreadyOriginal }
         let quarantine = sibling(of: record.target, id: id, role: "quarantine")
+        let unexpectedPrepared = sibling(of: record.target, id: id, role: "restore")
+        if files.exists(unexpectedPrepared) { return .conflict }
+        guard try reconcileCleanupCapture(for: quarantine) else { return .conflict }
+        if files.exists(quarantine) {
+            guard !files.exists(record.target),
+                  try digester.sha256(of: quarantine) == record.installedHash else {
+                return .conflict
+            }
+            return .changed(
+                artifact(quarantine, target: record.target, hash: record.installedHash)
+            )
+        }
+        guard files.exists(record.target) else { return .alreadyOriginal(nil) }
+        try prepareForMutation()
         try files.installExclusively(quarantine, from: record.target)
         let movedHash: String
         do {
@@ -221,8 +307,58 @@ public struct RecoveryCoordinator: Sendable {
             try restoreQuarantine(record.target, quarantine: quarantine, expectedHash: movedHash)
             return .conflict
         }
-        try files.remove(quarantine)
-        return .changed
+        return .changed(
+            artifact(quarantine, target: record.target, hash: record.installedHash)
+        )
+    }
+
+    private func exchangePreparedFile(
+        _ record: FileReplacementRecord,
+        originalHash: String,
+        prepared: URL
+    ) throws -> FileRestoreResult {
+        try files.exchange(record.target, with: prepared)
+        let swappedOutHash: String
+        do {
+            swappedOutHash = try digester.sha256(of: prepared)
+        } catch {
+            try revertExchange(
+                target: record.target,
+                prepared: prepared,
+                expectedRestoredHash: record.installedHash
+            )
+            throw error
+        }
+        guard swappedOutHash == record.installedHash else {
+            try revertExchange(
+                target: record.target,
+                prepared: prepared,
+                expectedRestoredHash: swappedOutHash
+            )
+            return .conflict
+        }
+        let installedTargetHash: String
+        do {
+            installedTargetHash = try digester.sha256(of: record.target)
+        } catch {
+            try revertExchange(
+                target: record.target,
+                prepared: prepared,
+                expectedRestoredHash: record.installedHash
+            )
+            throw error
+        }
+        guard installedTargetHash == originalHash else {
+            try revertExchange(
+                target: record.target,
+                prepared: prepared,
+                expectedRestoredHash: record.installedHash
+            )
+            return .conflict
+        }
+        return .changed(
+            artifact(prepared, target: record.target, hash: record.installedHash)
+        )
     }
 
     private func verifiedBackup(
@@ -269,28 +405,118 @@ public struct RecoveryCoordinator: Sendable {
         }
     }
 
-    private struct IndexRestoreResult { let changed: Bool; let conflicted: Bool }
+    private struct IndexRestoreResult {
+        let changed: Bool
+        let conflicted: Bool
+        let cleanupArtifact: ArtifactCleanup?
+    }
 
     private func restoreIndex(
         _ manifest: LockScreenTransactionManifest,
-        id: UUID
+        id: UUID,
+        prepareForMutation: () throws -> Void
     ) throws -> IndexRestoreResult {
         guard files.exists(manifest.indexURL) else {
-            return IndexRestoreResult(changed: false, conflicted: true)
+            return IndexRestoreResult(changed: false, conflicted: true, cleanupArtifact: nil)
         }
         let snapshot = try files.read(manifest.indexURL)
+        let prepared = sibling(of: manifest.indexURL, id: id, role: "restore")
+        let unexpectedQuarantine = sibling(
+            of: manifest.indexURL,
+            id: id,
+            role: "quarantine"
+        )
+        if files.exists(unexpectedQuarantine) {
+            return IndexRestoreResult(changed: false, conflicted: true, cleanupArtifact: nil)
+        }
+        guard try reconcileCleanupCapture(for: prepared) else {
+            return IndexRestoreResult(changed: false, conflicted: true, cleanupArtifact: nil)
+        }
         let outcome: RestoreOutcome
         do {
             outcome = try patcher.restore(manifest.indexMutations, in: snapshot)
         } catch WallpaperIndexError.invalidPropertyList {
-            return IndexRestoreResult(changed: false, conflicted: true)
+            return IndexRestoreResult(changed: false, conflicted: true, cleanupArtifact: nil)
+        }
+        if files.exists(prepared) {
+            let artifactData = try files.read(prepared)
+            let artifactOutcome: RestoreOutcome
+            do {
+                artifactOutcome = try patcher.restore(
+                    manifest.indexMutations,
+                    in: artifactData
+                )
+            } catch WallpaperIndexError.invalidPropertyList {
+                return IndexRestoreResult(changed: false, conflicted: true, cleanupArtifact: nil)
+            }
+            if !outcome.restoredPaths.isEmpty,
+               try propertyListsAreEqual(outcome.data, artifactData) {
+                try prepareForMutation()
+                return try exchangePreparedIndex(
+                    manifest,
+                    snapshot: snapshot,
+                    outcome: outcome,
+                    prepared: prepared
+                )
+            }
+            if !artifactOutcome.restoredPaths.isEmpty,
+               try propertyListsAreEqual(artifactOutcome.data, snapshot) {
+                return IndexRestoreResult(
+                    changed: true,
+                    conflicted: !artifactOutcome.conflicts.isEmpty,
+                    cleanupArtifact: artifact(
+                        prepared,
+                        target: manifest.indexURL,
+                        data: artifactData
+                    )
+                )
+            }
+            if outcome.restoredPaths.isEmpty,
+               outcome.conflicts.isEmpty,
+               try propertyListsAreEqual(artifactData, snapshot) {
+                return IndexRestoreResult(
+                    changed: false,
+                    conflicted: !outcome.conflicts.isEmpty,
+                    cleanupArtifact: artifact(
+                        prepared,
+                        target: manifest.indexURL,
+                        data: artifactData
+                    )
+                )
+            }
+            return IndexRestoreResult(changed: false, conflicted: true, cleanupArtifact: nil)
         }
         guard !outcome.restoredPaths.isEmpty else {
-            return IndexRestoreResult(changed: false, conflicted: !outcome.conflicts.isEmpty)
+            return IndexRestoreResult(
+                changed: false,
+                conflicted: !outcome.conflicts.isEmpty,
+                cleanupArtifact: nil
+            )
         }
 
-        let prepared = sibling(of: manifest.indexURL, id: id, role: "restore")
-        try files.writeAtomically(outcome.data, to: prepared)
+        do {
+            try files.writeExclusively(outcome.data, to: prepared)
+        } catch let error as POSIXError where error.code == .EEXIST {
+            return IndexRestoreResult(changed: false, conflicted: true, cleanupArtifact: nil)
+        }
+        guard try files.read(prepared) == outcome.data else {
+            return IndexRestoreResult(changed: false, conflicted: true, cleanupArtifact: nil)
+        }
+        try prepareForMutation()
+        return try exchangePreparedIndex(
+            manifest,
+            snapshot: snapshot,
+            outcome: outcome,
+            prepared: prepared
+        )
+    }
+
+    private func exchangePreparedIndex(
+        _ manifest: LockScreenTransactionManifest,
+        snapshot: Data,
+        outcome: RestoreOutcome,
+        prepared: URL
+    ) throws -> IndexRestoreResult {
         try files.exchange(manifest.indexURL, with: prepared)
         let swappedOut: Data
         do {
@@ -309,13 +535,36 @@ public struct RecoveryCoordinator: Sendable {
                 prepared: prepared,
                 expectedRestoredData: swappedOut
             )
-            return IndexRestoreResult(changed: false, conflicted: true)
+            return IndexRestoreResult(changed: false, conflicted: true, cleanupArtifact: nil)
         }
-        guard try files.read(manifest.indexURL) == outcome.data else {
-            throw RecoveryCoordinatorError.restoredFileVerificationFailed(manifest.indexURL)
+        let installedData: Data
+        do {
+            installedData = try files.read(manifest.indexURL)
+        } catch {
+            try revertIndexExchange(
+                target: manifest.indexURL,
+                prepared: prepared,
+                expectedRestoredData: snapshot
+            )
+            throw error
         }
-        try files.remove(prepared)
-        return IndexRestoreResult(changed: true, conflicted: !outcome.conflicts.isEmpty)
+        guard installedData == outcome.data else {
+            try revertIndexExchange(
+                target: manifest.indexURL,
+                prepared: prepared,
+                expectedRestoredData: snapshot
+            )
+            return IndexRestoreResult(changed: false, conflicted: true, cleanupArtifact: nil)
+        }
+        return IndexRestoreResult(
+            changed: true,
+            conflicted: !outcome.conflicts.isEmpty,
+            cleanupArtifact: artifact(
+                prepared,
+                target: manifest.indexURL,
+                data: snapshot
+            )
+        )
     }
 
     private func revertIndexExchange(
@@ -333,6 +582,119 @@ public struct RecoveryCoordinator: Sendable {
         } catch {
             throw RecoveryCoordinatorError.guardedRecoveryFailed(target)
         }
+    }
+
+    private func propertyListsAreEqual(_ first: Data, _ second: Data) throws -> Bool {
+        let firstValue = try PropertyListSerialization.propertyList(
+            from: first,
+            options: [],
+            format: nil
+        )
+        let secondValue = try PropertyListSerialization.propertyList(
+            from: second,
+            options: [],
+            format: nil
+        )
+        guard let firstObject = firstValue as? NSObject,
+              let secondObject = secondValue as? NSObject else {
+            return false
+        }
+        return firstObject.isEqual(secondObject)
+    }
+
+    private func artifact(_ url: URL, target: URL, hash: String) -> ArtifactCleanup {
+        ArtifactCleanup(url: url, target: target, expectation: .hash(hash))
+    }
+
+    private func artifact(_ url: URL, target: URL, data: Data) -> ArtifactCleanup {
+        ArtifactCleanup(url: url, target: target, expectation: .data(data))
+    }
+
+    private func reconcileCleanupCapture(for artifact: URL) throws -> Bool {
+        let capture = cleanupCapture(for: artifact)
+        guard files.exists(capture) else { return true }
+        guard !files.exists(artifact) else { return false }
+        do {
+            try files.installExclusively(artifact, from: capture)
+            return true
+        } catch let error as POSIXError where error.code == .EEXIST {
+            return false
+        }
+    }
+
+    private func cleanup(_ artifact: ArtifactCleanup) throws -> Bool {
+        guard files.exists(artifact.url) else { return false }
+        let capture = cleanupCapture(for: artifact.url)
+        guard !files.exists(capture) else { return false }
+        do {
+            try files.installExclusively(capture, from: artifact.url)
+        } catch let error as POSIXError where error.code == .EEXIST {
+            return false
+        }
+
+        switch artifact.expectation {
+        case let .hash(expectedHash):
+            let movedHash: String
+            do {
+                movedHash = try digester.sha256(of: capture)
+            } catch {
+                try restoreCleanupCapture(artifact.url, capture: capture)
+                throw error
+            }
+            guard movedHash == expectedHash else {
+                try restoreCleanupCapture(
+                    artifact.url,
+                    capture: capture,
+                    expectedHash: movedHash
+                )
+                return false
+            }
+        case let .data(expectedData):
+            let movedData: Data
+            do {
+                movedData = try files.read(capture)
+            } catch {
+                try restoreCleanupCapture(artifact.url, capture: capture)
+                throw error
+            }
+            guard movedData == expectedData else {
+                try restoreCleanupCapture(
+                    artifact.url,
+                    capture: capture,
+                    expectedData: movedData
+                )
+                return false
+            }
+        }
+        try files.remove(capture)
+        return true
+    }
+
+    private func restoreCleanupCapture(
+        _ artifact: URL,
+        capture: URL,
+        expectedHash: String? = nil,
+        expectedData: Data? = nil
+    ) throws {
+        do {
+            try files.installExclusively(artifact, from: capture)
+            if let expectedHash {
+                guard try digester.sha256(of: artifact) == expectedHash else {
+                    throw RecoveryCoordinatorError.guardedRecoveryFailed(artifact)
+                }
+            }
+            if let expectedData {
+                guard try files.read(artifact) == expectedData else {
+                    throw RecoveryCoordinatorError.guardedRecoveryFailed(artifact)
+                }
+            }
+        } catch {
+            throw RecoveryCoordinatorError.guardedRecoveryFailed(artifact)
+        }
+    }
+
+    private func cleanupCapture(for artifact: URL) -> URL {
+        artifact.appendingPathExtension("cleanup")
     }
 
     private func originalStateIsVerified(_ record: FileReplacementRecord) throws -> Bool {
@@ -362,12 +724,17 @@ public struct RecoveryCoordinator: Sendable {
 
     private func sibling(of target: URL, id: UUID, role: String) -> URL {
         target.deletingLastPathComponent().appending(
-            path: ".\(target.lastPathComponent).wallume.\(id.uuidString).\(role).\(UUID().uuidString)"
+            path: ".\(target.lastPathComponent).wallume.\(id.uuidString).\(role)"
         )
     }
 
     private func unique<T: Hashable>(_ values: [T]) -> [T] {
         var seen: Set<T> = []
         return values.filter { seen.insert($0).inserted }
+    }
+
+    private func uniqueArtifacts(_ values: [ArtifactCleanup]) -> [ArtifactCleanup] {
+        var seen: Set<URL> = []
+        return values.filter { seen.insert($0.url).inserted }
     }
 }

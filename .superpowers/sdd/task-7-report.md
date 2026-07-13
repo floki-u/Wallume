@@ -67,10 +67,49 @@ entity that cannot be read.
 
 ## Concerns
 
-- Recovery-stage/quarantine files use unique names. A process crash inside recovery can
-  strand a hidden same-directory artifact; the journal remains recoverable and backups
-  remain conservative, but this task does not yet rediscover those stage artifacts.
-- `.restored` and backup cleanup occur before calling the refresher. If refresh itself
-  fails, the restored filesystem state is durable but a retry does not re-run refresh.
-  Fully closing this window requires an explicit durable recovery/refresh-pending state,
-  rather than guessing from already-original targets.
+Closed by the follow-up below. No known concerns remain.
+
+## Safety Follow-up
+
+The initial review concerns were resolved in a second strict TDD cycle:
+
+- Added schema-2 `.restoring`, written durably before the first target-changing recovery
+  primitive. Schema-1 journals remain readable but cannot claim the v2-only phase;
+  unknown schemas remain rejected.
+- Refresh now runs while the journal is `.restoring`. Failure retains backups and all
+  recognized artifacts; retry refreshes even when targets are already original. Cleanup
+  and `.restored`/`.conflicted` are written only after refresh succeeds.
+- Replaced random artifact suffixes with manifest-id/target/role deterministic paths.
+  Restart reconciliation covers pre-exchange stage, post-exchange displaced entity,
+  absent-target quarantine, index complete/partial restore, and cleanup-capture crashes.
+- Artifact creation uses exclusive atomic write/copy primitives. Artifact cleanup uses
+  an atomic same-directory cleanup quarantine, validates the moved entity, and restores
+  it on mismatch. Unknown or raced artifact combinations remain present and force a
+  conflict with backups retained.
+- Synchronous recovery calls are serialized in-process so deterministic artifacts cannot
+  be shared by concurrent callers.
+
+### Follow-up RED
+
+1. Crash-artifact and refresh-retry tests failed to compile because `.restoring` did not
+   exist.
+2. External Index target/artifact equality test showed an unexplained artifact was
+   deleted; cleanup now requires a fully-before state or a proven restore relationship.
+3. Stage-creation race showed an external artifact was overwritten, and cleanup race
+   showed changed artifact bytes were deleted. Exclusive creation and guarded cleanup
+   fixed both failures.
+4. A last-instant artifact change before exchange initially installed unverified bytes;
+   recovery now swaps back, verifies the installed target, preserves the artifact, and
+   reports conflict.
+5. A late target change after artifact cleanup initially produced a conflicted journal
+   without naming the target in `RecoveryReport`; final per-record verification now
+   appends the exact target conflict and retains backups.
+
+### Follow-up GREEN
+
+- `swift test --filter RecoveryCoordinatorTests`: 33 tests, 0 failures.
+- `swift test --filter AtomicIOTests`: 11 tests, 0 failures.
+- `swift test --filter LockScreenTransactionTests`: 14 tests, 0 failures.
+- `swift test --filter WallpaperIndexPatcherTests`: 16 tests, 0 failures.
+- `swift test`: 81 tests, 0 failures.
+- `git diff --check`: clean.
