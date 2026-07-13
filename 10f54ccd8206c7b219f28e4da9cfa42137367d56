@@ -1,0 +1,47 @@
+Sources/WallumeCore/System/SystemVersion.swift
+  69e6a22be7a9e7eb 1-24
+Tests/WallumeCoreTests/SystemVersionTests.swift
+  69e6a22be7a9e7eb 1-12
+Tests/WallumeCoreTests/AerialPathsTests.swift
+  69e6a22be7a9e7eb 1-16
+Sources/WallumeCore/System/AerialPaths.swift
+  69e6a22be7a9e7eb 1-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "10f54ccd8206c7b219f28e4da9cfa42137367d56",
+  "prompts": {
+    "69e6a22be7a9e7eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5a95-e1d5-7121-a115-bb747ebf5ca0",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 78,
+      "total_deletions": 0,
+      "accepted_lines": 78,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/AerialPathsTests.swift": {
+          "additions": 16,
+          "accepted_lines": 16
+        },
+        "Sources/WallumeCore/System/SystemVersion.swift": {
+          "additions": 24,
+          "accepted_lines": 24
+        },
+        "Sources/WallumeCore/System/AerialPaths.swift": {
+          "additions": 26,
+          "accepted_lines": 26
+        },
+        "Tests/WallumeCoreTests/SystemVersionTests.swift": {
+          "additions": 12,
+          "accepted_lines": 12
+        }
+      }
+    }
+  }
+}
