@@ -1,0 +1,50 @@
+Sources/WallumeCore/LockScreen/RecoveryCoordinator.swift
+  10467d98e5a101e0 1-373
+Tests/WallumeCoreTests/WallpaperIndexPatcherTests.swift
+  10467d98e5a101e0 223-234
+Sources/WallumeCore/LockScreen/WallpaperIndexPatcher.swift
+  10467d98e5a101e0 90-94
+Tests/WallumeCoreTests/RecoveryCoordinatorTests.swift
+  10467d98e5a101e0 1-630
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "c692a017224930489b7b3cb971245b31cd97ec7e",
+  "prompts": {
+    "10467d98e5a101e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49d2-87e8-7a91-b618-53e1f293362d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 1078,
+      "total_deletions": 59,
+      "accepted_lines": 1020,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/WallpaperIndexPatcherTests.swift": {
+          "additions": 12,
+          "accepted_lines": 12
+        },
+        "Tests/WallumeCoreTests/RecoveryCoordinatorTests.swift": {
+          "additions": 658,
+          "deletions": 28,
+          "accepted_lines": 630
+        },
+        "Sources/WallumeCore/LockScreen/RecoveryCoordinator.swift": {
+          "additions": 403,
+          "deletions": 30,
+          "accepted_lines": 373
+        },
+        "Sources/WallumeCore/LockScreen/WallpaperIndexPatcher.swift": {
+          "additions": 5,
+          "deletions": 1,
+          "accepted_lines": 5
+        }
+      }
+    }
+  }
+}
