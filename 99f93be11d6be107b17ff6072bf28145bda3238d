@@ -1,0 +1,29 @@
+docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md
+  10467d98e5a101e0 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "99f93be11d6be107b17ff6072bf28145bda3238d",
+  "prompts": {
+    "10467d98e5a101e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49d2-87e8-7a91-b618-53e1f293362d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 43,
+      "total_deletions": 0,
+      "accepted_lines": 43,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md": {
+          "additions": 43,
+          "accepted_lines": 43
+        }
+      }
+    }
+  }
+}
