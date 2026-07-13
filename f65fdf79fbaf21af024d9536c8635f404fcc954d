@@ -1,0 +1,77 @@
+Sources/WallumeCore/IO/FileStore.swift
+  10467d98e5a101e0 21,68-73,75-78,82,86-89,91-94,102-128,135-142,326-353,355
+Tests/WallumeCoreTests/AtomicIOTests.swift
+  10467d98e5a101e0 45-68,70-73,75
+docs/superpowers/specs/2026-07-10-wallume-design.md
+  10467d98e5a101e0 243-244
+.superpowers/sdd/task-7-report.md
+  10467d98e5a101e0 161-209
+Tests/WallumeCoreTests/RecoveryCoordinatorTests.swift
+  10467d98e5a101e0 26-42,207-306,821,1045-1059,1123-1126
+Tests/WallumeCoreTests/LockScreenTransactionTests.swift
+  10467d98e5a101e0 6-55,360-369,372-391,404-412,414-418,439-441,629-647,656,712
+Sources/WallumeCore/LockScreen/RecoveryCoordinator.swift
+  10467d98e5a101e0 163-166,185-188,226,232,252-254,256-258,260-272,795-848,883-894,921-927,936-945
+Sources/WallumeCore/LockScreen/LockScreenTransaction.swift
+  10467d98e5a101e0 60-62,181-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "f65fdf79fbaf21af024d9536c8635f404fcc954d",
+  "prompts": {
+    "10467d98e5a101e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49d2-87e8-7a91-b618-53e1f293362d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 583,
+      "total_deletions": 62,
+      "accepted_lines": 552,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/IO/FileStore.swift": {
+          "additions": 96,
+          "deletions": 14,
+          "accepted_lines": 89
+        },
+        ".superpowers/sdd/task-7-report.md": {
+          "additions": 49,
+          "accepted_lines": 49
+        },
+        "Tests/WallumeCoreTests/AtomicIOTests.swift": {
+          "additions": 30,
+          "deletions": 2,
+          "accepted_lines": 29
+        },
+        "Sources/WallumeCore/LockScreen/RecoveryCoordinator.swift": {
+          "additions": 117,
+          "deletions": 10,
+          "accepted_lines": 117
+        },
+        "Sources/WallumeCore/LockScreen/LockScreenTransaction.swift": {
+          "additions": 8,
+          "deletions": 4,
+          "accepted_lines": 8
+        },
+        "docs/superpowers/specs/2026-07-10-wallume-design.md": {
+          "additions": 2,
+          "accepted_lines": 2
+        },
+        "Tests/WallumeCoreTests/RecoveryCoordinatorTests.swift": {
+          "additions": 142,
+          "deletions": 9,
+          "accepted_lines": 137
+        },
+        "Tests/WallumeCoreTests/LockScreenTransactionTests.swift": {
+          "additions": 139,
+          "deletions": 23,
+          "accepted_lines": 121
+        }
+      }
+    }
+  }
+}
