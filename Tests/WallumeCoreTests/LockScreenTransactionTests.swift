@@ -168,6 +168,94 @@ final class LockScreenTransactionTests: XCTestCase {
         XCTAssertFalse(fixture.events.contains(where: { $0.hasPrefix("replace:") }))
     }
 
+    func testVideoChangedAfterPreflightIsPreservedAndAbortsBeforeReplacement() throws {
+        let fixture = try TransactionFixture.make(corrupting: .raceVideo)
+        defer { fixture.remove() }
+
+        XCTAssertThrowsError(try fixture.transaction.install(fixture.request)) {
+            guard case let .targetChanged(target) = $0 as? LockScreenTransactionError else {
+                return XCTFail("unexpected error: \($0)")
+            }
+            XCTAssertEqual(target.lastPathComponent, "AERIAL-ONE.mov")
+        }
+
+        XCTAssertEqual(try fixture.files.read(fixture.slotVideo), Data("external-video".utf8))
+        XCTAssertFalse(fixture.events.contains("replace:video"))
+        XCTAssertFalse(fixture.events.contains("replace:index"))
+        XCTAssertFalse(fixture.events.contains("replace:poster"))
+        XCTAssertFalse(fixture.events.contains("refresh"))
+        XCTAssertFalse(fixture.events.contains("journal:committed"))
+        XCTAssertEqual(try fixture.persistedManifest().phase, .writing)
+    }
+
+    func testPosterCreatedAfterInitiallyMissingIsPreservedAndAborts() throws {
+        let fixture = try TransactionFixture.make(
+            corrupting: .racePoster,
+            originalPosterExists: false
+        )
+        defer { fixture.remove() }
+
+        XCTAssertThrowsError(try fixture.transaction.install(fixture.request)) {
+            XCTAssertEqual(
+                $0 as? LockScreenTransactionError,
+                .targetChanged(fixture.posterTarget)
+            )
+        }
+
+        XCTAssertEqual(
+            try fixture.files.read(fixture.posterTarget),
+            Data("external-poster".utf8)
+        )
+        XCTAssertFalse(fixture.events.contains("replace:poster"))
+        XCTAssertFalse(fixture.events.contains("refresh"))
+        XCTAssertFalse(fixture.events.contains("journal:committed"))
+        XCTAssertEqual(try fixture.persistedManifest().phase, .writing)
+    }
+
+    func testIndexChangedAfterPlanningIsPreservedAndAbortsBeforeReplacement() throws {
+        let fixture = try TransactionFixture.make(corrupting: .raceIndex)
+        defer { fixture.remove() }
+        XCTAssertThrowsError(try fixture.transaction.install(fixture.request)) {
+            guard case .staleValue = $0 as? WallpaperIndexError else {
+                return XCTFail("unexpected error: \($0)")
+            }
+        }
+
+        XCTAssertEqual(
+            try selectedAerialID(in: fixture.files.read(fixture.paths.wallpaperIndex)),
+            "EXTERNAL-AERIAL"
+        )
+        XCTAssertTrue(fixture.events.contains("replace:video"))
+        XCTAssertFalse(fixture.events.contains("replace:index"))
+        XCTAssertFalse(fixture.events.contains("replace:poster"))
+        XCTAssertFalse(fixture.events.contains("refresh"))
+        XCTAssertFalse(fixture.events.contains("journal:committed"))
+        XCTAssertEqual(try fixture.persistedManifest().phase, .writing)
+    }
+
+    func testExistingPosterChangedBeforeReplacementIsPreservedAndAborts() throws {
+        let fixture = try TransactionFixture.make(corrupting: .racePoster)
+        defer { fixture.remove() }
+
+        XCTAssertThrowsError(try fixture.transaction.install(fixture.request)) {
+            XCTAssertEqual(
+                $0 as? LockScreenTransactionError,
+                .targetChanged(fixture.posterTarget)
+            )
+        }
+
+        XCTAssertEqual(
+            try fixture.files.read(fixture.posterTarget),
+            Data("external-poster".utf8)
+        )
+        XCTAssertTrue(fixture.events.contains("replace:video"))
+        XCTAssertTrue(fixture.events.contains("replace:index"))
+        XCTAssertFalse(fixture.events.contains("replace:poster"))
+        XCTAssertFalse(fixture.events.contains("refresh"))
+        XCTAssertFalse(fixture.events.contains("journal:committed"))
+        XCTAssertEqual(try fixture.persistedManifest().phase, .writing)
+    }
+
     private func assertOrder(
         _ expected: [String],
         in actual: [String],
@@ -211,11 +299,27 @@ private struct TestFileStore: FileStore {
             recorder.append("journal:\(phase)")
         }
         try local.writeAtomically(data, to: mapped(target))
+        if corruption.racesPreparedIndex(target) {
+            let index = target.deletingLastPathComponent().appending(path: "Index.plist")
+            let external = try externallyChangedIndex(local.read(mapped(index)))
+            try local.writeAtomically(external, to: mapped(index))
+            recorder.append("race:index")
+        }
     }
     func copy(_ source: URL, to destination: URL) throws {
         try local.copy(mapped(source), to: mapped(destination))
         if corruption.matches(destination) {
             try local.writeAtomically(Data("corrupted-copy".utf8), to: mapped(destination))
+        }
+        if corruption.racesPreparedCopy(destination) {
+            let target = destination.deletingLastPathComponent().appending(path: "AERIAL-ONE.mov")
+            try local.writeAtomically(Data("external-video".utf8), to: mapped(target))
+            recorder.append("race:video")
+        }
+        if corruption.racesPreparedPoster(destination) {
+            let target = destination.deletingLastPathComponent().appending(path: "lockscreen.png")
+            try local.writeAtomically(Data("external-poster".utf8), to: mapped(target))
+            recorder.append("race:poster")
         }
     }
     func replace(_ target: URL, with preparedFile: URL) throws {
@@ -241,7 +345,7 @@ private struct TestFileStore: FileStore {
     }
 }
 
-private enum FileCorruption: Sendable {
+private enum FileCorruption: Sendable, Equatable {
     case none
     case primaryVideoBackup
     case recoveryVideoBackup
@@ -249,10 +353,14 @@ private enum FileCorruption: Sendable {
     case installedVideo
     case installedIndex
     case installedPoster
+    case raceVideo
+    case raceIndex
+    case racePoster
 
     func matches(_ destination: URL) -> Bool {
         switch self {
-        case .none, .installedVideo, .installedIndex, .installedPoster:
+        case .none, .installedVideo, .installedIndex, .installedPoster,
+             .raceVideo, .raceIndex, .racePoster:
             false
         case .primaryVideoBackup:
             destination.lastPathComponent.hasSuffix(WallumeBuildInfo.backupMarker)
@@ -271,6 +379,50 @@ private enum FileCorruption: Sendable {
         default: false
         }
     }
+
+    func racesPreparedCopy(_ destination: URL) -> Bool {
+        self == .raceVideo
+            && destination.lastPathComponent.hasPrefix(".AERIAL-ONE.mov.wallume.")
+    }
+
+    func racesPreparedPoster(_ destination: URL) -> Bool {
+        self == .racePoster
+            && destination.lastPathComponent.hasPrefix(".lockscreen.png.wallume.")
+    }
+
+    func racesPreparedIndex(_ destination: URL) -> Bool {
+        self == .raceIndex
+            && destination.lastPathComponent.hasPrefix(".Index.plist.wallume.")
+    }
+}
+
+private func externallyChangedIndex(_ data: Data) throws -> Data {
+    let patcher = WallpaperIndexPatcher()
+    return try patcher.apply(
+        patcher.plan(indexData: data, aerialID: "EXTERNAL-AERIAL"),
+        to: data
+    )
+}
+
+private func selectedAerialID(in indexData: Data) throws -> String? {
+    let mutation = try XCTUnwrap(
+        WallpaperIndexPatcher().plan(indexData: indexData, aerialID: "IGNORED").first
+    )
+    let configuration = try XCTUnwrap(
+        PropertyListSerialization.propertyList(
+            from: mutation.before,
+            options: [],
+            format: nil
+        ) as? Data
+    )
+    let values = try XCTUnwrap(
+        PropertyListSerialization.propertyList(
+            from: configuration,
+            options: [],
+            format: nil
+        ) as? [String: Any]
+    )
+    return values["selectedID"] as? String
 }
 
 private struct TestDigester: Digesting {
@@ -426,6 +578,10 @@ private struct TransactionFixture {
         let journals = try files.contents(paths.transactionsDirectory)
         guard journals.count == 1 else { throw TestError.wrongJournalCount }
         return journals[0]
+    }
+
+    func persistedManifest() throws -> LockScreenTransactionManifest {
+        try journals.read(LockScreenTransactionManifest.self, from: onlyJournalURL())
     }
 
     func remove() { try? FileManager.default.removeItem(at: root) }

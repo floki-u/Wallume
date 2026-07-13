@@ -6,6 +6,7 @@ public enum LockScreenTransactionError: Error, Equatable {
     case backupVerificationFailed(URL)
     case installedFileVerificationFailed(URL)
     case indexVerificationFailed
+    case targetChanged(URL)
 }
 
 public struct LockScreenTransaction: Sendable {
@@ -58,7 +59,6 @@ public struct LockScreenTransaction: Sendable {
         let installedPosterHash = try digester.sha256(of: request.poster)
         let originalIndex = try files.read(paths.wallpaperIndex)
         let mutations = try patcher.plan(indexData: originalIndex, aerialID: request.aerialID)
-        let installedIndex = try patcher.apply(mutations, to: originalIndex)
 
         let id = makeID()
         let primaryBackup = slot.videoURL.deletingLastPathComponent().appending(
@@ -114,12 +114,20 @@ public struct LockScreenTransaction: Sendable {
 
         let preparedVideo = siblingPreparation(of: slot.videoURL, id: id)
         try files.copy(request.optimizedVideo, to: preparedVideo)
+        try requireUnchanged(slot.videoURL, expectedHash: originalVideoHash)
         try files.replace(slot.videoURL, with: preparedVideo)
         try verify(slot.videoURL, expectedHash: installedVideoHash)
         try faults.hit(.afterVideoReplacement)
 
+        let currentIndex = try files.read(paths.wallpaperIndex)
+        let installedIndex = try patcher.apply(mutations, to: currentIndex)
         let preparedIndex = siblingPreparation(of: paths.wallpaperIndex, id: id)
         try files.writeAtomically(installedIndex, to: preparedIndex)
+        let latestIndex = try files.read(paths.wallpaperIndex)
+        _ = try patcher.apply(mutations, to: latestIndex)
+        guard latestIndex == currentIndex else {
+            throw LockScreenTransactionError.targetChanged(paths.wallpaperIndex)
+        }
         try files.replace(paths.wallpaperIndex, with: preparedIndex)
         guard try files.read(paths.wallpaperIndex) == installedIndex else {
             throw LockScreenTransactionError.indexVerificationFailed
@@ -128,6 +136,7 @@ public struct LockScreenTransaction: Sendable {
 
         let preparedPoster = siblingPreparation(of: paths.lockScreenPoster, id: id)
         try files.copy(request.poster, to: preparedPoster)
+        try requirePosterUnchanged(originalHash: originalPosterHash)
         try files.replace(paths.lockScreenPoster, with: preparedPoster)
         try verify(paths.lockScreenPoster, expectedHash: installedPosterHash)
         try faults.hit(.afterPosterReplacement)
@@ -153,6 +162,23 @@ public struct LockScreenTransaction: Sendable {
     private func verify(_ target: URL, expectedHash: String) throws {
         guard try digester.sha256(of: target) == expectedHash else {
             throw LockScreenTransactionError.installedFileVerificationFailed(target)
+        }
+    }
+
+    private func requireUnchanged(_ target: URL, expectedHash: String) throws {
+        guard try digester.sha256(of: target) == expectedHash else {
+            throw LockScreenTransactionError.targetChanged(target)
+        }
+    }
+
+    private func requirePosterUnchanged(originalHash: String?) throws {
+        if let originalHash {
+            guard files.exists(paths.lockScreenPoster) else {
+                throw LockScreenTransactionError.targetChanged(paths.lockScreenPoster)
+            }
+            try requireUnchanged(paths.lockScreenPoster, expectedHash: originalHash)
+        } else if files.exists(paths.lockScreenPoster) {
+            throw LockScreenTransactionError.targetChanged(paths.lockScreenPoster)
         }
     }
 
