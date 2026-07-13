@@ -1,0 +1,44 @@
+Sources/WallumeCore/LockScreen/PlistMutation.swift
+  10467d98e5a101e0 10,14-19,21
+Sources/WallumeCore/LockScreen/WallpaperIndexPatcher.swift
+  10467d98e5a101e0 8,38,45-49,76-81,124,240-286
+Tests/WallumeCoreTests/WallpaperIndexPatcherTests.swift
+  10467d98e5a101e0 42,46-50,122,143-179,229-259,319-325,336,340-386,398,403
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "4ce1914fef51a3cc4450747deff4f35fb56a795c",
+  "prompts": {
+    "10467d98e5a101e0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49d2-87e8-7a91-b618-53e1f293362d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 220,
+      "total_deletions": 7,
+      "accepted_lines": 219,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/LockScreen/WallpaperIndexPatcher.swift": {
+          "additions": 63,
+          "deletions": 1,
+          "accepted_lines": 62
+        },
+        "Sources/WallumeCore/LockScreen/PlistMutation.swift": {
+          "additions": 8,
+          "deletions": 1,
+          "accepted_lines": 8
+        },
+        "Tests/WallumeCoreTests/WallpaperIndexPatcherTests.swift": {
+          "additions": 149,
+          "deletions": 5,
+          "accepted_lines": 149
+        }
+      }
+    }
+  }
+}
