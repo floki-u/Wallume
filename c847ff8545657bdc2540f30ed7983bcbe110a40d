@@ -1,0 +1,37 @@
+Sources/WallumeCore/IO/FileStore.swift
+  69e6a22be7a9e7eb 56-62,64,67-72
+Tests/WallumeCoreTests/AtomicIOTests.swift
+  69e6a22be7a9e7eb 12,25,34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "c847ff8545657bdc2540f30ed7983bcbe110a40d",
+  "prompts": {
+    "69e6a22be7a9e7eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5a95-e1d5-7121-a115-bb747ebf5ca0",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 22,
+      "accepted_lines": 18,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/AtomicIOTests.swift": {
+          "additions": 17,
+          "deletions": 14,
+          "accepted_lines": 4
+        },
+        "Sources/WallumeCore/IO/FileStore.swift": {
+          "additions": 14,
+          "deletions": 8,
+          "accepted_lines": 14
+        }
+      }
+    }
+  }
+}
