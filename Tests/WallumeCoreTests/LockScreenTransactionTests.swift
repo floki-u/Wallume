@@ -3,6 +3,56 @@ import XCTest
 @testable import WallumeCore
 
 final class LockScreenTransactionTests: XCTestCase {
+    func testWaitingInstallReReadsStateAfterTheFirstInstallCompletes() throws {
+        let fixture = try TransactionFixture.make()
+        defer { fixture.remove() }
+        let blocker = BlockingFaults()
+        let lock = SignalingAdvisoryLock(
+            url: fixture.paths.applicationSupport.appending(path: ".test-install.lock")
+        )
+        let first = fixture.makeTransaction(
+            faults: blocker,
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000061")!,
+            advisoryLock: lock
+        )
+        let second = fixture.makeTransaction(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000062")!,
+            advisoryLock: lock
+        )
+        let firstResult = LockedInstallResult()
+        let secondResult = LockedInstallResult()
+        let firstDone = expectation(description: "first install")
+        let secondDone = expectation(description: "second install")
+        DispatchQueue.global().async {
+            firstResult.capture { try first.install(fixture.request) }
+            firstDone.fulfill()
+        }
+        XCTAssertEqual(lock.attempted.wait(timeout: .now() + 2), .success)
+        XCTAssertEqual(blocker.reached.wait(timeout: .now() + 2), .success)
+        DispatchQueue.global().async {
+            secondResult.capture { try second.install(fixture.request) }
+            secondDone.fulfill()
+        }
+        XCTAssertEqual(lock.attempted.wait(timeout: .now() + 2), .success)
+        XCTAssertFalse(secondResult.isFinished)
+
+        blocker.resume.signal()
+        wait(for: [firstDone, secondDone], timeout: 4)
+
+        XCTAssertNil(firstResult.error)
+        guard case let .backupVerificationFailed(url) = secondResult.error as? LockScreenTransactionError else {
+            return XCTFail("unexpected second result: \(String(describing: secondResult.error))")
+        }
+        XCTAssertEqual(url.lastPathComponent, "AERIAL-ONE.mov" + WallumeBuildInfo.backupMarker)
+        let primary = fixture.slotVideo.deletingLastPathComponent().appending(
+            path: fixture.slotVideo.lastPathComponent + WallumeBuildInfo.backupMarker
+        )
+        XCTAssertEqual(
+            try fixture.files.read(primary),
+            Data("original-video".utf8)
+        )
+    }
+
     func testInstallCommitsOnlyAfterVideoIndexAndPosterVerify() throws {
         let fixture = try TransactionFixture.make()
         defer { fixture.remove() }
@@ -307,6 +357,38 @@ private final class EventRecorder: @unchecked Sendable {
     func append(_ event: String) { lock.withLock { storage.append(event) } }
 }
 
+private final class LockedInstallResult: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedError: Error?
+    private var finished = false
+    var error: Error? { lock.withLock { storedError } }
+    var isFinished: Bool { lock.withLock { finished } }
+    func capture(_ operation: () throws -> LockScreenTransactionManifest) {
+        do { _ = try operation() } catch { lock.withLock { storedError = error } }
+        lock.withLock { finished = true }
+    }
+}
+
+private final class BlockingFaults: FaultInjecting, @unchecked Sendable {
+    let reached = DispatchSemaphore(value: 0)
+    let resume = DispatchSemaphore(value: 0)
+    func hit(_ point: TransactionFaultPoint) throws {
+        guard point == .afterPreparedJournal else { return }
+        reached.signal()
+        _ = resume.wait(timeout: .now() + 4)
+    }
+}
+
+private struct SignalingAdvisoryLock: AdvisoryLocking, Sendable {
+    let attempted = DispatchSemaphore(value: 0)
+    let underlying: FileAdvisoryLock
+    init(url: URL) { underlying = FileAdvisoryLock(url: url) }
+    func acquire() throws -> any AdvisoryLockToken {
+        attempted.signal()
+        return try underlying.acquire()
+    }
+}
+
 private struct TestFileStore: FileStore {
     let root: URL
     let recorder: EventRecorder
@@ -319,10 +401,21 @@ private struct TestFileStore: FileStore {
         try local.contents(mapped(directory)).map { unmapped($0, from: directory) }
     }
     func createDirectory(_ url: URL) throws { try local.createDirectory(mapped(url)) }
-    func createPrivateDirectory(_ url: URL) throws { try local.createPrivateDirectory(mapped(url)) }
-    func identity(of url: URL) throws -> FileIdentity { try local.identity(of: mapped(url)) }
+    func createPrivateDirectory(_ url: URL) throws {
+        try local.createPrivateDirectory(canonicalTestPath(mapped(url)))
+    }
+    func identity(of url: URL) throws -> FileIdentity {
+        try local.identity(of: canonicalTestPath(mapped(url)))
+    }
+    func hasNoSymlinkComponents(_ url: URL) throws -> Bool {
+        try local.hasNoSymlinkComponents(canonicalTestPath(mapped(url)))
+    }
     func removeDurably(_ url: URL, ifIdentityMatches identity: FileIdentity) throws -> Bool {
-        try local.removeDurably(mapped(url), ifIdentityMatches: identity)
+        try local.removeDurably(canonicalTestPath(mapped(url)), ifIdentityMatches: identity)
+    }
+    private func canonicalTestPath(_ url: URL) -> URL {
+        url.path.hasPrefix("/var/")
+            ? URL(fileURLWithPath: "/private" + url.path) : url
     }
     func writeAtomically(_ data: Data, to target: URL) throws {
         if target.path.contains("/LockScreen/transactions/"),
@@ -343,6 +436,9 @@ private struct TestFileStore: FileStore {
     }
     func copyExclusively(_ source: URL, to destination: URL) throws {
         try local.copyExclusively(mapped(source), to: mapped(destination))
+        if corruption.matches(destination) {
+            try local.writeAtomically(Data("corrupted-copy".utf8), to: mapped(destination))
+        }
     }
     func replace(_ target: URL, with preparedFile: URL) throws {
         if target.lastPathComponent == "Index.plist" { recorder.append("replace:index") }
@@ -530,6 +626,26 @@ private struct TransactionFixture {
 
     var events: [String] { recorder.events }
 
+    func makeTransaction(
+        faults: any FaultInjecting = NoFaults(),
+        id: UUID,
+        advisoryLock: (any AdvisoryLocking)? = nil
+    ) -> LockScreenTransaction {
+        LockScreenTransaction(
+            paths: paths,
+            files: files,
+            digester: digest,
+            journals: journals,
+            discovery: AerialDiscovery(files: files),
+            patcher: WallpaperIndexPatcher(),
+            refresher: refresher,
+            faults: faults,
+            now: { Date(timeIntervalSince1970: 1_700_000_000) },
+            makeID: { id },
+            advisoryLock: advisoryLock
+        )
+    }
+
     static func make(
         failingAt: TransactionFaultPoint? = nil,
         corrupting corruption: FileCorruption = .none,
@@ -537,7 +653,7 @@ private struct TransactionFixture {
         originalPosterExists: Bool = true,
         indexData: Data? = nil
     ) throws -> Self {
-        let root = FileManager.default.temporaryDirectory
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appending(path: "Wallume-TransactionTests-\(UUID().uuidString)")
         let paths = AerialPaths(homeDirectory: root, userGeneratedID: "TEST-USER")
         let recorder = EventRecorder()
@@ -593,7 +709,7 @@ private struct TransactionFixture {
     }
 
     static func makeUnsupported() -> Self {
-        let root = FileManager.default.temporaryDirectory
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appending(path: "Wallume-UnsupportedTransactionTests-\(UUID().uuidString)")
         let paths = AerialPaths(homeDirectory: root, userGeneratedID: "TEST-USER")
         let recorder = EventRecorder()

@@ -42,9 +42,37 @@ private func itemNames(in directory: URL) throws -> Set<String> {
 }
 
 final class AtomicIOTests: XCTestCase {
-    func testPrivateCleanupDirectoryIsOwnerOnly() throws {
-        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    func testGuardedRemoveRejectsSymlinkedParentEvenForSameInode() throws {
+        let temporary = FileManager.default.temporaryDirectory
+        let base = temporary.path.hasPrefix("/var/")
+            ? URL(fileURLWithPath: "/private" + temporary.path) : temporary
+        let root = base.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
+        let trusted = root.appending(path: "trusted")
+        let displaced = root.appending(path: "displaced")
+        let sentinel = root.appending(path: "sentinel")
+        try FileManager.default.createDirectory(at: trusted, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sentinel, withIntermediateDirectories: true)
+        let target = trusted.appending(path: "capture")
+        let sentinelFile = sentinel.appending(path: "capture")
+        try Data("owned".utf8).write(to: target)
+        try FileManager.default.linkItem(at: target, to: sentinelFile)
+        let files = LocalFileStore()
+        let identity = try files.identity(of: target)
+        try FileManager.default.moveItem(at: trusted, to: displaced)
+        try FileManager.default.createSymbolicLink(at: trusted, withDestinationURL: sentinel)
+
+        XCTAssertFalse(try files.removeDurably(target, ifIdentityMatches: identity))
+        XCTAssertEqual(try Data(contentsOf: sentinelFile), Data("owned".utf8))
+    }
+
+    func testPrivateCleanupDirectoryIsOwnerOnly() throws {
+        let temporary = FileManager.default.temporaryDirectory
+        let base = temporary.path.hasPrefix("/var/")
+            ? URL(fileURLWithPath: "/private" + temporary.path) : temporary
+        let root = base.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let directory = root.appending(path: "cleanup")
 
         try LocalFileStore().createPrivateDirectory(directory)

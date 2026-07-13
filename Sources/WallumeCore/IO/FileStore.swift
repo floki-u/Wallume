@@ -18,6 +18,7 @@ public protocol FileStore: Sendable {
     func createDirectory(_ url: URL) throws
     func createPrivateDirectory(_ url: URL) throws
     func identity(of url: URL) throws -> FileIdentity
+    func hasNoSymlinkComponents(_ url: URL) throws -> Bool
     func removeDurably(_ url: URL, ifIdentityMatches identity: FileIdentity) throws -> Bool
     func writeAtomically(_ data: Data, to target: URL) throws
     func writeExclusively(_ data: Data, to target: URL) throws
@@ -64,18 +65,33 @@ public struct LocalFileStore: FileStore {
     }
 
     public func createPrivateDirectory(_ url: URL) throws {
-        try createDirectory(url.deletingLastPathComponent())
-        if Darwin.mkdir(url.path, 0o700) != 0, errno != EEXIST { throw Self.posixError() }
+        guard let parent = try Self.openDirectoryNoFollow(url.deletingLastPathComponent()) else {
+            throw Self.posixError(ELOOP)
+        }
+        defer { _ = Darwin.close(parent) }
+        let created = url.lastPathComponent.withCString { Darwin.mkdirat(parent, $0, 0o700) }
+        if created != 0, errno != EEXIST { throw Self.posixError() }
         var info = stat()
-        guard Darwin.lstat(url.path, &info) == 0,
+        let status = url.lastPathComponent.withCString {
+            Darwin.fstatat(parent, $0, &info, AT_SYMLINK_NOFOLLOW)
+        }
+        guard status == 0,
               (info.st_mode & S_IFMT) == S_IFDIR,
               info.st_uid == geteuid(),
               (info.st_mode & 0o777) == 0o700 else { throw Self.posixError(EACCES) }
+        if created == 0, Darwin.fsync(parent) != 0 { throw Self.posixError() }
     }
 
     public func identity(of url: URL) throws -> FileIdentity {
+        guard let parent = try Self.openDirectoryNoFollow(url.deletingLastPathComponent()) else {
+            throw Self.posixError(ELOOP)
+        }
+        defer { _ = Darwin.close(parent) }
         var info = stat()
-        guard Darwin.lstat(url.path, &info) == 0 else { throw Self.posixError() }
+        let status = url.lastPathComponent.withCString {
+            Darwin.fstatat(parent, $0, &info, AT_SYMLINK_NOFOLLOW)
+        }
+        guard status == 0 else { throw Self.posixError() }
         return FileIdentity(
             device: UInt64(info.st_dev),
             inode: UInt64(info.st_ino),
@@ -83,13 +99,47 @@ public struct LocalFileStore: FileStore {
         )
     }
 
+    public func hasNoSymlinkComponents(_ url: URL) throws -> Bool {
+        let components = url.path.split(separator: "/").map(String.init)
+        var descriptor = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        guard descriptor >= 0 else { throw Self.posixError() }
+        defer { _ = Darwin.close(descriptor) }
+
+        for (index, component) in components.enumerated() {
+            var info = stat()
+            let status = component.withCString {
+                Darwin.fstatat(descriptor, $0, &info, AT_SYMLINK_NOFOLLOW)
+            }
+            if status != 0, errno == ENOENT { return true }
+            guard status == 0 else { throw Self.posixError() }
+            if (info.st_mode & S_IFMT) == S_IFLNK { return false }
+            guard index < components.count - 1 else { return true }
+            guard (info.st_mode & S_IFMT) == S_IFDIR else { return false }
+            let next = component.withCString {
+                Darwin.openat(descriptor, $0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            }
+            guard next >= 0 else {
+                if errno == ELOOP { return false }
+                throw Self.posixError()
+            }
+            _ = Darwin.close(descriptor)
+            descriptor = next
+        }
+        return true
+    }
+
     public func removeDurably(
         _ url: URL,
         ifIdentityMatches identity: FileIdentity
     ) throws -> Bool {
-        let parent = url.deletingLastPathComponent()
-        let descriptor = Darwin.open(parent.path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
-        guard descriptor >= 0 else { throw Self.posixError() }
+        // macOS has no compare-inode-and-unlink syscall. The private 0700 directory,
+        // process-wide flock, no-follow descriptor traversal, and immediate fstatat /
+        // unlinkat sequence cover Wallume concurrency, crashes, and ordinary external
+        // rewrites. They do not claim to defeat an active same-UID attacker that wins
+        // the final syscall window by precisely replacing this directory entry.
+        guard let descriptor = try Self.openDirectoryNoFollow(
+            url.deletingLastPathComponent()
+        ) else { return false }
         defer { _ = Darwin.close(descriptor) }
         var info = stat()
         let status = url.lastPathComponent.withCString {
@@ -271,6 +321,38 @@ public struct LocalFileStore: FileStore {
         guard Darwin.close(descriptor) == 0 else {
             throw posixError()
         }
+    }
+
+    private static func openDirectoryNoFollow(_ directory: URL) throws -> Int32? {
+        var descriptor = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+        guard descriptor >= 0 else { throw posixError() }
+        for component in directory.path.split(separator: "/").map(String.init) {
+            var info = stat()
+            let status = component.withCString {
+                Darwin.fstatat(descriptor, $0, &info, AT_SYMLINK_NOFOLLOW)
+            }
+            guard status == 0 else {
+                let error = posixError()
+                _ = Darwin.close(descriptor)
+                throw error
+            }
+            guard (info.st_mode & S_IFMT) == S_IFDIR else {
+                _ = Darwin.close(descriptor)
+                return nil
+            }
+            let next = component.withCString {
+                Darwin.openat(descriptor, $0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            }
+            guard next >= 0 else {
+                let code = errno
+                _ = Darwin.close(descriptor)
+                if code == ELOOP { return nil }
+                throw posixError(code)
+            }
+            _ = Darwin.close(descriptor)
+            descriptor = next
+        }
+        return descriptor
     }
 
     private static func posixError(_ code: Int32 = errno) -> POSIXError {

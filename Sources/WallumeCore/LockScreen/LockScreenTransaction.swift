@@ -57,6 +57,9 @@ public struct LockScreenTransaction: Sendable {
             throw LockScreenTransactionError.unsupportedOS(request.systemVersion.majorVersion)
         }
 
+        let lockToken = try advisoryLock.acquire()
+        defer { withExtendedLifetime(lockToken) {} }
+
         let slot = try discovery.selectSlot(id: request.aerialID, paths: paths)
         try requireInput(request.optimizedVideo)
         try requireInput(request.poster)
@@ -65,9 +68,6 @@ public struct LockScreenTransaction: Sendable {
         let installedPosterHash = try digester.sha256(of: request.poster)
         let originalIndex = try files.read(paths.wallpaperIndex)
         let mutations = try patcher.plan(indexData: originalIndex, aerialID: request.aerialID)
-
-        let lockToken = try advisoryLock.acquire()
-        defer { withExtendedLifetime(lockToken) {} }
 
         let id = makeID()
         let primaryBackup = slot.videoURL.deletingLastPathComponent().appending(
@@ -178,7 +178,11 @@ public struct LockScreenTransaction: Sendable {
     }
 
     private func verifiedBackup(_ source: URL, to destination: URL, expectedHash: String) throws {
-        try files.copy(source, to: destination)
+        do {
+            try files.copyExclusively(source, to: destination)
+        } catch let error as POSIXError where error.code == .EEXIST {
+            // Existing recovery material is never overwritten by a later install.
+        }
         guard try digester.sha256(of: destination) == expectedHash else {
             throw LockScreenTransactionError.backupVerificationFailed(destination)
         }

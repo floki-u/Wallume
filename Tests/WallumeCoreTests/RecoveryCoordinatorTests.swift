@@ -23,6 +23,23 @@ final class RecoveryCoordinatorTests: XCTestCase {
         XCTAssertEqual(fixture.refresher.refreshCount, 0)
     }
 
+    func testRejectsSymlinkedAllowedDirectoryBeforeTouchingSentinelTree() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let videos = fixture.paths.videosDirectory
+        let sentinel = fixture.root.appending(path: "sentinel-videos")
+        try FileManager.default.moveItem(at: videos, to: sentinel)
+        try FileManager.default.createSymbolicLink(at: videos, withDestinationURL: sentinel)
+        let sentinelVideo = sentinel.appending(path: fixture.manifest.video.target.lastPathComponent)
+        let before = try Data(contentsOf: sentinelVideo)
+
+        XCTAssertThrowsError(try fixture.recovery.restore(id: fixture.manifest.id)) {
+            XCTAssertEqual($0 as? RecoveryCoordinatorError, .invalidManifest(fixture.manifest.id))
+        }
+        XCTAssertEqual(try Data(contentsOf: sentinelVideo), before)
+        XCTAssertEqual(fixture.refresher.refreshCount, 0)
+    }
+
     func testRestoresEveryOwnedValueWhenCurrentHashesStillMatchInstalledHashes() throws {
         let fixture = try RecoveryFixture.installed()
         defer { fixture.remove() }
@@ -185,6 +202,106 @@ final class RecoveryCoordinatorTests: XCTestCase {
         XCTAssertTrue(report.conflicts.isEmpty)
         XCTAssertEqual(try fixture.loadManifest().phase, .restored)
         XCTAssertTrue(fixture.allBackups.allSatisfy { !fixture.files.exists($0) })
+    }
+
+    func testRestartFinishesOwnedBackupAlreadyMovedIntoCleanupCapture() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        try fixture.setCrashState(
+            phase: .restoring,
+            videoInstalled: false,
+            indexInstalled: false,
+            posterInstalled: false
+        )
+        var manifest = try fixture.loadManifest()
+        manifest.schemaVersion = 2
+        manifest.backupCleanupAuthorized = true
+        try fixture.writeManifest(manifest)
+        let backup = fixture.manifest.recoveryBackup
+        let directory = backup.deletingLastPathComponent().appending(
+            path: ".wallume-cleanup-\(manifest.id.uuidString)"
+        )
+        let capture = directory.appending(path: backup.lastPathComponent)
+        try fixture.files.createPrivateDirectory(directory)
+        try fixture.files.installExclusively(capture, from: backup)
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.isEmpty)
+        XCTAssertFalse(fixture.files.exists(capture))
+        XCTAssertFalse(fixture.files.exists(directory))
+        XCTAssertEqual(try fixture.loadManifest().phase, .restored)
+    }
+
+    func testUnownedBackupCleanupCaptureIsRetainedAndReported() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        try fixture.setCrashState(
+            phase: .restoring,
+            videoInstalled: false,
+            indexInstalled: false,
+            posterInstalled: false
+        )
+        var manifest = try fixture.loadManifest()
+        manifest.schemaVersion = 2
+        manifest.backupCleanupAuthorized = true
+        try fixture.writeManifest(manifest)
+        let backup = fixture.manifest.recoveryBackup
+        let directory = backup.deletingLastPathComponent().appending(
+            path: ".wallume-cleanup-\(manifest.id.uuidString)"
+        )
+        let capture = directory.appending(path: backup.lastPathComponent)
+        try fixture.files.createPrivateDirectory(directory)
+        try fixture.files.remove(backup)
+        try fixture.files.writeExclusively(Data("unowned".utf8), to: capture)
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(capture))
+        XCTAssertTrue(report.retainedBackups.contains(capture))
+        XCTAssertEqual(try fixture.files.read(capture), Data("unowned".utf8))
+        XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
+    }
+
+    func testRestartRemovesEmptyManifestCleanupDirectory() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        try fixture.setCrashState(
+            phase: .restoring,
+            videoInstalled: false,
+            indexInstalled: false,
+            posterInstalled: false
+        )
+        var manifest = try fixture.loadManifest()
+        manifest.schemaVersion = 2
+        try fixture.writeManifest(manifest)
+        let directory = fixture.manifest.indexURL.deletingLastPathComponent().appending(
+            path: ".wallume-cleanup-\(fixture.manifest.id.uuidString)"
+        )
+        try fixture.files.createPrivateDirectory(directory)
+
+        _ = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertFalse(fixture.files.exists(directory))
+        XCTAssertEqual(try fixture.loadManifest().phase, .restored)
+    }
+
+    func testUnknownCleanupEntryIsRetainedAndConflictsItsTarget() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        let directory = fixture.manifest.video.target.deletingLastPathComponent().appending(
+            path: ".wallume-cleanup-\(fixture.manifest.id.uuidString)"
+        )
+        let unknown = directory.appending(path: "unknown-entry")
+        try fixture.files.createPrivateDirectory(directory)
+        try fixture.files.writeExclusively(Data("external".utf8), to: unknown)
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.contains(fixture.manifest.video.target))
+        XCTAssertTrue(fixture.files.exists(unknown))
+        XCTAssertTrue(fixture.allBackups.allSatisfy(fixture.files.exists))
+        XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
     }
 
     func testPartialIndexConflictRestoresOnlyStillOwnedMutation() throws {
@@ -701,7 +818,7 @@ private struct RecoveryFixture {
         originalPosterExists: Bool = true,
         indexOriginal: Data? = nil
     ) throws -> Self {
-        let root = FileManager.default.temporaryDirectory
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appending(path: "Wallume-RecoveryTests-\(UUID().uuidString)")
         let paths = AerialPaths(homeDirectory: root, userGeneratedID: "TEST")
         let files = RecoveryTestFileStore(root: root)
@@ -925,8 +1042,21 @@ private final class RecoveryTestFileStore: FileStore, @unchecked Sendable {
     }
     func contents(_ directory: URL) throws -> [URL] { try local.contents(mapped(directory)) }
     func createDirectory(_ url: URL) throws { try local.createDirectory(mapped(url)) }
-    func createPrivateDirectory(_ url: URL) throws { try local.createPrivateDirectory(mapped(url)) }
-    func identity(of url: URL) throws -> FileIdentity { try local.identity(of: mapped(url)) }
+    func createPrivateDirectory(_ url: URL) throws {
+        try local.createPrivateDirectory(canonicalTestPath(mapped(url)))
+    }
+    func identity(of url: URL) throws -> FileIdentity {
+        try local.identity(of: canonicalTestPath(mapped(url)))
+    }
+    func hasNoSymlinkComponents(_ url: URL) throws -> Bool {
+        let checked = canonicalTestPath(mapped(url))
+        return try local.hasNoSymlinkComponents(checked)
+    }
+
+    private func canonicalTestPath(_ url: URL) -> URL {
+        guard url.path.hasPrefix("/var/") else { return url }
+        return URL(fileURLWithPath: "/private" + url.path)
+    }
     func writeAtomically(_ data: Data, to target: URL) throws {
         try local.writeAtomically(data, to: mapped(target))
     }
@@ -990,7 +1120,10 @@ private final class RecoveryTestFileStore: FileStore, @unchecked Sendable {
             try local.remove(mapped(url))
             try local.writeAtomically(Data("last-instant-external".utf8), to: mapped(url))
         }
-        let removed = try local.removeDurably(mapped(url), ifIdentityMatches: identity)
+        let removed = try local.removeDurably(
+            canonicalTestPath(mapped(url)),
+            ifIdentityMatches: identity
+        )
         if removed,
            url.deletingLastPathComponent().lastPathComponent.hasPrefix(".wallume-cleanup-"),
            let target = mutateTargetAfterCleanup,

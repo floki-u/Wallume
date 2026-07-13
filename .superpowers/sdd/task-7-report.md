@@ -158,3 +158,52 @@ and deletion races:
 - Includes malicious sentinel URL, late index ownership, changed backup, authorized
   partial-cleanup restart, last-instant capture replacement, durable parent sync, schema
   v2 writer, and independent advisory lock competition regressions.
+
+## Second Safety Review Follow-up
+
+- Recovery now rejects symlinks in every existing component of each canonical target,
+  backup, and manifest-scoped cleanup path before mutation. A same-origin resolved-path
+  comparison is not treated as proof; traversal uses `fstatat(..., AT_SYMLINK_NOFOLLOW)`
+  and `openat(..., O_NOFOLLOW)` component by component.
+- Install acquires the shared advisory lock immediately after the unsupported-OS gate,
+  before discovery, foreign-backup scanning, hashing, index reads, or plist planning.
+  Backups use exclusive creation, so a waiting install re-reads post-lock state and can
+  never overwrite the first install's primary backup.
+- Authorized backup cleanup recognizes a missing source plus its derived cleanup capture,
+  verifies capture ownership, and completes guarded durable deletion. Changed captures
+  remain listed in retained backup material and force conflict.
+- Before final phase, recovery inventories every cleanup directory derived from manifest
+  targets and backups. Empty directories are durably removed, known captures are handled
+  by their owning recovery path, and unknown entries remain with a corresponding conflict.
+- Guarded removal opens every parent component without following symlinks, then performs
+  the inode identity check and `unlinkat` through that descriptor before parent `fsync`.
+
+### Explicit threat model
+
+The cleanup protocol protects against concurrent Wallume processes, crashes, and ordinary
+external rewrites. Its transaction-specific directory is owner-only (`0700`), and Wallume
+holds the cross-process `flock`. macOS provides no atomic compare-inode-and-unlink primitive,
+so this implementation does not claim protection from an active same-UID attacker that can
+precisely replace a private-directory entry in the final syscall window.
+
+### Second Review RED
+
+1. A symlinked Aerial videos directory redirected recovery into a sentinel tree; the
+   sentinel video was modified and refresh ran.
+2. A waiting install could perform discovery and hashing before attempting the lock, and
+   the non-exclusive backup copy overwrote the first install's primary backup.
+3. An authorized backup already moved into its cleanup capture was treated as deleted;
+   restart left both capture and cleanup directory behind while marking restored.
+4. An empty cleanup directory survived finalization, while an unknown cleanup entry did
+   not conflict its target and allowed backup deletion.
+5. A symlinked parent containing a hard link to the expected inode let the old path-based
+   parent open unlink the sentinel entry.
+
+### Second Review GREEN
+
+- Focused recovery/atomic-I/O/transaction/patcher suite: 89 tests, 0 failures.
+- Full package suite: 96 tests, 0 failures.
+- `git diff --check`: clean.
+- Regression coverage includes directory-symlink sentinel rejection, two-install lock
+  ordering and primary-backup preservation, owned/unowned backup captures, empty/unknown
+  cleanup directories, and no-follow guarded deletion through a symlinked parent.
