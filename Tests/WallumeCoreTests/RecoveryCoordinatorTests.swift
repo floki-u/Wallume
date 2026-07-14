@@ -212,6 +212,51 @@ final class RecoveryCoordinatorTests: XCTestCase {
         }
     }
 
+    func testIncompleteJournalIgnoresUnownedCurrentTargets() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        try fixture.setCrashState(
+            phase: .prepared,
+            videoInstalled: false,
+            indexInstalled: false,
+            posterInstalled: false
+        )
+        try fixture.files.writeAtomically(
+            Data("external-video".utf8),
+            to: fixture.manifest.video.target
+        )
+        try fixture.files.writeAtomically(
+            Data("external-poster".utf8),
+            to: fixture.manifest.poster.target
+        )
+        try fixture.externallyChangeIndex()
+
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.conflicts.isEmpty)
+        XCTAssertTrue(report.restored.isEmpty)
+        XCTAssertEqual(
+            try fixture.files.read(fixture.manifest.video.target),
+            Data("external-video".utf8)
+        )
+        XCTAssertEqual(
+            try fixture.files.read(fixture.manifest.poster.target),
+            Data("external-poster".utf8)
+        )
+        XCTAssertEqual(try fixture.loadManifest().phase, .restored)
+    }
+
+    func testPersistsRestoredJournalBeforeBackupCleanupFailure() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        fixture.files.failBackupCleanup = true
+
+        XCTAssertThrowsError(try fixture.recovery.restore(id: fixture.manifest.id))
+
+        XCTAssertEqual(try fixture.loadManifest().phase, .restored)
+        XCTAssertTrue(fixture.files.exists(fixture.manifest.recoveryBackup))
+    }
+
     func testRemovesInstalledPosterWhenItDidNotExistBeforeInstall() throws {
         let fixture = try RecoveryFixture.installed(originalPosterExists: false)
         defer { fixture.remove() }
@@ -1147,6 +1192,7 @@ private final class RecoveryTestFileStore: FileStore, @unchecked Sendable {
     var racePreparedExchangeTarget: URL?
     var mutateTargetAfterCleanup: URL?
     var replaceCaptureBeforeGuardedRemove: String?
+    var failBackupCleanup = false
     private var exchangeCounts: [URL: Int] = [:]
     private var preparedReadCount = 0
 
@@ -1249,6 +1295,11 @@ private final class RecoveryTestFileStore: FileStore, @unchecked Sendable {
     }
 
     func removeDurably(_ url: URL, ifIdentityMatches identity: FileIdentity) throws -> Bool {
+        if failBackupCleanup,
+           url.lastPathComponent.hasSuffix(".original"),
+           url.deletingLastPathComponent().lastPathComponent.hasPrefix(".wallume-cleanup-") {
+            throw RecoveryFixtureError.injected
+        }
         if url.lastPathComponent == replaceCaptureBeforeGuardedRemove,
            url.deletingLastPathComponent().lastPathComponent.hasPrefix(".wallume-cleanup-") {
             replaceCaptureBeforeGuardedRemove = nil

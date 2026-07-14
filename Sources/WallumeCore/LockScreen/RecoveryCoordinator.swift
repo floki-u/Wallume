@@ -110,6 +110,7 @@ public struct RecoveryCoordinator: Sendable {
             return RecoveryReport(restored: [], conflicts: [], retainedBackups: [])
         }
         let enteredWhileRestoring = manifest.phase == .restoring
+        let permitsUnownedTargets = manifest.phase == .prepared || manifest.phase == .writing
 
         var restored: [URL] = []
         var conflicts: [URL] = []
@@ -127,6 +128,7 @@ public struct RecoveryCoordinator: Sendable {
             manifest.video,
             fallbackBackup: manifest.recoveryBackup,
             id: id,
+            permitsUnownedTarget: permitsUnownedTargets,
             prepareForMutation: prepareForMutation
         ) {
         case let .changed(artifact):
@@ -140,6 +142,7 @@ public struct RecoveryCoordinator: Sendable {
             manifest.poster,
             fallbackBackup: nil,
             id: id,
+            permitsUnownedTarget: permitsUnownedTargets,
             prepareForMutation: prepareForMutation
         ) {
         case let .changed(artifact):
@@ -153,6 +156,7 @@ public struct RecoveryCoordinator: Sendable {
         let indexResult = try restoreIndex(
             manifest,
             id: id,
+            permitsUnownedTarget: permitsUnownedTargets,
             prepareForMutation: prepareForMutation
         )
         if indexResult.changed { restored.append(manifest.indexURL) }
@@ -174,9 +178,18 @@ public struct RecoveryCoordinator: Sendable {
         ))
         conflicts = unique(conflicts)
 
-        let videoOriginalVerified = try originalStateIsVerified(manifest.video)
-        let posterOriginalVerified = try originalStateIsVerified(manifest.poster)
-        let indexOriginalVerified = try indexOriginalStateIsVerified(manifest)
+        let videoOriginalVerified = try originalStateIsVerified(
+            manifest.video,
+            permitsUnownedTarget: permitsUnownedTargets
+        )
+        let posterOriginalVerified = try originalStateIsVerified(
+            manifest.poster,
+            permitsUnownedTarget: permitsUnownedTargets
+        )
+        let indexOriginalVerified = try indexOriginalStateIsVerified(
+            manifest,
+            permitsUnownedTarget: permitsUnownedTargets
+        )
         if !videoOriginalVerified { conflicts.append(manifest.video.target) }
         if !posterOriginalVerified { conflicts.append(manifest.poster.target) }
         if !indexOriginalVerified { conflicts.append(manifest.indexURL) }
@@ -184,23 +197,14 @@ public struct RecoveryCoordinator: Sendable {
         conflicts = unique(conflicts)
         let originalsVerified = videoOriginalVerified && posterOriginalVerified && indexOriginalVerified
         if conflicts.isEmpty && originalsVerified {
-            if manifest.backupCleanupAuthorized != true {
-                manifest.backupCleanupAuthorized = true
-                try journals.write(manifest, to: journalURL)
-            }
-            conflicts.append(contentsOf: try removeBackups(for: manifest, id: id))
-        }
-        conflicts.append(contentsOf: try reconcileCleanupDirectories(
-            manifest,
-            knownEntriesMayRemain: false
-        ))
-        conflicts = unique(conflicts)
-        if conflicts.isEmpty && originalsVerified {
+            manifest.backupCleanupAuthorized = true
             manifest.phase = .restored
+            try journals.write(manifest, to: journalURL)
+            _ = try removeBackups(for: manifest, id: id)
         } else {
             manifest.phase = .conflicted
+            try journals.write(manifest, to: journalURL)
         }
-        try journals.write(manifest, to: journalURL)
 
         return RecoveryReport(
             restored: restored,
@@ -315,6 +319,7 @@ public struct RecoveryCoordinator: Sendable {
         _ record: FileReplacementRecord,
         fallbackBackup: URL?,
         id: UUID,
+        permitsUnownedTarget: Bool,
         prepareForMutation: () throws -> Void
     ) throws -> FileRestoreResult {
         if let originalHash = record.originalHash {
@@ -351,7 +356,9 @@ public struct RecoveryCoordinator: Sendable {
                 }
             }
             if observedHash == originalHash { return .alreadyOriginal(nil) }
-            guard observedHash == record.installedHash else { return .conflict }
+            guard observedHash == record.installedHash else {
+                return permitsUnownedTarget ? .alreadyOriginal(nil) : .conflict
+            }
             guard let backup = try verifiedBackup(
                 primary: record.originalBackup,
                 fallback: fallbackBackup,
@@ -392,6 +399,10 @@ public struct RecoveryCoordinator: Sendable {
             )
         }
         guard files.exists(record.target) else { return .alreadyOriginal(nil) }
+        let observedHash = try digester.sha256(of: record.target)
+        guard observedHash == record.installedHash else {
+            return permitsUnownedTarget ? .alreadyOriginal(nil) : .conflict
+        }
         try prepareForMutation()
         try files.installExclusively(quarantine, from: record.target)
         let movedHash: String
@@ -513,6 +524,7 @@ public struct RecoveryCoordinator: Sendable {
     private func restoreIndex(
         _ manifest: LockScreenTransactionManifest,
         id: UUID,
+        permitsUnownedTarget: Bool,
         prepareForMutation: () throws -> Void
     ) throws -> IndexRestoreResult {
         guard files.exists(manifest.indexURL) else {
@@ -559,14 +571,15 @@ public struct RecoveryCoordinator: Sendable {
                     manifest,
                     snapshot: snapshot,
                     outcome: outcome,
-                    prepared: prepared
+                    prepared: prepared,
+                    permitsUnownedTarget: permitsUnownedTarget
                 )
             }
             if !artifactOutcome.restoredPaths.isEmpty,
                try propertyListsAreEqual(artifactOutcome.data, snapshot) {
                 return IndexRestoreResult(
                     changed: true,
-                    conflicted: !artifactOutcome.conflicts.isEmpty,
+                    conflicted: !permitsUnownedTarget && !artifactOutcome.conflicts.isEmpty,
                     cleanupArtifact: artifact(
                         prepared,
                         target: manifest.indexURL,
@@ -575,11 +588,11 @@ public struct RecoveryCoordinator: Sendable {
                 )
             }
             if outcome.restoredPaths.isEmpty,
-               outcome.conflicts.isEmpty,
+               (permitsUnownedTarget || outcome.conflicts.isEmpty),
                try propertyListsAreEqual(artifactData, snapshot) {
                 return IndexRestoreResult(
                     changed: false,
-                    conflicted: !outcome.conflicts.isEmpty,
+                    conflicted: !permitsUnownedTarget && !outcome.conflicts.isEmpty,
                     cleanupArtifact: artifact(
                         prepared,
                         target: manifest.indexURL,
@@ -592,7 +605,7 @@ public struct RecoveryCoordinator: Sendable {
         guard !outcome.restoredPaths.isEmpty else {
             return IndexRestoreResult(
                 changed: false,
-                conflicted: !outcome.conflicts.isEmpty,
+                conflicted: !permitsUnownedTarget && !outcome.conflicts.isEmpty,
                 cleanupArtifact: nil
             )
         }
@@ -610,7 +623,8 @@ public struct RecoveryCoordinator: Sendable {
             manifest,
             snapshot: snapshot,
             outcome: outcome,
-            prepared: prepared
+            prepared: prepared,
+            permitsUnownedTarget: permitsUnownedTarget
         )
     }
 
@@ -618,7 +632,8 @@ public struct RecoveryCoordinator: Sendable {
         _ manifest: LockScreenTransactionManifest,
         snapshot: Data,
         outcome: RestoreOutcome,
-        prepared: URL
+        prepared: URL,
+        permitsUnownedTarget: Bool
     ) throws -> IndexRestoreResult {
         try files.exchange(manifest.indexURL, with: prepared)
         let swappedOut: Data
@@ -661,7 +676,7 @@ public struct RecoveryCoordinator: Sendable {
         }
         return IndexRestoreResult(
             changed: true,
-            conflicted: !outcome.conflicts.isEmpty,
+            conflicted: !permitsUnownedTarget && !outcome.conflicts.isEmpty,
             cleanupArtifact: artifact(
                 prepared,
                 target: manifest.indexURL,
@@ -876,16 +891,19 @@ public struct RecoveryCoordinator: Sendable {
         return unique(conflicts)
     }
 
-    private func originalStateIsVerified(_ record: FileReplacementRecord) throws -> Bool {
-        if let originalHash = record.originalHash {
-            guard files.exists(record.target) else { return false }
-            return try digester.sha256(of: record.target) == originalHash
-        }
-        return !files.exists(record.target)
+    private func originalStateIsVerified(
+        _ record: FileReplacementRecord,
+        permitsUnownedTarget: Bool
+    ) throws -> Bool {
+        guard files.exists(record.target) else { return record.originalHash == nil }
+        let currentHash = try digester.sha256(of: record.target)
+        if currentHash == record.originalHash { return true }
+        return permitsUnownedTarget && currentHash != record.installedHash
     }
 
     private func indexOriginalStateIsVerified(
-        _ manifest: LockScreenTransactionManifest
+        _ manifest: LockScreenTransactionManifest,
+        permitsUnownedTarget: Bool
     ) throws -> Bool {
         guard files.exists(manifest.indexURL) else { return false }
         do {
@@ -893,7 +911,8 @@ public struct RecoveryCoordinator: Sendable {
                 manifest.indexMutations,
                 in: files.read(manifest.indexURL)
             )
-            return outcome.restoredPaths.isEmpty && outcome.conflicts.isEmpty
+            return outcome.restoredPaths.isEmpty &&
+                (permitsUnownedTarget || outcome.conflicts.isEmpty)
         } catch {
             return false
         }
