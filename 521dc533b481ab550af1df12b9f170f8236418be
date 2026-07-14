@@ -1,0 +1,56 @@
+Sources/WallumeRestore/main.swift
+  51fe5f1161128861 2,4-89
+Sources/WallumeCore/LockScreen/WallpaperRefresher.swift
+  51fe5f1161128861 1-2,7-32
+Tests/WallumeCoreTests/RestoreCommandTests.swift
+  51fe5f1161128861 1-152
+Sources/WallumeCore/LockScreen/RestoreCommand.swift
+  51fe5f1161128861 1-66
+docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md
+  51fe5f1161128861 3,22,26-27,33,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "521dc533b481ab550af1df12b9f170f8236418be",
+  "prompts": {
+    "51fe5f1161128861": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f609b-95ae-7b51-8870-595b80926d40",
+        "model": "gpt-5.5"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 352,
+      "total_deletions": 16,
+      "accepted_lines": 341,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeRestore/main.swift": {
+          "additions": 96,
+          "deletions": 11,
+          "accepted_lines": 87
+        },
+        "Sources/WallumeCore/LockScreen/RestoreCommand.swift": {
+          "additions": 68,
+          "deletions": 2,
+          "accepted_lines": 66
+        },
+        "docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md": {
+          "additions": 6,
+          "deletions": 3,
+          "accepted_lines": 6
+        },
+        "Sources/WallumeCore/LockScreen/WallpaperRefresher.swift": {
+          "additions": 30,
+          "accepted_lines": 30
+        },
+        "Tests/WallumeCoreTests/RestoreCommandTests.swift": {
+          "additions": 152,
+          "accepted_lines": 152
+        }
+      }
+    }
+  }
+}
