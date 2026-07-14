@@ -1,0 +1,83 @@
+docs/lock-screen-safety.md
+  51fe5f1161128861 1-84
+Sources/WallumeRestore/main.swift
+  51fe5f1161128861 14-40,65,81-82,84-86,88-96,107-109
+Tests/WallumeCoreTests/RestoreCommandTests.swift
+  51fe5f1161128861 16,62,66-85,173-197
+Sources/WallumeCore/LockScreen/AerialDiscovery.swift
+  51fe5f1161128861 21-35,87-90
+Sources/WallumeCore/LockScreen/RestoreCommand.swift
+  51fe5f1161128861 13-16,20,23,26-30,32,36,51-54,56,79-94,96-99
+.github/workflows/ci.yml
+  51fe5f1161128861 1-20
+docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md
+  51fe5f1161128861 23,29-30,37,45
+Sources/WallumeCore/LockScreen/LockScreenProbe.swift
+  51fe5f1161128861 1-86
+Tests/WallumeCoreTests/LockScreenProbeTests.swift
+  51fe5f1161128861 1-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "ceb4635f8a36b37d7c8f58d82dce385c70ee5148",
+  "prompts": {
+    "51fe5f1161128861": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f609b-95ae-7b51-8870-595b80926d40",
+        "model": "gpt-5.5"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 491,
+      "total_deletions": 85,
+      "accepted_lines": 450,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/LockScreenProbeTests.swift": {
+          "additions": 95,
+          "accepted_lines": 95
+        },
+        "docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md": {
+          "additions": 6,
+          "deletions": 3,
+          "accepted_lines": 5
+        },
+        ".github/workflows/ci.yml": {
+          "additions": 20,
+          "accepted_lines": 20
+        },
+        "Sources/WallumeCore/LockScreen/AerialDiscovery.swift": {
+          "additions": 20,
+          "deletions": 4,
+          "accepted_lines": 19
+        },
+        "Sources/WallumeCore/LockScreen/LockScreenProbe.swift": {
+          "additions": 89,
+          "deletions": 3,
+          "accepted_lines": 86
+        },
+        "Sources/WallumeCore/LockScreen/RestoreCommand.swift": {
+          "additions": 45,
+          "deletions": 10,
+          "accepted_lines": 42
+        },
+        "Sources/WallumeRestore/main.swift": {
+          "additions": 79,
+          "deletions": 59,
+          "accepted_lines": 50
+        },
+        "Tests/WallumeCoreTests/RestoreCommandTests.swift": {
+          "additions": 53,
+          "deletions": 6,
+          "accepted_lines": 49
+        },
+        "docs/lock-screen-safety.md": {
+          "additions": 84,
+          "accepted_lines": 84
+        }
+      }
+    }
+  }
+}
