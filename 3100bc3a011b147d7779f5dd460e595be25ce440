@@ -1,0 +1,44 @@
+Tests/WallumeCoreTests/RecoveryCoordinatorTests.swift
+  51fe5f1161128861 215,236-243,245-252,261
+Sources/WallumeCore/LockScreen/RecoveryCoordinator.swift
+  51fe5f1161128861 186-188,890,893,896,903
+docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md
+  51fe5f1161128861 24,32-33,41,47,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "3100bc3a011b147d7779f5dd460e595be25ce440",
+  "prompts": {
+    "51fe5f1161128861": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f609b-95ae-7b51-8870-595b80926d40",
+        "model": "gpt-5.5"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 34,
+      "total_deletions": 32,
+      "accepted_lines": 31,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/RecoveryCoordinatorTests.swift": {
+          "additions": 18,
+          "deletions": 3,
+          "accepted_lines": 18
+        },
+        "Sources/WallumeCore/LockScreen/RecoveryCoordinator.swift": {
+          "additions": 10,
+          "deletions": 27,
+          "accepted_lines": 7
+        },
+        "docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md": {
+          "additions": 6,
+          "deletions": 2,
+          "accepted_lines": 6
+        }
+      }
+    }
+  }
+}
