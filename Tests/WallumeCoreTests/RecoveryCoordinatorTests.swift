@@ -212,7 +212,7 @@ final class RecoveryCoordinatorTests: XCTestCase {
         }
     }
 
-    func testIncompleteJournalIgnoresUnownedCurrentTargets() throws {
+    func testIncompleteJournalPreservesUnownedCurrentTargetsAsConflicts() throws {
         let fixture = try RecoveryFixture.installed()
         defer { fixture.remove() }
         try fixture.setCrashState(
@@ -233,8 +233,23 @@ final class RecoveryCoordinatorTests: XCTestCase {
 
         let report = try fixture.recovery.restore(id: fixture.manifest.id)
 
-        XCTAssertTrue(report.conflicts.isEmpty)
+        XCTAssertEqual(
+            Set(report.conflicts),
+            Set([
+                fixture.manifest.video.target,
+                fixture.manifest.poster.target,
+                fixture.manifest.indexURL,
+            ])
+        )
         XCTAssertTrue(report.restored.isEmpty)
+        XCTAssertEqual(
+            Set(report.retainedBackups),
+            Set([
+                fixture.manifest.video.originalBackup!,
+                fixture.manifest.recoveryBackup,
+                fixture.manifest.poster.originalBackup!,
+            ])
+        )
         XCTAssertEqual(
             try fixture.files.read(fixture.manifest.video.target),
             Data("external-video".utf8)
@@ -243,7 +258,7 @@ final class RecoveryCoordinatorTests: XCTestCase {
             try fixture.files.read(fixture.manifest.poster.target),
             Data("external-poster".utf8)
         )
-        XCTAssertEqual(try fixture.loadManifest().phase, .restored)
+        XCTAssertEqual(try fixture.loadManifest().phase, .conflicted)
     }
 
     func testPersistsRestoredJournalBeforeBackupCleanupFailure() throws {

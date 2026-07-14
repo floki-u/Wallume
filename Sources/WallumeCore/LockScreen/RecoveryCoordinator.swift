@@ -183,18 +183,9 @@ public struct RecoveryCoordinator: Sendable {
         ))
         conflicts = unique(conflicts)
 
-        let videoOriginalVerified = try originalStateIsVerified(
-            manifest.video,
-            permitsUnownedTarget: permitsUnownedTargets
-        )
-        let posterOriginalVerified = try originalStateIsVerified(
-            manifest.poster,
-            permitsUnownedTarget: permitsUnownedTargets
-        )
-        let indexOriginalVerified = try indexOriginalStateIsVerified(
-            manifest,
-            permitsUnownedTarget: permitsUnownedTargets
-        )
+        let videoOriginalVerified = try originalStateIsVerified(manifest.video)
+        let posterOriginalVerified = try originalStateIsVerified(manifest.poster)
+        let indexOriginalVerified = try indexOriginalStateIsVerified(manifest)
         if !videoOriginalVerified { conflicts.append(manifest.video.target) }
         if !posterOriginalVerified { conflicts.append(manifest.poster.target) }
         if !indexOriginalVerified { conflicts.append(manifest.indexURL) }
@@ -896,28 +887,20 @@ public struct RecoveryCoordinator: Sendable {
         return unique(conflicts)
     }
 
-    private func originalStateIsVerified(
-        _ record: FileReplacementRecord,
-        permitsUnownedTarget: Bool
-    ) throws -> Bool {
+    private func originalStateIsVerified(_ record: FileReplacementRecord) throws -> Bool {
         guard files.exists(record.target) else { return record.originalHash == nil }
         let currentHash = try digester.sha256(of: record.target)
-        if currentHash == record.originalHash { return true }
-        return permitsUnownedTarget && currentHash != record.installedHash
+        return currentHash == record.originalHash
     }
 
-    private func indexOriginalStateIsVerified(
-        _ manifest: LockScreenTransactionManifest,
-        permitsUnownedTarget: Bool
-    ) throws -> Bool {
+    private func indexOriginalStateIsVerified(_ manifest: LockScreenTransactionManifest) throws -> Bool {
         guard files.exists(manifest.indexURL) else { return false }
         do {
             let outcome = try patcher.restore(
                 manifest.indexMutations,
                 in: files.read(manifest.indexURL)
             )
-            return outcome.restoredPaths.isEmpty &&
-                (permitsUnownedTarget || outcome.conflicts.isEmpty)
+            return outcome.restoredPaths.isEmpty && outcome.conflicts.isEmpty
         } catch {
             return false
         }
