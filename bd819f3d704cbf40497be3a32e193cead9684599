@@ -1,0 +1,58 @@
+Sources/WallumeCore/LockScreen/WallpaperIndexPatcher.swift
+  69e6a22be7a9e7eb 1-184
+Tests/WallumeCoreTests/WallpaperIndexPatcherTests.swift
+  69e6a22be7a9e7eb 1-138
+Sources/WallumeCore/LockScreen/PlistMutation.swift
+  69e6a22be7a9e7eb 1-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "bd819f3d704cbf40497be3a32e193cead9684599",
+  "prompts": {
+    "69e6a22be7a9e7eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5a95-e1d5-7121-a115-bb747ebf5ca0",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 552,
+      "total_deletions": 39,
+      "accepted_lines": 356,
+      "overriden_lines": 3,
+      "per_file_stats": {
+        "Sources/WallumeCore/LockScreen/WallpaperIndexPatcher.swift": {
+          "additions": 195,
+          "deletions": 11,
+          "accepted_lines": 184
+        },
+        "Tests/WallumeCoreTests/WallpaperIndexPatcherTests.swift": {
+          "additions": 140,
+          "deletions": 2,
+          "accepted_lines": 138
+        },
+        "Tests/WallumeCoreTests/Fixtures/index-sonoma.plist": {
+          "additions": 68,
+          "deletions": 9,
+          "overriden_lines": 1
+        },
+        "Sources/WallumeCore/LockScreen/PlistMutation.swift": {
+          "additions": 34,
+          "accepted_lines": 34
+        },
+        "Tests/WallumeCoreTests/Fixtures/index-tahoe.plist": {
+          "additions": 58,
+          "deletions": 9,
+          "overriden_lines": 1
+        },
+        "Tests/WallumeCoreTests/Fixtures/index-sequoia.plist": {
+          "additions": 57,
+          "deletions": 8,
+          "overriden_lines": 1
+        }
+      }
+    }
+  }
+}
