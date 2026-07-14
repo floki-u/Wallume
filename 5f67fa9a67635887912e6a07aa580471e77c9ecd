@@ -1,0 +1,37 @@
+Tests/WallumeCoreTests/RecoveryCoordinatorTests.swift
+  69e6a22be7a9e7eb 215-259,1195,1298-1302
+Sources/WallumeCore/LockScreen/RecoveryCoordinator.swift
+  69e6a22be7a9e7eb 113,131,145,159,181-192,200,202-203,206,322,359-361,402-405,527,574-575,582,591,595,608,626-627,635-636,679,894-901,905-906,914-915
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "5f67fa9a67635887912e6a07aa580471e77c9ecd",
+  "prompts": {
+    "69e6a22be7a9e7eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5a95-e1d5-7121-a115-bb747ebf5ca0",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 104,
+      "total_deletions": 34,
+      "accepted_lines": 103,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/RecoveryCoordinatorTests.swift": {
+          "additions": 52,
+          "deletions": 1,
+          "accepted_lines": 51
+        },
+        "Sources/WallumeCore/LockScreen/RecoveryCoordinator.swift": {
+          "additions": 52,
+          "deletions": 33,
+          "accepted_lines": 52
+        }
+      }
+    }
+  }
+}
