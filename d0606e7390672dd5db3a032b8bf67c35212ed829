@@ -1,0 +1,42 @@
+Sources/WallumeCore/LockScreen/LockScreenTransaction.swift
+  69e6a22be7a9e7eb 102-104
+Tests/WallumeCoreTests/LockScreenTransactionTests.swift
+  69e6a22be7a9e7eb 32-42,48-49,58,69,72-76,112-115,129-130,140-162,164-175
+.superpowers/sdd/task-6-report.md
+  69e6a22be7a9e7eb 69-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "d0606e7390672dd5db3a032b8bf67c35212ed829",
+  "prompts": {
+    "69e6a22be7a9e7eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5a95-e1d5-7121-a115-bb747ebf5ca0",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 99,
+      "total_deletions": 4,
+      "accepted_lines": 99,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/LockScreen/LockScreenTransaction.swift": {
+          "additions": 3,
+          "accepted_lines": 3
+        },
+        ".superpowers/sdd/task-6-report.md": {
+          "additions": 32,
+          "accepted_lines": 32
+        },
+        "Tests/WallumeCoreTests/LockScreenTransactionTests.swift": {
+          "additions": 64,
+          "deletions": 4,
+          "accepted_lines": 64
+        }
+      }
+    }
+  }
+}
