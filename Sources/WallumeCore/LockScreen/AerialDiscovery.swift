@@ -18,6 +18,21 @@ public enum AerialDiscoveryError: Error, Equatable {
     case foreignModificationDetected(String)
 }
 
+enum AerialVideoSidecar {
+    static func wallumeBackupName(for videoName: String) -> String {
+        videoName + WallumeBuildInfo.backupMarker
+    }
+
+    static func isForeignSidecar(name: String, forVideoName videoName: String) -> Bool {
+        name.hasPrefix(videoName + ".") && name != wallumeBackupName(for: videoName)
+    }
+
+    static func foreignSidecarVideoName(from name: String) -> String? {
+        guard let movRange = name.range(of: ".mov.") else { return nil }
+        return String(String(name[..<movRange.upperBound]).dropLast())
+    }
+}
+
 public struct AerialDiscovery: Sendable {
     private struct Manifest: Decodable {
         let assets: [Asset]
@@ -68,10 +83,11 @@ public struct AerialDiscovery: Sendable {
         }
 
         let videoName = slot.videoURL.lastPathComponent
-        let wallumeBackupName = videoName + WallumeBuildInfo.backupMarker
         let hasForeignModification = try files.contents(paths.videosDirectory).contains { url in
-            let name = url.lastPathComponent
-            return name.hasPrefix(videoName + ".") && name != wallumeBackupName
+            AerialVideoSidecar.isForeignSidecar(
+                name: url.lastPathComponent,
+                forVideoName: videoName
+            )
         }
         guard !hasForeignModification else {
             throw AerialDiscoveryError.foreignModificationDetected(id)

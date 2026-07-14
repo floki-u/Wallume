@@ -13,7 +13,7 @@ final class RestoreCommandTests: XCTestCase {
         XCTAssertEqual(output.stdout, "")
         XCTAssertEqual(
             output.stderr,
-            "usage: wallume-restore status | restore <transaction-uuid> | restore-all\n"
+            "usage: wallume-restore status | probe | restore <transaction-uuid> | restore-all\n"
         )
         XCTAssertEqual(recovery.restoredIDs, [])
     }
@@ -59,8 +59,28 @@ final class RestoreCommandTests: XCTestCase {
         XCTAssertEqual(recovery.restoredIDs, [])
         XCTAssertEqual(
             output.stderr,
-            "usage: wallume-restore status | restore <transaction-uuid> | restore-all\n"
+            "usage: wallume-restore status | probe | restore <transaction-uuid> | restore-all\n"
         )
+    }
+
+    func testProbePrintsReadOnlyReportWithoutCallingRecovery() {
+        let recovery = StubRecoveryService()
+        let output = BufferedRestoreOutput()
+        let command = RestoreCommand(
+            recovery: recovery,
+            probe: StubProbeService(report: StubProbeService.fixtureReport),
+            output: output
+        )
+
+        XCTAssertEqual(command.run(arguments: ["probe"]), 0)
+
+        XCTAssertTrue(output.stdout.contains("generation: tahoe"))
+        XCTAssertTrue(output.stdout.contains("writesPermitted: true"))
+        XCTAssertTrue(output.stdout.contains("manifestExists: true"))
+        XCTAssertTrue(output.stdout.contains("indexExists: false"))
+        XCTAssertTrue(output.stdout.contains("slots: AERIAL-ONE"))
+        XCTAssertTrue(output.stdout.contains("foreignBackups: AERIAL-ONE.mov.backup"))
+        XCTAssertEqual(recovery.restoredIDs, [])
     }
 
     func testRestoreReturnsConflictExitCodeWhenRecoveryReportsConflicts() {
@@ -148,5 +168,32 @@ private final class StubRecoveryService: LockScreenRecovering {
     func restore(id: UUID) throws -> RecoveryReport {
         restoredIDs.append(id)
         return reports[id] ?? RecoveryReport(restored: [], conflicts: [], retainedBackups: [])
+    }
+}
+
+private final class StubProbeService: LockScreenProbing {
+    static let fixtureReport = LockScreenProbeReport(
+        generation: .tahoe,
+        writesPermitted: true,
+        manifestExists: true,
+        indexExists: false,
+        availableSlots: [
+            AerialSlot(
+                id: "AERIAL-ONE",
+                displayName: "Test Coast",
+                videoURL: URL(fileURLWithPath: "/videos/AERIAL-ONE.mov")
+            ),
+        ],
+        foreignBackupNames: ["AERIAL-ONE.mov.backup"]
+    )
+
+    let report: LockScreenProbeReport
+
+    init(report: LockScreenProbeReport) {
+        self.report = report
+    }
+
+    func inspect() throws -> LockScreenProbeReport {
+        report
     }
 }

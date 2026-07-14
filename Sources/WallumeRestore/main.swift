@@ -11,6 +11,33 @@ final class ProcessOutput: RestoreOutput {
     }
 }
 
+func currentGeneratedUID(homeDirectory: URL) throws -> String {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/dscl")
+    process.arguments = [".", "-read", homeDirectory.path, "GeneratedUID"]
+
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = Pipe()
+
+    try process.run()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+        throw CocoaError(.fileReadUnknown)
+    }
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    guard let output = String(data: data, encoding: .utf8),
+          let value = output
+            .split(separator: "\n")
+            .first(where: { $0.hasPrefix("GeneratedUID:") })?
+            .split(separator: " ", maxSplits: 1)
+            .last
+    else {
+        throw CocoaError(.fileReadCorruptFile)
+    }
+    return String(value)
+}
+
 final class ProcessRecovery: LockScreenRecovering {
     private let homeDirectory: URL
     private var coordinator: RecoveryCoordinator?
@@ -35,7 +62,7 @@ final class ProcessRecovery: LockScreenRecovering {
         if let coordinator { return coordinator }
         let paths = AerialPaths(
             homeDirectory: homeDirectory,
-            userGeneratedID: try currentGeneratedUID()
+            userGeneratedID: try currentGeneratedUID(homeDirectory: homeDirectory)
         )
         let files = LocalFileStore()
         let coordinator = RecoveryCoordinator(
@@ -49,32 +76,24 @@ final class ProcessRecovery: LockScreenRecovering {
         self.coordinator = coordinator
         return coordinator
     }
+}
 
-    private func currentGeneratedUID() throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/dscl")
-        process.arguments = [".", "-read", homeDirectory.path, "GeneratedUID"]
+final class ProcessProbe: LockScreenProbing {
+    private let homeDirectory: URL
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
+    init(homeDirectory: URL) {
+        self.homeDirectory = homeDirectory
+    }
 
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw CocoaError(.fileReadUnknown)
-        }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let output = String(data: data, encoding: .utf8),
-              let value = output
-                .split(separator: "\n")
-                .first(where: { $0.hasPrefix("GeneratedUID:") })?
-                .split(separator: " ", maxSplits: 1)
-                .last
-        else {
-            throw CocoaError(.fileReadCorruptFile)
-        }
-        return String(value)
+    func inspect() throws -> LockScreenProbeReport {
+        let paths = AerialPaths(
+            homeDirectory: homeDirectory,
+            userGeneratedID: try currentGeneratedUID(homeDirectory: homeDirectory)
+        )
+        return try LockScreenProbe(files: LocalFileStore()).inspect(
+            paths: paths,
+            version: ProcessInfo.processInfo.operatingSystemVersion
+        )
     }
 }
 
@@ -85,5 +104,6 @@ let homeDirectory = URL(
     isDirectory: true
 )
 let recovery = ProcessRecovery(homeDirectory: homeDirectory)
-let command = RestoreCommand(recovery: recovery, output: output)
-exit(command.run(arguments: Array(CommandLine.arguments.dropFirst()), environment: environment))
+let probe = ProcessProbe(homeDirectory: homeDirectory)
+let command = RestoreCommand(recovery: recovery, probe: probe, output: output)
+exit(command.run(arguments: Array(CommandLine.arguments.dropFirst())))
