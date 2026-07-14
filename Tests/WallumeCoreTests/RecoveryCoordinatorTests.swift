@@ -257,6 +257,27 @@ final class RecoveryCoordinatorTests: XCTestCase {
         XCTAssertTrue(fixture.files.exists(fixture.manifest.recoveryBackup))
     }
 
+    func testRestoredJournalWithFailedBackupCleanupIsInspectableAndRetriesCleanupOnly() throws {
+        let fixture = try RecoveryFixture.installed()
+        defer { fixture.remove() }
+        fixture.files.failBackupCleanup = true
+
+        XCTAssertThrowsError(try fixture.recovery.restore(id: fixture.manifest.id))
+        XCTAssertEqual(try fixture.loadManifest().phase, .restored)
+        XCTAssertEqual(try fixture.recovery.inspect().map(\.id), [fixture.manifest.id])
+
+        fixture.files.failBackupCleanup = false
+        let report = try fixture.recovery.restore(id: fixture.manifest.id)
+
+        XCTAssertTrue(report.restored.isEmpty)
+        XCTAssertTrue(report.conflicts.isEmpty)
+        XCTAssertTrue(report.retainedBackups.isEmpty)
+        XCTAssertEqual(fixture.refresher.refreshCount, 1)
+        XCTAssertTrue(fixture.allBackups.allSatisfy { !fixture.files.exists($0) })
+        XCTAssertTrue(try fixture.recovery.inspect().isEmpty)
+        XCTAssertEqual(try fixture.loadManifest().phase, .restored)
+    }
+
     func testRemovesInstalledPosterWhenItDidNotExistBeforeInstall() throws {
         let fixture = try RecoveryFixture.installed(originalPosterExists: false)
         defer { fixture.remove() }
@@ -562,9 +583,10 @@ final class RecoveryCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(report, RecoveryReport(restored: [], conflicts: [], retainedBackups: []))
         XCTAssertEqual(fixture.refresher.refreshCount, 1)
+        XCTAssertTrue(try fixture.recovery.inspect().isEmpty)
     }
 
-    func testInspectFindsRecoverablePhasesInStableOrderAndSkipsRestored() throws {
+    func testInspectFindsRecoverablePhasesAndRestoredJournalsWithRetainedBackupsInStableOrder() throws {
         let fixture = try RecoveryFixture.installed()
         defer { fixture.remove() }
         try fixture.files.remove(fixture.journalURL)
@@ -586,7 +608,7 @@ final class RecoveryCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(
             candidates.map(\.phase),
-            [.restoring, .writing, .prepared, .committed, .conflicted]
+            [.restoring, .writing, .prepared, .committed, .restored, .conflicted]
         )
     }
 

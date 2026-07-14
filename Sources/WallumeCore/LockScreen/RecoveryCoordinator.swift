@@ -76,7 +76,7 @@ public struct RecoveryCoordinator: Sendable {
             .sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
             guard journalURL.pathExtension == "json" else { continue }
             let manifest = try readManifest(from: journalURL)
-            guard manifest.phase != .restored else { continue }
+            guard manifest.phase != .restored || hasPendingTerminalCleanup(manifest) else { continue }
             candidates.append(
                 RecoveryCandidate(
                     id: manifest.id,
@@ -107,7 +107,12 @@ public struct RecoveryCoordinator: Sendable {
         }
         var manifest = try readManifest(from: journalURL)
         if manifest.phase == .restored {
-            return RecoveryReport(restored: [], conflicts: [], retainedBackups: [])
+            let conflicts = try removeBackups(for: manifest, id: id)
+            return RecoveryReport(
+                restored: [],
+                conflicts: unique(conflicts),
+                retainedBackups: retainedBackups(for: manifest)
+            )
         }
         let enteredWhileRestoring = manifest.phase == .restoring
         let permitsUnownedTargets = manifest.phase == .prepared || manifest.phase == .writing
@@ -1015,6 +1020,10 @@ public struct RecoveryCoordinator: Sendable {
         unique(allBackups(for: manifest).flatMap { backup in
             [backup, cleanupCapture(for: backup, id: manifest.id)].filter(files.exists)
         })
+    }
+
+    private func hasPendingTerminalCleanup(_ manifest: LockScreenTransactionManifest) -> Bool {
+        !retainedBackups(for: manifest).isEmpty
     }
 
     private func allBackups(for manifest: LockScreenTransactionManifest) -> [URL] {
