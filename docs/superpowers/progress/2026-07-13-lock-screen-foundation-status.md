@@ -1,6 +1,6 @@
 # Wallume Lock-Screen Foundation Status
 
-Updated: 2026-07-13
+Updated: 2026-07-14
 
 ## Current state
 
@@ -19,24 +19,27 @@ Updated: 2026-07-13
 5. Narrow reversible `Index.plist` mutations — complete.
 6. Durable lock-screen installation transaction — complete.
 7. Compare-and-restore recovery and orphan handling — complete.
+8. Standalone read-only/status and explicit restore CLI — complete.
 
 Task 7 was accepted by an independent task review with no Critical, Important, or Minor findings. Its local head is `5009015`. The implementation includes schema-v2 recovery journals, atomic guarded replacement, crash-resumable artifacts, complete backup ownership checks, no-follow path validation, cross-process advisory locking, conservative conflict retention, and a documented local threat boundary.
+
+Task 8 adds dependency-injected `wallume-restore` command parsing, `status`, `restore <transaction-uuid>`, and `restore-all`; wires the executable to live filesystem dependencies; honors `HOME` from the process environment; keeps empty `status` read-only even under an isolated home directory; and refreshes only `WallpaperAgent` and `WallpaperAerialsExtension` after explicit restores.
 
 ## Verification record
 
 - Implementer full suite at task head: 106 tests passed, 0 failures.
 - Implementer focused safety suites: 99 tests passed, 0 failures.
 - Primary-agent final verification: `swift test` passed 106 tests with 0 failures; `git diff --check` passed.
+- Task 8 verification: `swift test --filter RestoreCommandTests` passed 5 tests with 0 failures; `swift build -c release --product wallume-restore` passed; isolated `HOME="$(mktemp -d)" .build/release/wallume-restore status` exited 0 with no output and no created files; `swift test` passed 115 tests with 0 failures; `git diff --check` passed.
 - Independent task review: approved.
 - No automated test accesses the live macOS wallpaper directories.
 
 ## Remaining phase-1 tasks
 
-8. Standalone read-only/status and explicit restore CLI.
 9. Read-only live probe, CI, and phase-1 safety documentation.
 10. Whole-branch review and local branch handoff.
 
-Do not start Task 8 until a new work session is opened. Resume from local branch `agent/lock-screen-safety` in worktree `.worktrees/lock-screen-safety`, confirm this status file and `.superpowers/sdd/progress.md`, then extract Task 8 from the existing plan.
+Resume from local branch `agent/lock-screen-safety` in worktree `.worktrees/lock-screen-safety`, confirm this status file and `.superpowers/sdd/progress.md`, then extract Task 9 from the existing plan.
 
 ## Safety boundary
 
