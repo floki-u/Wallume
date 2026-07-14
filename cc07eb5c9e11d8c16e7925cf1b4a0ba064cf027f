@@ -1,0 +1,54 @@
+Sources/WallumeCore/LockScreen/WallpaperRefresher.swift
+  69e6a22be7a9e7eb 1-20
+Tests/WallumeCoreTests/LockScreenTransactionTests.swift
+  69e6a22be7a9e7eb 1-134
+Sources/WallumeCore/LockScreen/LockScreenTransaction.swift
+  69e6a22be7a9e7eb 1-145
+Sources/WallumeCore/System/AerialPaths.swift
+  69e6a22be7a9e7eb 12-29
+Sources/WallumeCore/LockScreen/TransactionModels.swift
+  69e6a22be7a9e7eb 1-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "cc07eb5c9e11d8c16e7925cf1b4a0ba064cf027f",
+  "prompts": {
+    "69e6a22be7a9e7eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5a95-e1d5-7121-a115-bb747ebf5ca0",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 391,
+      "total_deletions": 1,
+      "accepted_lines": 390,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/LockScreen/WallpaperRefresher.swift": {
+          "additions": 20,
+          "accepted_lines": 20
+        },
+        "Sources/WallumeCore/System/AerialPaths.swift": {
+          "additions": 18,
+          "accepted_lines": 18
+        },
+        "Sources/WallumeCore/LockScreen/TransactionModels.swift": {
+          "additions": 73,
+          "accepted_lines": 73
+        },
+        "Sources/WallumeCore/LockScreen/LockScreenTransaction.swift": {
+          "additions": 145,
+          "accepted_lines": 145
+        },
+        "Tests/WallumeCoreTests/LockScreenTransactionTests.swift": {
+          "additions": 135,
+          "deletions": 1,
+          "accepted_lines": 134
+        }
+      }
+    }
+  }
+}
