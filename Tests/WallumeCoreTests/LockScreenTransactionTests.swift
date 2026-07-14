@@ -357,6 +357,30 @@ final class LockScreenTransactionTests: XCTestCase {
         XCTAssertEqual(try fixture.persistedManifest().phase, .writing)
     }
 
+    func testIndexChangedBetweenPlanningAndReplacementIsPreservedBeforeExchange() throws {
+        let fixture = try TransactionFixture.make(corrupting: .indexChangedDuringStaging)
+        defer { fixture.remove() }
+
+        XCTAssertThrowsError(try fixture.transaction.install(fixture.request)) {
+            XCTAssertEqual(
+                $0 as? LockScreenTransactionError,
+                .targetChanged(fixture.paths.wallpaperIndex)
+            )
+        }
+
+        XCTAssertEqual(
+            try selectedAerialID(in: fixture.files.read(fixture.paths.wallpaperIndex)),
+            "EXTERNAL-AERIAL"
+        )
+        XCTAssertTrue(fixture.events.contains("exchange:video"))
+        XCTAssertFalse(fixture.events.contains("exchange:index"))
+        XCTAssertFalse(fixture.events.contains("replace:index"))
+        XCTAssertFalse(fixture.events.contains("exchange:poster"))
+        XCTAssertFalse(fixture.events.contains("refresh"))
+        XCTAssertFalse(fixture.events.contains("journal:committed"))
+        XCTAssertEqual(try fixture.persistedManifest().phase, .writing)
+    }
+
     func testExistingPosterChangedBeforeReplacementIsPreservedAndAborts() throws {
         let fixture = try TransactionFixture.make(corrupting: .racePoster)
         defer { fixture.remove() }
@@ -495,6 +519,17 @@ private struct TestFileStore: FileStore {
             recorder.append("journal:\(phase)")
         }
         try local.writeAtomically(data, to: mapped(target))
+        if corruption == .indexChangedDuringStaging,
+           target.lastPathComponent.contains(".Index.plist.wallume."),
+           target.lastPathComponent.hasSuffix(".prepared") {
+            let indexTarget = target.deletingLastPathComponent().appending(path: "Index.plist")
+            let external = try externallyChangedIndex(local.read(mapped(indexTarget)))
+            try local.writeAtomically(
+                external,
+                to: mapped(indexTarget)
+            )
+            recorder.append("race:index-staging")
+        }
     }
     func writeExclusively(_ data: Data, to target: URL) throws {
         try local.writeExclusively(data, to: mapped(target))
@@ -589,11 +624,13 @@ private enum FileCorruption: Sendable, Equatable {
     case raceIndex
     case racePoster
     case raceVideoRollbackFailure
+    case indexChangedDuringStaging
 
     func matches(_ destination: URL) -> Bool {
         switch self {
         case .none, .installedVideo, .installedIndex, .installedPoster,
-             .raceVideo, .raceIndex, .racePoster, .raceVideoRollbackFailure:
+             .raceVideo, .raceIndex, .racePoster, .raceVideoRollbackFailure,
+             .indexChangedDuringStaging:
             false
         case .primaryVideoBackup:
             destination.lastPathComponent.hasSuffix(WallumeBuildInfo.backupMarker)
