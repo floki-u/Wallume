@@ -1,0 +1,37 @@
+Tests/WallumeCoreTests/MediaLibraryTests.swift
+  51fe5f1161128861 9,20-21,29-44,48,63,75,88,97-107,112,116-145,152,165-169,174-176,178-180,183-184,186
+Sources/WallumeCore/Media/MediaLibrary.swift
+  51fe5f1161128861 5,12,16-21,25,41-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "345f1840d5498efde01e8c1bcd2e5717d6db9a52",
+  "prompts": {
+    "51fe5f1161128861": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f609b-95ae-7b51-8870-595b80926d40",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 103,
+      "total_deletions": 18,
+      "accepted_lines": 101,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/MediaLibraryTests.swift": {
+          "additions": 91,
+          "deletions": 17,
+          "accepted_lines": 89
+        },
+        "Sources/WallumeCore/Media/MediaLibrary.swift": {
+          "additions": 12,
+          "deletions": 1,
+          "accepted_lines": 12
+        }
+      }
+    }
+  }
+}
