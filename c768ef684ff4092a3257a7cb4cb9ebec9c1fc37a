@@ -1,0 +1,51 @@
+Tests/WallumeCoreTests/MediaImporterTests.swift
+  cc0835dcbad4ee45 72-88,171-174,178,182-183,186
+Sources/WallumeCore/Media/MediaImporting.swift
+  cc0835dcbad4ee45 133,148-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "c768ef684ff4092a3257a7cb4cb9ebec9c1fc37a",
+  "prompts": {
+    "cc0835dcbad4ee45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65b3-7787-7273-8766-c99e646884e5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 145,
+      "total_deletions": 14,
+      "accepted_lines": 144,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        ".github/workflows/ci.yml": {
+          "additions": 4,
+          "deletions": 2,
+          "accepted_lines": 4
+        },
+        "Tests/WallumeCoreTests/MediaImporterTests.swift": {
+          "additions": 25,
+          "deletions": 3,
+          "accepted_lines": 25
+        },
+        "docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md": {
+          "additions": 13,
+          "deletions": 4,
+          "accepted_lines": 12
+        },
+        "Sources/WallumeCore/Media/MediaImporting.swift": {
+          "additions": 6,
+          "deletions": 5,
+          "accepted_lines": 6
+        },
+        "docs/media-library.md": {
+          "additions": 97,
+          "accepted_lines": 97
+        }
+      }
+    }
+  }
+}
