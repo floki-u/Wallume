@@ -1,0 +1,43 @@
+docs/superpowers/specs/2026-07-10-wallume-design.md
+  51fe5f1161128861 220,243,260
+docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md
+  51fe5f1161128861 49
+docs/lock-screen-safety.md
+  51fe5f1161128861 53-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "7f94615071d5ea5b767d20412f79d10ef425277d",
+  "prompts": {
+    "51fe5f1161128861": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f609b-95ae-7b51-8870-595b80926d40",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 4,
+      "accepted_lines": 8,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/superpowers/specs/2026-07-10-wallume-design.md": {
+          "additions": 3,
+          "deletions": 3,
+          "accepted_lines": 3
+        },
+        "docs/lock-screen-safety.md": {
+          "additions": 4,
+          "accepted_lines": 4
+        },
+        "docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        }
+      }
+    }
+  }
+}
