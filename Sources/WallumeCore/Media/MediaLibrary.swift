@@ -2,19 +2,27 @@ import Foundation
 
 public enum MediaLibraryError: Error, Equatable {
     case unsafeArtifact(URL)
+    case sourceHashMismatch(URL)
 }
 
 public struct MediaLibrary: Sendable {
     private let paths: MediaPaths
     private let files: any FileStore
     private let jsonStore: AtomicJSONStore
+    private let digester: any Digesting
 
     private var pathSafety: PathSafetyValidator { PathSafetyValidator(files: files) }
 
-    public init(paths: MediaPaths, files: any FileStore, jsonStore: AtomicJSONStore) {
+    public init(
+        paths: MediaPaths,
+        files: any FileStore,
+        jsonStore: AtomicJSONStore,
+        digester: any Digesting = SHA256Digester()
+    ) {
         self.paths = paths
         self.files = files
         self.jsonStore = jsonStore
+        self.digester = digester
     }
 
     public func find(sourceHash: String) throws -> MediaItem? {
@@ -30,6 +38,9 @@ public struct MediaLibrary: Sendable {
     }
 
     public func register(_ item: MediaItem) throws {
+        guard try digester.sha256(of: item.sourceURL) == item.sourceHash else {
+            throw MediaLibraryError.sourceHashMismatch(item.sourceURL)
+        }
         var document = try loadDocument()
         guard document.items.allSatisfy({ $0.sourceHash != item.sourceHash }) else { return }
         document.items.append(item)
