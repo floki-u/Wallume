@@ -10,7 +10,14 @@ let package = Package(
         .executable(name: "wallume-restore", targets: ["WallumeRestore"]),
     ],
     targets: [
-        .target(name: "WallumeCore"),
+        .target(
+            name: "WallumeCore",
+            linkerSettings: [
+                .linkedFramework("AVFoundation"),
+                .linkedFramework("ImageIO"),
+                .linkedFramework("VideoToolbox"),
+            ]
+        ),
         .executableTarget(name: "WallumeMedia", dependencies: ["WallumeCore"]),
         .executableTarget(name: "WallumeRestore", dependencies: ["WallumeCore"]),
         .testTarget(
