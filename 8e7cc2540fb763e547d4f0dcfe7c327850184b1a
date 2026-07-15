@@ -1,0 +1,29 @@
+docs/superpowers/specs/2026-07-15-wallume-media-library-importer-design.md
+  51fe5f1161128861 1-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "8e7cc2540fb763e547d4f0dcfe7c327850184b1a",
+  "prompts": {
+    "51fe5f1161128861": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f609b-95ae-7b51-8870-595b80926d40",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 87,
+      "total_deletions": 0,
+      "accepted_lines": 87,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/superpowers/specs/2026-07-15-wallume-media-library-importer-design.md": {
+          "additions": 87,
+          "accepted_lines": 87
+        }
+      }
+    }
+  }
+}
