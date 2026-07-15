@@ -1,0 +1,37 @@
+Tests/WallumeCoreTests/MediaImporterTests.swift
+  cc0835dcbad4ee45 1-190
+Sources/WallumeCore/Media/MediaImporting.swift
+  cc0835dcbad4ee45 1-223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "3d8b376631e2f1ac68ecba0d29c295a9bffbaeba",
+  "prompts": {
+    "cc0835dcbad4ee45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65b3-7787-7273-8766-c99e646884e5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 415,
+      "total_deletions": 2,
+      "accepted_lines": 413,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/MediaImporterTests.swift": {
+          "additions": 191,
+          "deletions": 1,
+          "accepted_lines": 190
+        },
+        "Sources/WallumeCore/Media/MediaImporting.swift": {
+          "additions": 224,
+          "deletions": 1,
+          "accepted_lines": 223
+        }
+      }
+    }
+  }
+}
