@@ -130,6 +130,7 @@ public actor MediaImporter {
             try files.createPrivateDirectory(workDirectory)
             let sourceInspection = try await inspector.inspect(source)
             try await transcoder.transcode(source, to: stagedVariant, policy: .singleVariant)
+            let variantInspection = try await inspector.inspect(stagedVariant)
             try await artwork.generateArtwork(for: stagedVariant, thumbnail: stagedThumbnail, cover: stagedCover)
             try verifyStagedArtifacts([stagedVariant, stagedThumbnail, stagedCover])
             try files.createDirectory(installedVariant.deletingLastPathComponent())
@@ -144,11 +145,11 @@ public actor MediaImporter {
                 sourceURL: source,
                 displayName: source.deletingPathExtension().lastPathComponent,
                 sourceByteCount: sourceInspection.sourceByteCount,
-                pixelWidth: sourceInspection.pixelWidth,
-                pixelHeight: sourceInspection.pixelHeight,
-                frameRate: sourceInspection.frameRate,
-                durationSeconds: sourceInspection.durationSeconds,
-                codec: sourceInspection.codec,
+                pixelWidth: variantInspection.pixelWidth,
+                pixelHeight: variantInspection.pixelHeight,
+                frameRate: variantInspection.frameRate,
+                durationSeconds: variantInspection.durationSeconds,
+                codec: variantInspection.codec,
                 variantURL: installedVariant,
                 thumbnailURL: installedThumbnail,
                 coverURL: installedCover,

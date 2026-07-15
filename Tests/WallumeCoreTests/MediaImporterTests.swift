@@ -69,6 +69,23 @@ final class MediaImporterTests: XCTestCase {
         XCTAssertEqual(report.results.map(\.status), [.cancelled, .imported])
         XCTAssertEqual(try fixture.library.list().map(\.sourceURL.lastPathComponent), ["imported.mov"])
     }
+
+    func testImportedItemStoresVariantMediaMetadata() async throws {
+        let fixture = try MediaImporterFixture()
+        defer { fixture.remove() }
+        fixture.inspector.sourceCodec = "avc1"
+        fixture.inspector.variantCodec = "hvc1"
+        fixture.inspector.variantWidth = 1280
+        fixture.inspector.variantHeight = 720
+
+        let report = try await fixture.importer.importURLs([fixture.source])
+
+        let item = try XCTUnwrap(report.results.first?.item)
+        XCTAssertEqual(item.codec, "hvc1")
+        XCTAssertEqual(item.pixelWidth, 1280)
+        XCTAssertEqual(item.pixelHeight, 720)
+        XCTAssertEqual(item.sourceByteCount, Int64(Data("source".utf8).count))
+    }
 }
 
 private final class MediaImporterFixture {
@@ -151,17 +168,22 @@ private final class MediaImporterFixture {
 
 private final class FakeMediaInspector: MediaInspecting, @unchecked Sendable {
     var failures = Set<URL>()
+    var sourceCodec = "hvc1"
+    var variantCodec = "hvc1"
+    var variantWidth = 1920
+    var variantHeight = 1080
 
     func inspect(_ url: URL) async throws -> MediaInspection {
         if failures.contains(url) { throw SyntheticMediaError() }
+        let isVariant = url.lastPathComponent == "variant.mov"
         let count = Int64((try? Data(contentsOf: url).count) ?? 0)
         return MediaInspection(
             sourceByteCount: count,
-            pixelWidth: 1920,
-            pixelHeight: 1080,
+            pixelWidth: isVariant ? variantWidth : 1920,
+            pixelHeight: isVariant ? variantHeight : 1080,
             frameRate: 30,
             durationSeconds: 1,
-            codec: "hvc1"
+            codec: isVariant ? variantCodec : sourceCodec
         )
     }
 }
