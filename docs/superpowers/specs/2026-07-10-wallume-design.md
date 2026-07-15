@@ -217,7 +217,7 @@ Wallume 的文件使用 `app.wallume.Wallume` 派生的唯一后缀，不覆盖�
 - 主备份：`~/Library/Application Support/Wallume/SystemBackups/<transaction-id>/`
 - 恢复备份：与 Aerial 槽同目录，使用 `.app.wallume.Wallume.original.<sha256>.bak` 后缀
 
-恢复备份旁保存最小恢复清单，包含目标路径、原始哈希、Wallume 写入哈希、原配置节点和值。这样即使 `.app` 已删除，独立恢复工具仍能执行比较后恢复。
+`~/Library/Application Support/Wallume/Transactions/<transaction-id>.json` 是唯一权威恢复清单。它记录受限目标路径、原始与 Wallume 写入哈希、备份位置，以及 `Index.plist` 的窄范围前后值；恢复前必须通过路径、所有权和校验和验证。与 Aerial 槽同目录的恢复备份不保存第二份清单：它只提供应用被删除后仍可发现的恢复锚点。独立恢复工具扫描该备份并查找对应的 Wallume 事务日志；任一方缺失、校验失败或无法解释时均停止自动恢复并保留所有证据。
 
 Wallume 不覆盖已有备份。备份校验失败时禁止继续写入。
 
@@ -240,7 +240,7 @@ Wallume 不覆盖已有备份。备份校验失败时禁止继续写入。
 - `committed` 状态执行健康检查，不重复写入。
 - 连续恢复失败时停止锁屏写入，保留桌面播放并进入需要人工处理的安全状态。
 
-安全边界：锁屏事务使用跨进程文件锁串行化 Wallume 写入；恢复清单中的路径必须精确匹配允许位置，并逐级以 no-follow 方式拒绝已有 symlink。清理项先移入同父目录、事务专属且权限为 `0700` 的目录，再按 inode 身份通过 `openat`/`fstatat`/`unlinkat` 删除并 `fsync` 父目录。该机制防护 Wallume 并发、崩溃和非恶意外部改写；macOS 没有“比较 inode 并原子 unlink”的原语，因此不承诺抵御主动的同 UID 攻击者在最后 syscall 窗口精准替换私有目录项。
+安全边界：锁屏事务使用跨进程文件锁串行化 Wallume 写入；权威事务日志中的路径必须精确匹配允许位置，并逐级以 no-follow 方式拒绝已有 symlink。清理项先移入同父目录、事务专属且权限为 `0700` 的目录，再按 inode 身份通过 `openat`/`fstatat`/`unlinkat` 删除并 `fsync` 父目录。该机制防护 Wallume 并发、崩溃和非恶意外部改写；macOS 没有“比较 inode 并原子 unlink”的原语，因此不承诺抵御主动的同 UID 攻击者在最后 syscall 窗口精准替换私有目录项。
 
 ### 6.8 卸载与残留清理
 
@@ -257,7 +257,7 @@ Wallume 不覆盖已有备份。备份校验失败时禁止继续写入。
 
 Homebrew Cask 的卸载脚本必须在删除应用和 `zap` 数据之前执行相同恢复流程。恢复失败时卸载脚本返回失败并保留备份。
 
-GitHub Release 附带独立、可审阅的 `Wallume Restore.command`。如果用户直接删除 `.app`，可以下载该工具恢复和清理。重新安装 Wallume 时也会发现孤立恢复清单并优先提供恢复。
+GitHub Release 附带独立、可审阅的 `Wallume Restore.command`。如果用户直接删除 `.app`，可以下载该工具恢复和清理。重新安装 Wallume 时也会发现孤立事务日志及其同目录恢复备份，并优先提供恢复。
 
 macOS 不会在用户把 `.app` 拖入废纸篓时向应用发送可靠的卸载回调，因此不能承诺手动删除瞬间自动清理。设计保证这种情况下系统仍可运行、原始备份仍存在，并有独立恢复路径。
 

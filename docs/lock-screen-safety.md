@@ -50,6 +50,10 @@ Install transactions are durable journals:
 
 Every system write is preceded by preflight, durable journal creation, same-directory staging, validation, atomic replacement, verification, and compare-and-restore recovery. A crash in `prepared`, `writing`, or `restoring` must leave enough journal and backup state for `wallume-restore` to resume safely.
 
+## Recovery Metadata Authority
+
+`~/Library/Application Support/Wallume/Transactions/<transaction-id>.json` is the only authoritative recovery record. It contains the allowed target paths, original and installed hashes, backup locations, and the narrow `Index.plist` mutations needed for compare-and-restore. The video-side `.app.wallume.Wallume.original.<sha256>.bak` file is a durable discovery anchor, not a second recovery manifest. `wallume-restore` may recover only when the journal, backup, paths, and hashes agree; missing, malformed, or conflicting evidence is retained for manual inspection.
+
 ## Compare-And-Restore
 
 Recovery restores only values Wallume still owns:

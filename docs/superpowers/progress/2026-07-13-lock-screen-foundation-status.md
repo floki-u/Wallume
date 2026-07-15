@@ -46,7 +46,7 @@ Task 10 reviewed the whole branch against `main`. The review found one blocking 
 
 None.
 
-Local handoff: branch `agent/lock-screen-safety` in worktree `.worktrees/lock-screen-safety` contains the complete phase-1 foundation. It has not been pushed. Before integration, review the open design difference between the high-level design's same-directory recovery manifest language and this branch's implemented `primaryBackup` plus Wallume transaction journal recovery model.
+Local handoff: branch `agent/lock-screen-safety` in worktree `.worktrees/lock-screen-safety` contains the complete phase-1 foundation. The recovery-metadata design is finalized: the Wallume transaction journal is authoritative, while the same-directory `primaryBackup` is a discovery anchor and verified backup, not a second manifest.
 
 ## Safety boundary
 
