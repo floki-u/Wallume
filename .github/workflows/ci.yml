@@ -12,8 +12,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select arm64 architecture
         run: test "$(uname -m)" = arm64
-      - name: Build
-        run: swift build -c release
+      - name: Build restore tool
+        run: swift build -c release --product wallume-restore
+      - name: Build media tool
+        run: swift build -c release --product wallume-media
       - name: Test
         run: swift test
       - name: Whitespace check

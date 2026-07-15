@@ -1,11 +1,11 @@
 # Wallume Lock-Screen Foundation Status
 
-Updated: 2026-07-14
+Updated: 2026-07-15
 
 ## Current state
 
 - Repository: `floki-u/Wallume`
-- Local branch: `agent/lock-screen-safety`
+- Local branch: `agent/media-library-importer`
 - Remote policy: local commits only; nothing from this implementation branch has been pushed
 - Plan: `docs/superpowers/plans/2026-07-10-wallume-lock-screen-safety-foundation.md`
 - Design: `docs/superpowers/specs/2026-07-10-wallume-design.md`
@@ -22,6 +22,7 @@ Updated: 2026-07-14
 8. Standalone read-only/status and explicit restore CLI — complete.
 9. Read-only live probe, CI, and phase-1 safety documentation — complete.
 10. Whole-branch review and local branch handoff — complete.
+11. Phase 2 media library and `wallume-media` importer — complete.
 
 Task 7 was accepted by an independent task review with no Critical, Important, or Minor findings. Its local head is `5009015`. The implementation includes schema-v2 recovery journals, atomic guarded replacement, crash-resumable artifacts, complete backup ownership checks, no-follow path validation, cross-process advisory locking, conservative conflict retention, and a documented local threat boundary.
 
@@ -31,6 +32,13 @@ Task 9 adds `wallume-restore probe`, a report-only `LockScreenProbe`, native arm
 
 Task 10 reviewed the whole branch against `main`. The review found one blocking spec issue: incomplete `.prepared`/`.writing` recovery could preserve external target changes but still mark the transaction `restored` and delete backups. This was fixed by requiring final original-state verification to be strict; such external changes now become conflicts and retain backups.
 
+Task 11 adds the reusable media library and `wallume-media` CLI. The media library owns
+schema-2 `library.json`, SHA-256 duplicate lookup, safe owned-artifact removal, and
+transactional import staging. Imports accept `.mp4` and `.mov`, never modify source files,
+transcode one HEVC `hvc1` `.mov` variant per source, generate JPEG artwork, and register
+the media item only after owned artifacts are installed. The CLI supports `import`, `list`,
+`show`, and `remove` with dependency-injected command tests and live AVFoundation adapters.
+
 ## Verification record
 
 - Implementer full suite at task head: 106 tests passed, 0 failures.
@@ -39,6 +47,7 @@ Task 10 reviewed the whole branch against `main`. The review found one blocking 
 - Task 8 verification: `swift test --filter RestoreCommandTests` passed 5 tests with 0 failures; `swift build -c release --product wallume-restore` passed; isolated `HOME="$(mktemp -d)" .build/release/wallume-restore status` exited 0 with no output and no created files; `swift test` passed 115 tests with 0 failures; `git diff --check` passed.
 - Task 9 verification: `swift test` passed 118 tests with 0 failures; `swift build -c release --product wallume-restore` passed; `.build/release/wallume-restore probe` exited 0 and reported `generation: tahoe`; live before/after SHA-256 and mtime/size snapshots were identical; `git diff --check` passed. Spec review found no actionable issues; maintainability review findings were addressed before final verification.
 - Task 10 verification: whole-branch standards review found no P0/P1 issues and noted future refactors for `RecoveryCoordinator`, guarded exchange duplication, and artifact role naming; whole-branch spec review's P1 recovery-conflict issue was fixed. `swift test --filter RecoveryCoordinatorTests/testIncompleteJournalPreservesUnownedCurrentTargetsAsConflicts`, `swift test`, `swift build -c release`, and `git diff --check` passed after the fix.
+- Task 11 verification: `swift test --filter MediaPathsTests`, `swift test --filter MediaLibraryTests`, `swift test --filter MediaImporterTests`, `swift test --filter AVFoundationMediaTests`, and `swift test --filter MediaCommandTests` passed during implementation. Final automated acceptance passed `swift test` with 142 tests, `swift build -c release --product wallume-media`, `swift build -c release --product wallume-restore`, and `git diff --check`. Manual real-media acceptance generated disposable `.mp4` and `.mov` files under an isolated realpath `HOME`, imported both through `.build/release/wallume-media`, verified unchanged source SHA-256 values before and after import/remove, verified every variant reopened through AVFoundation as `.mov` HEVC `hvc1` with longest edge 96 and frame rate no higher than 60, and confirmed `remove` deleted only Wallume-owned artifacts.
 - Independent task review: approved.
 - No automated test accesses the live macOS wallpaper directories.
 
@@ -46,7 +55,7 @@ Task 10 reviewed the whole branch against `main`. The review found one blocking 
 
 None.
 
-Local handoff: branch `agent/lock-screen-safety` in worktree `.worktrees/lock-screen-safety` contains the complete phase-1 foundation. The recovery-metadata design is finalized: the Wallume transaction journal is authoritative, while the same-directory `primaryBackup` is a discovery anchor and verified backup, not a second manifest.
+Local handoff: branch `agent/media-library-importer` in worktree `.worktrees/media-library-importer` contains the complete phase-2 media importer work on top of the phase-1 foundation. The recovery-metadata design is finalized: the Wallume transaction journal is authoritative, while the same-directory `primaryBackup` is a discovery anchor and verified backup, not a second manifest.
 
 ## Safety boundary
 
