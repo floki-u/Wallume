@@ -1,0 +1,38 @@
+.github/workflows/ci.yml
+  cc0835dcbad4ee45 15-18
+docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md
+  cc0835dcbad4ee45 3,8,25,35-41,50,58
+docs/media-library.md
+  cc0835dcbad4ee45 1-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "61ee0ca48e36776909e6664e309b3f1a0ee68276",
+  "prompts": {
+    "cc0835dcbad4ee45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65b3-7787-7273-8766-c99e646884e5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 113,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/media-library.md": {
+          "accepted_lines": 97
+        },
+        "docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md": {
+          "accepted_lines": 12
+        },
+        ".github/workflows/ci.yml": {
+          "accepted_lines": 4
+        }
+      }
+    }
+  }
+}
