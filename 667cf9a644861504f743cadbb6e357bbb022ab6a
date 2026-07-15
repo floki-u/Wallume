@@ -1,0 +1,53 @@
+Tests/WallumeCoreTests/MediaPathsTests.swift
+  51fe5f1161128861 1-59
+Sources/WallumeCore/Media/MediaModels.swift
+  51fe5f1161128861 1-74
+Sources/WallumeCore/Media/MediaPaths.swift
+  51fe5f1161128861 1-39
+Sources/WallumeMedia/main.swift
+  51fe5f1161128861 1-5
+Package.swift
+  51fe5f1161128861 9,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "667cf9a644861504f743cadbb6e357bbb022ab6a",
+  "prompts": {
+    "51fe5f1161128861": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f609b-95ae-7b51-8870-595b80926d40",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 179,
+      "total_deletions": 0,
+      "accepted_lines": 179,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/Media/MediaPaths.swift": {
+          "additions": 39,
+          "accepted_lines": 39
+        },
+        "Package.swift": {
+          "additions": 2,
+          "accepted_lines": 2
+        },
+        "Sources/WallumeCore/Media/MediaModels.swift": {
+          "additions": 74,
+          "accepted_lines": 74
+        },
+        "Tests/WallumeCoreTests/MediaPathsTests.swift": {
+          "additions": 59,
+          "accepted_lines": 59
+        },
+        "Sources/WallumeMedia/main.swift": {
+          "additions": 5,
+          "accepted_lines": 5
+        }
+      }
+    }
+  }
+}
