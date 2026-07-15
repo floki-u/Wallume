@@ -1,0 +1,44 @@
+Package.swift
+  cc0835dcbad4ee45 13-20
+Tests/WallumeCoreTests/AVFoundationMediaTests.swift
+  cc0835dcbad4ee45 1-158
+Sources/WallumeCore/Media/AVFoundationMedia.swift
+  cc0835dcbad4ee45 1-199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "086697f14dd1f47f7873ba0db4705b5a3204a46b",
+  "prompts": {
+    "cc0835dcbad4ee45": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65b3-7787-7273-8766-c99e646884e5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 392,
+      "total_deletions": 28,
+      "accepted_lines": 365,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/Media/AVFoundationMedia.swift": {
+          "additions": 225,
+          "deletions": 26,
+          "accepted_lines": 199
+        },
+        "Package.swift": {
+          "additions": 8,
+          "deletions": 1,
+          "accepted_lines": 8
+        },
+        "Tests/WallumeCoreTests/AVFoundationMediaTests.swift": {
+          "additions": 159,
+          "deletions": 1,
+          "accepted_lines": 158
+        }
+      }
+    }
+  }
+}
