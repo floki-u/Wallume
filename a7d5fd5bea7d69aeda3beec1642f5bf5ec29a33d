@@ -1,0 +1,29 @@
+docs/superpowers/specs/2026-07-16-appkit-desktop-surface-design.md
+  32e54daf3a523c64 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "a7d5fd5bea7d69aeda3beec1642f5bf5ec29a33d",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 32,
+      "total_deletions": 0,
+      "accepted_lines": 32,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/superpowers/specs/2026-07-16-appkit-desktop-surface-design.md": {
+          "additions": 32,
+          "accepted_lines": 32
+        }
+      }
+    }
+  }
+}
