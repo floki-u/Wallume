@@ -1,0 +1,42 @@
+Tests/WallumeCoreTests/WindowOcclusionMonitorTests.swift
+  32e54daf3a523c64 1-25
+Sources/WallumeCore/AppKitRuntime/WindowOcclusionMonitor.swift
+  32e54daf3a523c64 1-57
+Sources/WallumeRuntime/main.swift
+  32e54daf3a523c64 13,15,37-39,51,57-63,81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "54cefc45f0cd381ce487b59a07775817243d6f78",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 96,
+      "total_deletions": 1,
+      "accepted_lines": 96,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeRuntime/main.swift": {
+          "additions": 14,
+          "deletions": 1,
+          "accepted_lines": 14
+        },
+        "Sources/WallumeCore/AppKitRuntime/WindowOcclusionMonitor.swift": {
+          "additions": 57,
+          "accepted_lines": 57
+        },
+        "Tests/WallumeCoreTests/WindowOcclusionMonitorTests.swift": {
+          "additions": 25,
+          "accepted_lines": 25
+        }
+      }
+    }
+  }
+}
