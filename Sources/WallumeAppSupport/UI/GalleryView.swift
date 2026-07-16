@@ -42,12 +42,12 @@ public struct GalleryView: View {
         .searchable(text: $gallery.searchText, prompt: "搜索壁纸")
         .dropDestination(for: URL.self) { urls, _ in onDrop(urls); return !urls.isEmpty }
         .safeAreaInset(edge: .bottom) {
-            if tasks.snapshot.isActive || tasks.snapshot.summary.total > 0 { ImportTaskDrawer(store: tasks) }
+            if tasks.snapshot.isActive || tasks.snapshot.summary.total > 0 || !tasks.snapshot.warnings.isEmpty { ImportTaskDrawer(store: tasks) }
         }
         .sheet(item: $gallery.selectedItem) { item in
             MediaDetailView(
                 item: item,
-                onReveal: { NSWorkspace.shared.activateFileViewerSelecting([item.sourceURL]) },
+                onReveal: { NSWorkspace.shared.selectFile(item.sourceURL.path, inFileViewerRootedAtPath: "") },
                 onDelete: {
                     gallery.requestDelete(item)
                     if gallery.deletionBlock == nil { _ = gallery.confirmDelete(item) }

@@ -6,6 +6,7 @@ public actor ImportQueue {
     private let scanner: any ImportScanning
     private var items = [ImportQueueItem]()
     private var warnings = [ImportScanWarning]()
+    private var schedule = [(UUID, UUID)]()
     private var processor: Task<Void, Never>?
     private var currentTask: Task<MediaImportResult, Never>?
     private var continuations = [UUID: AsyncStream<ImportQueueSnapshot>.Continuation]()
@@ -32,7 +33,11 @@ public actor ImportQueue {
         warnings.append(contentsOf: result.warnings)
         let existing = Set(items.map { $0.source.standardizedFileURL.path })
         for source in result.candidates where !existing.contains(source.standardizedFileURL.path) {
-            items.append(ImportQueueItem(source: source.standardizedFileURL))
+            let item = ImportQueueItem(source: source.standardizedFileURL)
+            items.append(item); schedule.append((item.id, item.attempts[0].id))
+        }
+        if result.candidates.isEmpty, result.warnings.isEmpty, let first = urls.first {
+            warnings.append(.init(url: first, message: "未找到可导入视频"))
         }
         publish()
         startIfNeeded()
@@ -47,6 +52,7 @@ public actor ImportQueue {
             items[itemIndex].attempts[attemptIndex].status = .cancelled
         }
         currentTask?.cancel()
+        schedule.removeAll()
         publish()
     }
 
@@ -59,18 +65,20 @@ public actor ImportQueue {
         guard let index = items.firstIndex(where: { $0.id == itemID }),
               items[index].attempts.last?.status == .failed else { return }
         items[index].attempts.append(ImportAttempt())
+        schedule.append((items[index].id, items[index].attempts.last!.id))
         publish(); startIfNeeded()
     }
 
     public func retryAllFailures() {
         for index in items.indices where items[index].attempts.last?.status == .failed {
             items[index].attempts.append(ImportAttempt())
+            schedule.append((items[index].id, items[index].attempts.last!.id))
         }
         publish(); startIfNeeded()
     }
 
     private func startIfNeeded() {
-        guard processor == nil, nextWaiting() != nil else { return }
+        guard processor == nil, !schedule.isEmpty else { return }
         processor = Task { await self.processLoop() }
         publish()
     }
@@ -111,9 +119,10 @@ public actor ImportQueue {
     }
 
     private func nextWaiting() -> (Int, Int)? {
-        for itemIndex in items.indices {
-            if let attemptIndex = items[itemIndex].attempts.indices.last,
-               items[itemIndex].attempts[attemptIndex].status == .waiting { return (itemIndex, attemptIndex) }
+        while !schedule.isEmpty {
+            let next = schedule.removeFirst()
+            if let indices = indices(itemID: next.0, attemptID: next.1),
+               items[indices.0].attempts[indices.1].status == .waiting { return indices }
         }
         return nil
     }

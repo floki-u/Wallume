@@ -29,6 +29,15 @@ final class MediaImporterProgressTests: XCTestCase {
         XCTAssertTrue(try fixture.library.list().isEmpty)
         XCTAssertFalse(fixture.store.exists(fixture.paths.variant(id: fixture.id)))
     }
+
+    func testTaskCancelledBeforeHashingIsReportedAsCancelled() async throws {
+        let fixture = try ProgressImporterFixture(); defer { fixture.remove() }
+        let result = await Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await fixture.importer.importURL(fixture.source) { _ in }
+        }.value
+        XCTAssertEqual(result.status, .cancelled)
+    }
 }
 
 private final class LockedImportEvents: @unchecked Sendable {
@@ -38,7 +47,7 @@ private final class LockedImportEvents: @unchecked Sendable {
     func append(_ event: MediaImportEvent) { lock.withLock { storage.append(event) } }
 }
 
-private final class ProgressImporterFixture {
+private final class ProgressImporterFixture: @unchecked Sendable {
     let root: URL
     let store = LocalFileStore()
     let paths: MediaPaths

@@ -33,7 +33,6 @@ public struct LocalImportScanner: ImportScanning {
         for url in urls {
             append(
                 url.standardizedFileURL,
-                isRoot: true,
                 candidates: &candidates,
                 warnings: &warnings
             )
@@ -46,7 +45,6 @@ public struct LocalImportScanner: ImportScanning {
 
     private func append(
         _ url: URL,
-        isRoot: Bool,
         candidates: inout [String: URL],
         warnings: inout [ImportScanWarning]
     ) {
@@ -58,7 +56,7 @@ public struct LocalImportScanner: ImportScanning {
                 .isPackageKey,
             ])
             let hidden = values.isHidden == true || url.lastPathComponent.hasPrefix(".")
-            guard isRoot || !hidden else { return }
+            guard !hidden else { return }
             if values.isRegularFile == true {
                 guard Self.isSupportedMedia(url) else { return }
                 candidates[url.path] = url
@@ -71,7 +69,7 @@ public struct LocalImportScanner: ImportScanning {
                 options: []
             ).sorted(by: Self.pathOrder)
             for child in children {
-                append(child.standardizedFileURL, isRoot: false, candidates: &candidates, warnings: &warnings)
+                append(child.standardizedFileURL, candidates: &candidates, warnings: &warnings)
             }
         } catch {
             warnings.append(ImportScanWarning(

@@ -51,6 +51,15 @@ final class ImportScannerTests: XCTestCase {
 
         XCTAssertEqual(result.candidates, [a.standardizedFileURL, b.standardizedFileURL])
     }
+
+    func testHiddenRootFileAndDirectoryAreIgnored() throws {
+        let fixture = try ScannerFixture(); defer { fixture.remove() }
+        let hiddenFile = fixture.root.appending(path: ".secret.mov")
+        let hiddenDirectory = fixture.root.appending(path: ".secret")
+        try fixture.makeDirectory(hiddenDirectory); try fixture.makeFile(hiddenFile)
+        try fixture.makeFile(hiddenDirectory.appending(path: "inside.mov"))
+        XCTAssertTrue(LocalImportScanner().scan([hiddenFile, hiddenDirectory]).candidates.isEmpty)
+    }
 }
 
 private final class ScannerFixture {

@@ -6,6 +6,7 @@ public struct MediaPaths: Sendable {
     public let thumbnailsDirectory: URL
     public let coversDirectory: URL
     public let importWorkRoot: URL
+    public let displayAssignments: URL
 
     public init(homeDirectory: URL, cacheDirectory: URL) {
         let libraryDirectory = homeDirectory
@@ -19,6 +20,7 @@ public struct MediaPaths: Sendable {
         thumbnailsDirectory = cacheRoot.appending(path: "Thumbnails")
         coversDirectory = cacheRoot.appending(path: "Metadata")
         importWorkRoot = cacheRoot.appending(path: "ImportWork")
+        displayAssignments = libraryDirectory.deletingLastPathComponent().appending(path: "display-assignments.json")
     }
 
     public func variant(id: UUID) -> URL {

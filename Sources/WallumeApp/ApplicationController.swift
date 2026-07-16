@@ -25,7 +25,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         let importer = MediaImporter(paths: paths, files: files, library: library, inspector: AVFoundationMediaInspector(), transcoder: AVFoundationMediaTranscoder(), artwork: AVFoundationArtworkGenerator())
         queue = ImportQueue(importer: importer)
         taskStore = ImportTaskStore(queue: queue)
-        gallery = GalleryStore(library: library, usage: EmptyMediaUsageChecker())
+        gallery = GalleryStore(library: library, usage: PersistedMediaUsageChecker(url: paths.displayAssignments, files: files, store: AtomicJSONStore(files: files)))
         notifier = UserCompletionNotifier()
         super.init()
         window = MainWindowController { [gallery, taskStore, panels, queue] in
@@ -58,16 +58,22 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard TerminationPolicy.decision(queueActive: taskStore.snapshot.isActive) == .requestConfirmation else { return .terminateNow }
-        let alert = NSAlert()
-        alert.messageText = "导入仍在进行"
-        alert.informativeText = "退出会取消当前项和所有等待项目，已完成的导入会保留。"
-        alert.addButton(withTitle: "取消导入并退出")
-        alert.addButton(withTitle: "继续后台导入")
-        guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
         Task { [queue] in
-            await queue.cancelAllAndWait()
-            NSApplication.shared.reply(toApplicationShouldTerminate: true)
+            let active = await queue.snapshot().isActive
+            guard active else {
+                NSApplication.shared.reply(toApplicationShouldTerminate: true); return
+            }
+            let alert = NSAlert()
+            alert.messageText = "导入仍在进行"
+            alert.informativeText = "退出会取消当前项和所有等待项目，已完成的导入会保留。"
+            alert.addButton(withTitle: "取消导入并退出")
+            alert.addButton(withTitle: "继续后台导入")
+            if alert.runModal() == .alertFirstButtonReturn {
+                await queue.cancelAllAndWait()
+                NSApplication.shared.reply(toApplicationShouldTerminate: true)
+            } else {
+                NSApplication.shared.reply(toApplicationShouldTerminate: false)
+            }
         }
         return .terminateLater
     }

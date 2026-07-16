@@ -43,6 +43,21 @@ final class GalleryStoreTests: XCTestCase {
         XCTAssertEqual(store.items.map(\.displayName), ["Existing"])
         XCTAssertNotNil(store.loadError)
     }
+
+    func testPersistedUsageCheckerReadsAssignmentsAndFailsClosedOnCorruption() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appending(path: "assignments.json")
+        let files = LocalFileStore(); let store = AtomicJSONStore(files: files)
+        let id = UUID()
+        try store.write(DisplayAssignmentsDocument(assignments: [
+            .init(displayID: "1", displayName: "Studio Display", mediaID: id),
+        ]), to: url)
+        let checker = PersistedMediaUsageChecker(url: url, files: files, store: store)
+        XCTAssertEqual(checker.references(to: id).map(\.name), ["Studio Display"])
+        try files.writeAtomically(Data("broken".utf8), to: url)
+        XCTAssertEqual(checker.references(to: id).map(\.id), ["configuration-error"])
+    }
 }
 
 private func media(_ name: String, width: Int = 1920, codec: String = "hvc1") -> MediaItem {

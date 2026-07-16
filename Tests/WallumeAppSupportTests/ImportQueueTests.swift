@@ -54,6 +54,19 @@ final class ImportQueueTests: XCTestCase {
         XCTAssertEqual(snapshot.summary.imported, 2)
     }
 
+    func testRetryWhileActiveRunsAfterAlreadyWaitingItems() async throws {
+        let importer = QueueImporter(results: [.failed, .imported, .imported], blocks: true)
+        let queue = ImportQueue(importer: importer, scanner: PassthroughScanner())
+        await queue.enqueue([URL(fileURLWithPath: "/a.mov"), URL(fileURLWithPath: "/b.mov")])
+        await importer.waitUntilStarted(1); await importer.releaseNext()
+        await importer.waitUntilStarted(2)
+        let failedID = await queue.snapshot().items[0].id
+        await queue.retry(failedID)
+        await importer.releaseNext(); await importer.waitUntilStarted(3); await importer.releaseAll()
+        _ = await waitUntilIdle(queue)
+        XCTAssertEqual(importer.sources.map(\.lastPathComponent), ["a.mov", "b.mov", "a.mov"])
+    }
+
     private func waitUntilIdle(_ queue: ImportQueue) async -> ImportQueueSnapshot {
         for _ in 0..<500 {
             let snapshot = await queue.snapshot()

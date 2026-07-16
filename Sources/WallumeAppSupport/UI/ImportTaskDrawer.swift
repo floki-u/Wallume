@@ -22,12 +22,19 @@ public struct ImportTaskDrawer: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 6) {
                         ForEach(store.snapshot.items) { item in
-                            HStack {
-                                Text(item.source.lastPathComponent).lineLimit(1)
-                                Spacer()
-                                Text(item.attempts.last?.status.rawValue ?? "waiting").foregroundStyle(.secondary)
-                                if item.attempts.last?.status == .failed {
-                                    Button("重试") { store.retry(item.id) }
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack {
+                                    Text(item.source.lastPathComponent).lineLimit(1)
+                                    Spacer()
+                                    Text(item.attempts.last?.status.rawValue ?? "waiting").foregroundStyle(.secondary)
+                                    if item.attempts.last?.status == .failed { Button("重试") { store.retry(item.id) } }
+                                }
+                                ForEach(Array(item.attempts.enumerated()), id: \.element.id) { index, attempt in
+                                    HStack {
+                                        Text("尝试 \(index + 1) · \(attempt.stage?.rawValue ?? attempt.status.rawValue)").font(.caption)
+                                        if let progress = attempt.progress { ProgressView(value: progress).frame(width: 100) }
+                                        if let message = attempt.message { Text(message).font(.caption).foregroundStyle(.red) }
+                                    }
                                 }
                             }
                         }
@@ -39,6 +46,8 @@ public struct ImportTaskDrawer: View {
                 if store.snapshot.summary.failed > 0 {
                     HStack { Spacer(); Button("重试全部失败项") { store.retryAllFailures() } }
                 }
+                let summary = store.snapshot.summary
+                Text("成功 \(summary.imported) · 重复 \(summary.duplicate) · 失败 \(summary.failed) · 取消 \(summary.cancelled)").font(.caption).foregroundStyle(.secondary)
             }
         }
         .padding(10)

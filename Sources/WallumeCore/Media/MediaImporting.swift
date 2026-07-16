@@ -146,6 +146,8 @@ public actor MediaImporter {
             if let existing = try library.find(sourceHash: sourceHash) {
                 return MediaImportResult(source: source, status: .duplicate, item: existing)
             }
+        } catch is CancellationError {
+            return MediaImportResult(source: source, status: .cancelled)
         } catch {
             return MediaImportResult(source: source, status: .failed, message: String(describing: error))
         }

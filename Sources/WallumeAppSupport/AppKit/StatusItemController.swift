@@ -17,6 +17,13 @@ public final class StatusItemController {
         item.button?.title = snapshot.isActive ? " \(Self.title(for: snapshot))" : ""
         let menu = NSMenu()
         menu.addItem(withTitle: Self.title(for: snapshot), action: nil, keyEquivalent: "")
+        if let current = snapshot.items.first(where: { $0.attempts.last?.status == .running }), let attempt = current.attempts.last {
+            menu.addItem(withTitle: "\(current.source.lastPathComponent) · \(attempt.stage?.rawValue ?? "准备中")", action: nil, keyEquivalent: "")
+        }
+        let summary = snapshot.summary
+        if !snapshot.isActive, summary.total > 0 {
+            menu.addItem(withTitle: "成功 \(summary.imported) · 重复 \(summary.duplicate) · 失败 \(summary.failed) · 取消 \(summary.cancelled)", action: nil, keyEquivalent: "")
+        }
         menu.addItem(.separator())
         menu.addItem(actionItem("打开图库", action: #selector(openGallery)))
         if snapshot.isActive {

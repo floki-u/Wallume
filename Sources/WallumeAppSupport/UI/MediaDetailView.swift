@@ -4,11 +4,12 @@ import WallumeCore
 
 public struct MediaDetailView: View {
     let item: MediaItem
-    let onReveal: () -> Void
+    let onReveal: () -> Bool
     let onDelete: () -> Void
     @State private var preview = MediaPreviewController()
+    @State private var revealError: String?
 
-    public init(item: MediaItem, onReveal: @escaping () -> Void, onDelete: @escaping () -> Void) {
+    public init(item: MediaItem, onReveal: @escaping () -> Bool, onDelete: @escaping () -> Void) {
         self.item = item; self.onReveal = onReveal; self.onDelete = onDelete
     }
 
@@ -25,15 +26,20 @@ public struct MediaDetailView: View {
                 GridRow { Text("帧率"); Text(item.frameRate.formatted()) }
                 GridRow { Text("编码"); Text(item.codec) }
                 GridRow { Text("时长"); Text(item.durationSeconds.formatted()) }
+                GridRow { Text("文件大小"); Text(ByteCountFormatter.string(fromByteCount: item.sourceByteCount, countStyle: .file)) }
+                GridRow { Text("源文件"); Text(item.sourceURL.path).lineLimit(2) }
             }
             HStack {
                 Button("播放预览") { preview.play(item.variantURL) }
-                Button("在 Finder 中显示", action: onReveal)
+                Button("在 Finder 中显示") { if !onReveal() { revealError = "无法在 Finder 中显示源文件" } }
                 Spacer()
                 Button("删除", role: .destructive, action: onDelete)
             }
         }
         .padding(20).frame(minWidth: 560, minHeight: 440)
         .onDisappear { preview.releasePlayer() }
+        .alert("操作失败", isPresented: Binding(get: { revealError != nil }, set: { if !$0 { revealError = nil } })) {
+            Button("知道了") { revealError = nil }
+        } message: { Text(revealError ?? "") }
     }
 }
