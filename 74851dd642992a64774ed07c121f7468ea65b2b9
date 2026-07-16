@@ -1,0 +1,37 @@
+Tests/WallumeCoreTests/RuntimeCoordinatorTests.swift
+  32e54daf3a523c64 79-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "74851dd642992a64774ed07c121f7468ea65b2b9",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 74,
+      "total_deletions": 0,
+      "accepted_lines": 74,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/RuntimeCoordinatorTests.swift": {
+          "additions": 44,
+          "accepted_lines": 44
+        },
+        "docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        "docs/runtime-core.md": {
+          "additions": 29,
+          "accepted_lines": 29
+        }
+      }
+    }
+  }
+}
