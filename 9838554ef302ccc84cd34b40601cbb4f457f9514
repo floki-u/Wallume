@@ -1,0 +1,35 @@
+Sources/WallumeCore/Runtime/RuntimeModels.swift
+  32e54daf3a523c64 1-111
+Tests/WallumeCoreTests/RuntimeModelsTests.swift
+  32e54daf3a523c64 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "9838554ef302ccc84cd34b40601cbb4f457f9514",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 143,
+      "total_deletions": 0,
+      "accepted_lines": 143,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/RuntimeModelsTests.swift": {
+          "additions": 32,
+          "accepted_lines": 32
+        },
+        "Sources/WallumeCore/Runtime/RuntimeModels.swift": {
+          "additions": 111,
+          "accepted_lines": 111
+        }
+      }
+    }
+  }
+}
