@@ -1,0 +1,37 @@
+Sources/WallumeCore/Runtime/PlayerPool.swift
+  32e54daf3a523c64 1-94
+Tests/WallumeCoreTests/PlayerPoolTests.swift
+  32e54daf3a523c64 1-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "ff2049ba97b6cdad00669ec7a9f7e84736dc86bc",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 207,
+      "total_deletions": 11,
+      "accepted_lines": 196,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/Runtime/PlayerPool.swift": {
+          "additions": 102,
+          "deletions": 8,
+          "accepted_lines": 94
+        },
+        "Tests/WallumeCoreTests/PlayerPoolTests.swift": {
+          "additions": 105,
+          "deletions": 3,
+          "accepted_lines": 102
+        }
+      }
+    }
+  }
+}
