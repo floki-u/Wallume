@@ -10,7 +10,9 @@ final class WallpaperRuntimeApplication {
     private let screens: AppKitScreenProvider
     private let windows: DesktopWindowController
     private let environmentMonitor: RuntimeEnvironmentMonitor
+    private let occlusionMonitor = WindowOcclusionMonitor()
     private var environment = RuntimeEnvironment.active
+    private var appObscured = false
     private var interruptSource: DispatchSourceSignal?
 
     init(media: MediaItem) {
@@ -32,6 +34,9 @@ final class WallpaperRuntimeApplication {
             self?.environment = environment
             self?.scheduleReconcile()
         }
+        occlusionMonitor.start(displays: screens.screens) { [weak self] obscured in
+            self?.appObscured = obscured; self?.scheduleReconcile()
+        }
         installInterruptHandler()
         scheduleReconcile()
         NSApplication.shared.run()
@@ -43,12 +48,19 @@ final class WallpaperRuntimeApplication {
 
     private func reconcile() async {
         let currentScreens = screens.screens
+        occlusionMonitor.updateDisplays(currentScreens)
         let displayIDs = Set(currentScreens.map(\.id))
         let assignments = Set(displayIDs.map { RuntimeAssignment(displayID: $0, mediaID: media.id) })
         let snapshot = await coordinator.reconcile(
             displays: displayIDs,
             assignments: assignments,
-            environment: environment
+            environment: RuntimeEnvironment(
+                userPaused: environment.pauseReasons.contains(.user),
+                appObscured: appObscured,
+                screenLocked: environment.pauseReasons.contains(.screenLocked),
+                lowPowerMode: environment.pauseReasons.contains(.lowPower),
+                systemSleeping: environment.pauseReasons.contains(.systemSleep)
+            )
         )
         let windowFailures = windows.reconcile(currentScreens)
         windows.apply(snapshot: snapshot, mediaByID: [media.id: media])
@@ -66,6 +78,7 @@ final class WallpaperRuntimeApplication {
         source.setEventHandler { [weak self] in
             self?.screens.stop()
             self?.environmentMonitor.stop()
+            self?.occlusionMonitor.stop()
             NSApplication.shared.terminate(nil)
         }
         source.resume()
