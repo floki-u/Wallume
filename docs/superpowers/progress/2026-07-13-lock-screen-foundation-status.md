@@ -29,6 +29,7 @@ Updated: 2026-07-16
 15. Phase 3 conservative full-obscuration pause — complete.
 16. Phase 3 explicit JSON performance benchmark — complete.
 17. Phase 3 engineering implementation — complete; base-M1/macOS-14 certification blocked by unavailable hardware.
+18. Phase 4 batch 1 application shell, gallery, and complete background import experience — implementation complete; 194 tests and four release-product builds passed, pending final review.
 
 Task 7 was accepted by an independent task review with no Critical, Important, or Minor findings. Its local head is `5009015`. The implementation includes schema-v2 recovery journals, atomic guarded replacement, crash-resumable artifacts, complete backup ownership checks, no-follow path validation, cross-process advisory locking, conservative conflict retention, and a documented local threat boundary.
 
