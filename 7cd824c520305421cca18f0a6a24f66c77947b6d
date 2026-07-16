@@ -1,0 +1,35 @@
+Tests/WallumeCoreTests/DesktopWindowControllerTests.swift
+  32e54daf3a523c64 1-30
+Sources/WallumeCore/AppKitRuntime/DesktopWindowController.swift
+  32e54daf3a523c64 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "7cd824c520305421cca18f0a6a24f66c77947b6d",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 54,
+      "total_deletions": 0,
+      "accepted_lines": 54,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/AppKitRuntime/DesktopWindowController.swift": {
+          "additions": 24,
+          "accepted_lines": 24
+        },
+        "Tests/WallumeCoreTests/DesktopWindowControllerTests.swift": {
+          "additions": 30,
+          "accepted_lines": 30
+        }
+      }
+    }
+  }
+}
