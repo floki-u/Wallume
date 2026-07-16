@@ -1,0 +1,30 @@
+docs/superpowers/plans/2026-07-16-wallume-runtime-core.md
+  32e54daf3a523c64 1-415
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "fcfcd37a731c583da92e4633b7e7075e207c4b99",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 417,
+      "total_deletions": 2,
+      "accepted_lines": 415,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/superpowers/plans/2026-07-16-wallume-runtime-core.md": {
+          "additions": 417,
+          "deletions": 2,
+          "accepted_lines": 415
+        }
+      }
+    }
+  }
+}
