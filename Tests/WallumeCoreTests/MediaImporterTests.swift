@@ -192,9 +192,17 @@ private final class FakeMediaTranscoder: MediaTranscoding, @unchecked Sendable {
     var calls = 0
     var cancelledSources = Set<URL>()
 
-    func transcode(_ source: URL, to destination: URL, policy: MediaTranscodePolicy) async throws {
+    func transcode(
+        _ source: URL,
+        to destination: URL,
+        policy: MediaTranscodePolicy,
+        progress: (@Sendable (Double) -> Void)?
+    ) async throws {
         calls += 1
-        if cancelledSources.contains(source) { throw CancellationError() }
+        if cancelledSources.map(\.standardizedFileURL).contains(source.standardizedFileURL) {
+            throw CancellationError()
+        }
+        progress?(1)
         try Data("variant-\(source.lastPathComponent)".utf8).write(to: destination)
     }
 }

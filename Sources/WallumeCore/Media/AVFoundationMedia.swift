@@ -54,7 +54,12 @@ public struct AVFoundationMediaTranscoder: MediaTranscoding {
 
     public init() {}
 
-    public func transcode(_ source: URL, to destination: URL, policy: MediaTranscodePolicy) async throws {
+    public func transcode(
+        _ source: URL,
+        to destination: URL,
+        policy: MediaTranscodePolicy,
+        progress: (@Sendable (Double) -> Void)?
+    ) async throws {
         if Task.isCancelled {
             try? FileManager.default.removeItem(at: destination)
             throw CancellationError()
@@ -71,6 +76,12 @@ public struct AVFoundationMediaTranscoder: MediaTranscoding {
         export.shouldOptimizeForNetworkUse = false
         export.videoComposition = try await videoComposition(for: asset, source: source)
         let exportBox = ExportSessionBox(export)
+        let reporter = Task {
+            while !Task.isCancelled {
+                progress?(Double(exportBox.session.progress))
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
 
         do {
             try await withTaskCancellationHandler {
@@ -94,9 +105,18 @@ public struct AVFoundationMediaTranscoder: MediaTranscoding {
                 exportBox.session.cancelExport()
             }
         } catch is CancellationError {
+            reporter.cancel()
+            _ = await reporter.result
             try? FileManager.default.removeItem(at: destination)
             throw CancellationError()
+        } catch {
+            reporter.cancel()
+            _ = await reporter.result
+            throw error
         }
+        reporter.cancel()
+        _ = await reporter.result
+        progress?(1)
 
         let output = try await inspector.inspect(destination)
         guard output.codec == "hvc1",

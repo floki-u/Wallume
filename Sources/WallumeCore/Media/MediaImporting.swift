@@ -34,7 +34,36 @@ public protocol MediaInspecting: Sendable {
 }
 
 public protocol MediaTranscoding: Sendable {
-    func transcode(_ source: URL, to destination: URL, policy: MediaTranscodePolicy) async throws
+    func transcode(
+        _ source: URL,
+        to destination: URL,
+        policy: MediaTranscodePolicy,
+        progress: (@Sendable (Double) -> Void)?
+    ) async throws
+}
+
+public extension MediaTranscoding {
+    func transcode(_ source: URL, to destination: URL, policy: MediaTranscodePolicy) async throws {
+        try await transcode(source, to: destination, policy: policy, progress: nil)
+    }
+}
+
+public enum MediaImportStage: String, CaseIterable, Equatable, Sendable {
+    case hashing
+    case inspecting
+    case transcoding
+    case artwork
+    case committing
+    case cleanup
+}
+
+public enum MediaImportEvent: Equatable, Sendable {
+    case stage(MediaImportStage, progress: Double?)
+
+    public var stage: MediaImportStage? {
+        guard case let .stage(stage, progress) = self, progress == nil else { return nil }
+        return stage
+    }
 }
 
 public protocol ArtworkGenerating: Sendable {
@@ -97,17 +126,22 @@ public actor MediaImporter {
     }
 
     public func importURLs(_ urls: [URL]) async throws -> MediaImportReport {
-        let candidates = try expandAndSort(urls)
+        let candidates = LocalImportScanner().scan(urls).candidates
         var results: [MediaImportResult] = []
         for candidate in candidates {
-            results.append(try await importOne(candidate))
+            results.append(await importURL(candidate) { _ in })
         }
         return MediaImportReport(results: results)
     }
 
-    private func importOne(_ source: URL) async throws -> MediaImportResult {
+    public func importURL(
+        _ source: URL,
+        onEvent: @escaping @Sendable (MediaImportEvent) -> Void
+    ) async -> MediaImportResult {
         let sourceHash: String
         do {
+            try Task.checkCancellation()
+            onEvent(.stage(.hashing, progress: nil))
             sourceHash = try digester.sha256(of: source)
             if let existing = try library.find(sourceHash: sourceHash) {
                 return MediaImportResult(source: source, status: .duplicate, item: existing)
@@ -126,12 +160,26 @@ public actor MediaImporter {
         let installedCover = paths.cover(id: id)
 
         do {
+            try Task.checkCancellation()
             try files.createDirectory(paths.importWorkRoot)
             try files.createPrivateDirectory(workDirectory)
+            onEvent(.stage(.inspecting, progress: nil))
             let sourceInspection = try await inspector.inspect(source)
-            try await transcoder.transcode(source, to: stagedVariant, policy: .singleVariant)
+            try Task.checkCancellation()
+            onEvent(.stage(.transcoding, progress: nil))
+            try await transcoder.transcode(
+                source,
+                to: stagedVariant,
+                policy: .singleVariant
+            ) { progress in
+                onEvent(.stage(.transcoding, progress: min(max(progress, 0), 1)))
+            }
+            try Task.checkCancellation()
             let variantInspection = try await inspector.inspect(stagedVariant)
+            onEvent(.stage(.artwork, progress: nil))
             try await artwork.generateArtwork(for: stagedVariant, thumbnail: stagedThumbnail, cover: stagedCover)
+            try Task.checkCancellation()
+            onEvent(.stage(.committing, progress: nil))
             try verifyStagedArtifacts([stagedVariant, stagedThumbnail, stagedCover])
             try files.createDirectory(installedVariant.deletingLastPathComponent())
             try files.createDirectory(installedThumbnail.deletingLastPathComponent())
@@ -156,40 +204,31 @@ public actor MediaImporter {
                 createdAt: date()
             )
             try library.register(item)
+            onEvent(.stage(.cleanup, progress: nil))
             try removeIfPresent(workDirectory)
             return MediaImportResult(source: source, status: .imported, item: item)
         } catch is CancellationError {
-            try cleanup(workDirectory: workDirectory, installed: [installedVariant, installedThumbnail, installedCover])
-            return MediaImportResult(source: source, status: .cancelled)
-        } catch {
-            try cleanup(workDirectory: workDirectory, installed: [installedVariant, installedThumbnail, installedCover])
-            return MediaImportResult(source: source, status: .failed, message: String(describing: error))
-        }
-    }
-
-    private func expandAndSort(_ urls: [URL]) throws -> [URL] {
-        var candidates: [URL] = []
-        for url in urls {
-            try appendCandidates(from: url, to: &candidates)
-        }
-        return candidates.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
-    }
-
-    private func appendCandidates(from url: URL, to candidates: inout [URL]) throws {
-        guard files.exists(url) else { return }
-        let identity = try files.identity(of: url)
-        if identity.isDirectory {
-            for child in try files.contents(url) {
-                try appendCandidates(from: child, to: &candidates)
+            onEvent(.stage(.cleanup, progress: nil))
+            do {
+                try cleanup(workDirectory: workDirectory, installed: [installedVariant, installedThumbnail, installedCover])
+                return MediaImportResult(source: source, status: .cancelled)
+            } catch {
+                return MediaImportResult(source: source, status: .failed, message: String(describing: error))
             }
-        } else if identity.isRegularFile, Self.isSupportedMediaURL(url) {
-            candidates.append(url)
+        } catch {
+            let importError = error
+            onEvent(.stage(.cleanup, progress: nil))
+            do {
+                try cleanup(workDirectory: workDirectory, installed: [installedVariant, installedThumbnail, installedCover])
+                return MediaImportResult(source: source, status: .failed, message: String(describing: importError))
+            } catch {
+                return MediaImportResult(
+                    source: source,
+                    status: .failed,
+                    message: "\(importError); cleanup: \(error)"
+                )
+            }
         }
-    }
-
-    private static func isSupportedMediaURL(_ url: URL) -> Bool {
-        let ext = url.pathExtension.lowercased()
-        return ext == "mp4" || ext == "mov"
     }
 
     private func verifyStagedArtifacts(_ urls: [URL]) throws {
