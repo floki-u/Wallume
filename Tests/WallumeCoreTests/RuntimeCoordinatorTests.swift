@@ -135,7 +135,7 @@ private final class NoopFactory: PlayerFactory, @unchecked Sendable {
     private let lock = NSLock()
     private var releases = 0
     var releaseCount: Int { lock.withLock { releases } }
-    func makePlayer(for media: MediaItem) throws -> any PlaybackResource {
+    func makePlayer(for media: MediaItem) async throws -> any PlaybackResource {
         NoopResource { [weak self] in self?.lock.withLock { self?.releases += 1 } }
     }
 }
@@ -144,9 +144,9 @@ private final class NoopResource: PlaybackResource, @unchecked Sendable {
     let resourceID = UUID()
     private let didRelease: @Sendable () -> Void
     init(didRelease: @escaping @Sendable () -> Void) { self.didRelease = didRelease }
-    func play() throws {}
-    func pause() throws {}
-    func release() { didRelease() }
+    func play() async throws {}
+    func pause() async throws {}
+    func release() async { didRelease() }
 }
 
 private extension MediaItem {

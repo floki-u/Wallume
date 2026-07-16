@@ -46,7 +46,7 @@ private final class RecordingPlayerFactory: PlayerFactory, @unchecked Sendable {
     var playCallCount: Int { lock.withLock { playCalls } }
     var pauseCallCount: Int { lock.withLock { pauseCalls } }
 
-    func makePlayer(for media: MediaItem) throws -> any PlaybackResource {
+    func makePlayer(for media: MediaItem) async throws -> any PlaybackResource {
         let resource = RecordingPlaybackResource { [weak self] id in
             self?.lock.withLock { self?.released.append(id) }
         } didPlay: { [weak self] in
@@ -75,9 +75,9 @@ private final class RecordingPlaybackResource: PlaybackResource, @unchecked Send
         self.didPause = didPause
     }
 
-    func play() throws { didPlay() }
-    func pause() throws { didPause() }
-    func release() { didRelease(resourceID) }
+    func play() async throws { didPlay() }
+    func pause() async throws { didPause() }
+    func release() async { didRelease(resourceID) }
 }
 
 private extension MediaItem {

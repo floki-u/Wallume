@@ -53,6 +53,8 @@ public final class AppKitDesktopSurface: DesktopSurface {
         window.orderFrontRegardless()
     }
 
+    public func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?) {}
+
     public func close() {
         window.close()
     }

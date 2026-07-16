@@ -49,5 +49,6 @@ private enum SurfaceError: Error { case creationFailed }
 @MainActor private final class Surface: DesktopSurface {
     var frames = [CGRect](); var closeCount = 0
     func show(frame: CGRect) { frames.append(frame) }
+    func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?) {}
     func close() { closeCount += 1 }
 }

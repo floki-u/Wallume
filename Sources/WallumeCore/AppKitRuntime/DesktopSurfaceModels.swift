@@ -21,7 +21,13 @@ public protocol DesktopScreenProvider: AnyObject {
 @MainActor
 public protocol DesktopSurface: AnyObject {
     func show(frame: CGRect)
+    func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?)
     func close()
+}
+
+@MainActor
+public protocol PlaybackPresentationRegistry: AnyObject {
+    func contains(resourceID: UUID) -> Bool
 }
 
 @MainActor
