@@ -6,6 +6,7 @@ import WallumeCore
 @MainActor
 final class WallpaperRuntimeApplication {
     private let media: MediaItem
+    private let benchmark: BenchmarkConfiguration?
     private let coordinator: RuntimeCoordinator
     private let screens: AppKitScreenProvider
     private let windows: DesktopWindowController
@@ -13,10 +14,15 @@ final class WallpaperRuntimeApplication {
     private let occlusionMonitor = WindowOcclusionMonitor()
     private var environment = RuntimeEnvironment.active
     private var appObscured = false
+    private var latestSnapshot: RuntimeSnapshot?
     private var interruptSource: DispatchSourceSignal?
+    private var benchmarkTimer: DispatchSourceTimer?
+    private var benchmarkSampler: (any RuntimeMetricSampling)?
+    private var benchmarkSamples = [RuntimeMetricSample]()
 
-    init(media: MediaItem) {
+    fileprivate init(media: MediaItem, benchmark: BenchmarkConfiguration? = nil) {
         self.media = media
+        self.benchmark = benchmark
         let registry = AVPlayerPresentationRegistry()
         coordinator = RuntimeCoordinator(
             catalog: SingleMediaCatalog(media: media),
@@ -39,6 +45,7 @@ final class WallpaperRuntimeApplication {
         }
         installInterruptHandler()
         scheduleReconcile()
+        startBenchmarkIfNeeded()
         NSApplication.shared.run()
     }
 
@@ -47,7 +54,7 @@ final class WallpaperRuntimeApplication {
     }
 
     private func reconcile() async {
-        let currentScreens = screens.screens
+        let currentScreens = runtimeScreens
         occlusionMonitor.updateDisplays(currentScreens)
         let displayIDs = Set(currentScreens.map(\.id))
         let assignments = Set(displayIDs.map { RuntimeAssignment(displayID: $0, mediaID: media.id) })
@@ -55,13 +62,14 @@ final class WallpaperRuntimeApplication {
             displays: displayIDs,
             assignments: assignments,
             environment: RuntimeEnvironment(
-                userPaused: environment.pauseReasons.contains(.user),
+                userPaused: environment.pauseReasons.contains(.user) || benchmark?.scenario == .paused,
                 appObscured: appObscured,
                 screenLocked: environment.pauseReasons.contains(.screenLocked),
                 lowPowerMode: environment.pauseReasons.contains(.lowPower),
                 systemSleeping: environment.pauseReasons.contains(.systemSleep)
             )
         )
+        latestSnapshot = snapshot
         let windowFailures = windows.reconcile(currentScreens)
         windows.apply(snapshot: snapshot, mediaByID: [media.id: media])
         for failure in snapshot.failures {
@@ -72,17 +80,115 @@ final class WallpaperRuntimeApplication {
         }
     }
 
+    private var runtimeScreens: [DesktopScreen] {
+        guard let benchmark else { return screens.screens }
+        switch benchmark.scenario {
+        case .single1080p, .single4K, .paused:
+            return Array(screens.screens.prefix(1))
+        case .dualShared:
+            return Array(screens.screens.prefix(2))
+        }
+    }
+
+    private func startBenchmarkIfNeeded() {
+        guard let benchmark else { return }
+        let sampler = ProcessRuntimeMetricSampler()
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        let deadline = Date().addingTimeInterval(benchmark.duration)
+        timer.schedule(deadline: .now() + 1, repeating: 1)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            do {
+                self.benchmarkSamples.append(try sampler.sample())
+            } catch {
+                writeError("benchmark sample error: \(error)\n")
+            }
+            if Date() >= deadline { self.finishBenchmark(benchmark) }
+        }
+        benchmarkSampler = sampler
+        benchmarkTimer = timer
+        timer.resume()
+    }
+
+    private func finishBenchmark(_ benchmark: BenchmarkConfiguration) {
+        benchmarkTimer?.cancel()
+        benchmarkTimer = nil
+        benchmarkSampler = nil
+        stopMonitors()
+
+        let report = RuntimeBenchmarkReport(
+            timestamp: Date(),
+            scenario: benchmark.scenario,
+            hardwareModel: RuntimeHostInfo.hardwareModel,
+            operatingSystem: RuntimeHostInfo.operatingSystem,
+            displayCount: runtimeScreens.count,
+            mediaWidth: media.pixelWidth,
+            mediaHeight: media.pixelHeight,
+            mediaFramesPerSecond: media.frameRate,
+            samples: benchmarkSamples,
+            pauseReasons: latestSnapshot?.pauseReasons ?? [],
+            sharedResourceCount: latestSnapshot?.resourceReferenceCounts.count ?? 0,
+            gpuStatus: .notMeasured
+        )
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.sortedKeys]
+            var data = try encoder.encode(report)
+            data.append(0x0A)
+            FileHandle.standardOutput.write(data)
+        } catch {
+            writeError("benchmark report error: \(error)\n")
+        }
+        NSApplication.shared.terminate(nil)
+    }
+
+    private func stopMonitors() {
+        screens.stop()
+        environmentMonitor.stop()
+        occlusionMonitor.stop()
+    }
+
     private func installInterruptHandler() {
         signal(SIGINT, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
         source.setEventHandler { [weak self] in
-            self?.screens.stop()
-            self?.environmentMonitor.stop()
-            self?.occlusionMonitor.stop()
+            self?.benchmarkTimer?.cancel()
+            self?.stopMonitors()
             NSApplication.shared.terminate(nil)
         }
         source.resume()
         interruptSource = source
+    }
+}
+
+private struct BenchmarkConfiguration {
+    let duration: TimeInterval
+    let scenario: RuntimeBenchmarkScenario
+}
+
+private struct LaunchConfiguration {
+    let mediaID: UUID
+    let benchmark: BenchmarkConfiguration?
+
+    static func parse(_ arguments: [String]) -> LaunchConfiguration? {
+        if arguments.count == 1, let mediaID = UUID(uuidString: arguments[0]) {
+            return LaunchConfiguration(mediaID: mediaID, benchmark: nil)
+        }
+        guard arguments.count == 6,
+              arguments[0] == "benchmark",
+              let mediaID = UUID(uuidString: arguments[1]),
+              arguments[2] == "--duration",
+              let duration = Int(arguments[3]),
+              (5...3600).contains(duration),
+              arguments[4] == "--scenario",
+              let scenario = RuntimeBenchmarkScenario(rawValue: arguments[5]) else {
+            return nil
+        }
+        return LaunchConfiguration(
+            mediaID: mediaID,
+            benchmark: BenchmarkConfiguration(duration: TimeInterval(duration), scenario: scenario)
+        )
     }
 }
 
@@ -98,8 +204,9 @@ private func writeError(_ text: String) {
 @MainActor
 private func launch() -> Int32 {
     let arguments = Array(CommandLine.arguments.dropFirst())
-    guard arguments.count == 1, let id = UUID(uuidString: arguments[0]) else {
+    guard let configuration = LaunchConfiguration.parse(arguments) else {
         writeError("usage: wallume-runtime <media-uuid>\n")
+        writeError("       wallume-runtime benchmark <media-uuid> --duration <5...3600> --scenario <single-1080p|single-4k|dual-shared|paused>\n")
         return 64
     }
 
@@ -116,11 +223,11 @@ private func launch() -> Int32 {
             files: files,
             jsonStore: AtomicJSONStore(files: files)
         )
-        guard let media = try library.item(id: id) else {
-            writeError("media not found: \(id.uuidString)\n")
+        guard let media = try library.item(id: configuration.mediaID) else {
+            writeError("media not found: \(configuration.mediaID.uuidString)\n")
             return 2
         }
-        let application = WallpaperRuntimeApplication(media: media)
+        let application = WallpaperRuntimeApplication(media: media, benchmark: configuration.benchmark)
         application.run()
         return 0
     } catch {

@@ -1,12 +1,12 @@
 # Wallume Lock-Screen Foundation Status
 
-Updated: 2026-07-15
+Updated: 2026-07-16
 
 ## Current state
 
 - Repository: `floki-u/Wallume`
-- Local branch: `agent/media-library-importer`
-- Remote policy: local commits only; nothing from this implementation branch has been pushed
+- Local branch: `codex/phase-three-completion`
+- Remote policy: merge and push the complete phase-three engineering batch after verification
 - Plan: `docs/superpowers/plans/2026-07-10-wallume-lock-screen-safety-foundation.md`
 - Design: `docs/superpowers/specs/2026-07-10-wallume-design.md`
 
@@ -26,6 +26,9 @@ Updated: 2026-07-15
 12. Phase 3 testable runtime core — complete.
 13. Phase 3 AppKit screen observation and desktop surfaces — complete.
 14. Phase 3 muted shared AVFoundation playback and system pause signals — complete.
+15. Phase 3 conservative full-obscuration pause — complete.
+16. Phase 3 explicit JSON performance benchmark — complete.
+17. Phase 3 engineering implementation — complete; base-M1/macOS-14 certification blocked by unavailable hardware.
 
 Task 7 was accepted by an independent task review with no Critical, Important, or Minor findings. Its local head is `5009015`. The implementation includes schema-v2 recovery journals, atomic guarded replacement, crash-resumable artifacts, complete backup ownership checks, no-follow path validation, cross-process advisory locking, conservative conflict retention, and a documented local threat boundary.
 
@@ -53,6 +56,8 @@ the media item only after owned artifacts are installed. The CLI supports `impor
 - Task 11 verification: `swift test --filter MediaPathsTests`, `swift test --filter MediaLibraryTests`, `swift test --filter MediaImporterTests`, `swift test --filter AVFoundationMediaTests`, and `swift test --filter MediaCommandTests` passed during implementation. Final automated acceptance passed `swift test` with 142 tests, `swift build -c release --product wallume-media`, `swift build -c release --product wallume-restore`, and `git diff --check`. Manual real-media acceptance generated disposable `.mp4` and `.mov` files under an isolated realpath `HOME`, imported both through `.build/release/wallume-media`, verified unchanged source SHA-256 values before and after import/remove, verified every variant reopened through AVFoundation as `.mov` HEVC `hvc1` with longest edge 96 and frame rate no higher than 60, and confirmed `remove` deleted only Wallume-owned artifacts.
 - Independent task review: approved.
 - No automated test accesses the live macOS wallpaper directories.
+- Phase 3 status: `engineeringComplete`; performance certification: `blockedByHardware`.
+- Phase 3 engineering verification: `swift test` passed 168 tests with 0 failures; release builds of `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; malformed benchmark input exited 64 with empty standard output; `git diff --check` passed.
 
 ## Remaining phase-1 tasks
 
