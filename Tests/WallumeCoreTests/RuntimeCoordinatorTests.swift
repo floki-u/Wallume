@@ -76,6 +76,50 @@ final class RuntimeCoordinatorTests: XCTestCase {
         XCTAssertEqual(snapshot.sessions.single?.mediaID, old.id)
         XCTAssertEqual(snapshot.failures.map(\.displayID), [display])
     }
+
+    func testPauseReasonsRemainUntilEverySignalClears() async {
+        let item = MediaItem.fixture()
+        let coordinator = RuntimeCoordinator(
+            catalog: Catalog(items: [item]),
+            pool: PlayerPool(factory: NoopFactory())
+        )
+        let display = DisplayID("display-1")
+
+        _ = await coordinator.reconcile(
+            displays: [display],
+            assignments: [.init(displayID: display, mediaID: item.id)],
+            environment: .init(userPaused: true, appObscured: false, screenLocked: true, lowPowerMode: false, systemSleeping: false)
+        )
+        let paused = await coordinator.reconcile(
+            displays: [display],
+            assignments: [.init(displayID: display, mediaID: item.id)],
+            environment: .init(userPaused: false, appObscured: false, screenLocked: true, lowPowerMode: false, systemSleeping: false)
+        )
+        let resumed = await coordinator.reconcile(
+            displays: [display],
+            assignments: [.init(displayID: display, mediaID: item.id)],
+            environment: .active
+        )
+
+        XCTAssertEqual(paused.pauseReasons, [.screenLocked])
+        XCTAssertEqual(resumed.pauseReasons, [])
+    }
+
+    func testRepeatingSameSnapshotDoesNotCreateAnotherResource() async {
+        let item = MediaItem.fixture()
+        let coordinator = RuntimeCoordinator(
+            catalog: Catalog(items: [item]),
+            pool: PlayerPool(factory: NoopFactory())
+        )
+        let display = DisplayID("display-1")
+        let input: Set<RuntimeAssignment> = [.init(displayID: display, mediaID: item.id)]
+
+        let first = await coordinator.reconcile(displays: [display], assignments: input, environment: .active)
+        let second = await coordinator.reconcile(displays: [display], assignments: input, environment: .active)
+
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(second.resourceCreationCount, 1)
+    }
 }
 
 private extension Array where Element == RuntimeDisplaySession {
