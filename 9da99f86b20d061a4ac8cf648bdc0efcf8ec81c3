@@ -1,0 +1,77 @@
+Sources/WallumeAppSupport/UI/MediaDetailView.swift
+  32e54daf3a523c64 1-39
+Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift
+  32e54daf3a523c64 1-9
+Sources/WallumeAppSupport/UI/ImportTaskDrawer.swift
+  32e54daf3a523c64 1-49
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  32e54daf3a523c64 1-28
+Tests/WallumeAppSupportTests/MediaPreviewControllerTests.swift
+  32e54daf3a523c64 1-26
+Sources/WallumeAppSupport/UI/FeatureRegistry.swift
+  32e54daf3a523c64 1-22
+Sources/WallumeAppSupport/UI/MediaPreviewController.swift
+  32e54daf3a523c64 1-38
+Sources/WallumeAppSupport/UI/GalleryView.swift
+  32e54daf3a523c64 1-66
+Sources/WallumeAppSupport/Gallery/GalleryStore.swift
+  32e54daf3a523c64 40-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "9da99f86b20d061a4ac8cf648bdc0efcf8ec81c3",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 279,
+      "total_deletions": 0,
+      "accepted_lines": 279,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/UI/ImportTaskDrawer.swift": {
+          "additions": 49,
+          "accepted_lines": 49
+        },
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 28,
+          "accepted_lines": 28
+        },
+        "Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift": {
+          "additions": 9,
+          "accepted_lines": 9
+        },
+        "Sources/WallumeAppSupport/UI/GalleryView.swift": {
+          "additions": 66,
+          "accepted_lines": 66
+        },
+        "Tests/WallumeAppSupportTests/MediaPreviewControllerTests.swift": {
+          "additions": 26,
+          "accepted_lines": 26
+        },
+        "Sources/WallumeAppSupport/UI/MediaDetailView.swift": {
+          "additions": 39,
+          "accepted_lines": 39
+        },
+        "Sources/WallumeAppSupport/UI/FeatureRegistry.swift": {
+          "additions": 22,
+          "accepted_lines": 22
+        },
+        "Sources/WallumeAppSupport/Gallery/GalleryStore.swift": {
+          "additions": 2,
+          "accepted_lines": 2
+        },
+        "Sources/WallumeAppSupport/UI/MediaPreviewController.swift": {
+          "additions": 38,
+          "accepted_lines": 38
+        }
+      }
+    }
+  }
+}
