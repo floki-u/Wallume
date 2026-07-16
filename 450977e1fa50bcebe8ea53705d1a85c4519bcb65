@@ -1,0 +1,43 @@
+Sources/WallumeCore/Runtime/RuntimeModels.swift
+  32e54daf3a523c64 25
+Tests/WallumeCoreTests/RuntimeBenchmarkTests.swift
+  32e54daf3a523c64 1-57
+Sources/WallumeCore/Runtime/RuntimeBenchmark.swift
+  32e54daf3a523c64 1-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "450977e1fa50bcebe8ea53705d1a85c4519bcb65",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 224,
+      "total_deletions": 2,
+      "accepted_lines": 223,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/RuntimeBenchmarkTests.swift": {
+          "additions": 57,
+          "accepted_lines": 57
+        },
+        "Sources/WallumeCore/Runtime/RuntimeBenchmark.swift": {
+          "additions": 166,
+          "deletions": 1,
+          "accepted_lines": 165
+        },
+        "Sources/WallumeCore/Runtime/RuntimeModels.swift": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        }
+      }
+    }
+  }
+}
