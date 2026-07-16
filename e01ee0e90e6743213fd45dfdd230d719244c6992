@@ -1,0 +1,68 @@
+Tests/WallumeCoreTests/PlayerPoolTests.swift
+  32e54daf3a523c64 49,78-80
+Sources/WallumeCore/Runtime/PlayerPool.swift
+  32e54daf3a523c64 5-7,11,14-16,27-29,58,65,67,74,82,85,90,92
+Sources/WallumeCore/AppKitRuntime/DesktopSurfaceModels.swift
+  32e54daf3a523c64 24,28-30
+Tests/WallumeCoreTests/RuntimeCoordinatorTests.swift
+  32e54daf3a523c64 138,147-149
+Tests/WallumeCoreTests/DesktopWindowControllerTests.swift
+  32e54daf3a523c64 52
+Tests/WallumeCoreTests/PlaybackPresentationTests.swift
+  32e54daf3a523c64 1-30
+Sources/WallumeCore/AppKitRuntime/AppKitDesktopSurface.swift
+  32e54daf3a523c64 56-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "e01ee0e90e6743213fd45dfdd230d719244c6992",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 68,
+      "total_deletions": 20,
+      "accepted_lines": 68,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/RuntimeCoordinatorTests.swift": {
+          "additions": 4,
+          "deletions": 4,
+          "accepted_lines": 4
+        },
+        "Sources/WallumeCore/Runtime/PlayerPool.swift": {
+          "additions": 21,
+          "deletions": 12,
+          "accepted_lines": 21
+        },
+        "Tests/WallumeCoreTests/DesktopWindowControllerTests.swift": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        "Tests/WallumeCoreTests/PlayerPoolTests.swift": {
+          "additions": 4,
+          "deletions": 4,
+          "accepted_lines": 4
+        },
+        "Tests/WallumeCoreTests/PlaybackPresentationTests.swift": {
+          "additions": 30,
+          "accepted_lines": 30
+        },
+        "Sources/WallumeCore/AppKitRuntime/DesktopSurfaceModels.swift": {
+          "additions": 6,
+          "accepted_lines": 6
+        },
+        "Sources/WallumeCore/AppKitRuntime/AppKitDesktopSurface.swift": {
+          "additions": 2,
+          "accepted_lines": 2
+        }
+      }
+    }
+  }
+}
