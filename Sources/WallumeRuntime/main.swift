@@ -6,7 +6,7 @@ import WallumeCore
 @MainActor
 final class WallpaperRuntimeApplication {
     private let media: MediaItem
-    private let benchmark: BenchmarkConfiguration?
+    private let benchmark: RuntimeBenchmarkConfiguration?
     private let coordinator: RuntimeCoordinator
     private let screens: AppKitScreenProvider
     private let windows: DesktopWindowController
@@ -20,7 +20,7 @@ final class WallpaperRuntimeApplication {
     private var benchmarkSampler: (any RuntimeMetricSampling)?
     private var benchmarkSamples = [RuntimeMetricSample]()
 
-    fileprivate init(media: MediaItem, benchmark: BenchmarkConfiguration? = nil) {
+    init(media: MediaItem, benchmark: RuntimeBenchmarkConfiguration? = nil) {
         self.media = media
         self.benchmark = benchmark
         let registry = AVPlayerPresentationRegistry()
@@ -54,20 +54,17 @@ final class WallpaperRuntimeApplication {
     }
 
     private func reconcile() async {
-        let currentScreens = runtimeScreens
+        let currentScreens = screens.screens
         occlusionMonitor.updateDisplays(currentScreens)
         let displayIDs = Set(currentScreens.map(\.id))
         let assignments = Set(displayIDs.map { RuntimeAssignment(displayID: $0, mediaID: media.id) })
+        var pauseReasons = environment.pauseReasons
+        if appObscured { pauseReasons.insert(.appObscured) }
+        if benchmark?.scenario == .paused { pauseReasons.insert(.user) }
         let snapshot = await coordinator.reconcile(
             displays: displayIDs,
             assignments: assignments,
-            environment: RuntimeEnvironment(
-                userPaused: environment.pauseReasons.contains(.user) || benchmark?.scenario == .paused,
-                appObscured: appObscured,
-                screenLocked: environment.pauseReasons.contains(.screenLocked),
-                lowPowerMode: environment.pauseReasons.contains(.lowPower),
-                systemSleeping: environment.pauseReasons.contains(.systemSleep)
-            )
+            environment: RuntimeEnvironment(pauseReasons: pauseReasons)
         )
         latestSnapshot = snapshot
         let windowFailures = windows.reconcile(currentScreens)
@@ -77,16 +74,6 @@ final class WallpaperRuntimeApplication {
         }
         for failure in windowFailures {
             writeError("window \(failure.displayID.rawValue): \(failure.message)\n")
-        }
-    }
-
-    private var runtimeScreens: [DesktopScreen] {
-        guard let benchmark else { return screens.screens }
-        switch benchmark.scenario {
-        case .single1080p, .single4K, .paused:
-            return Array(screens.screens.prefix(1))
-        case .dualShared:
-            return Array(screens.screens.prefix(2))
         }
     }
 
@@ -110,7 +97,7 @@ final class WallpaperRuntimeApplication {
         timer.resume()
     }
 
-    private func finishBenchmark(_ benchmark: BenchmarkConfiguration) {
+    private func finishBenchmark(_ benchmark: RuntimeBenchmarkConfiguration) {
         benchmarkTimer?.cancel()
         benchmarkTimer = nil
         benchmarkSampler = nil
@@ -121,7 +108,7 @@ final class WallpaperRuntimeApplication {
             scenario: benchmark.scenario,
             hardwareModel: RuntimeHostInfo.hardwareModel,
             operatingSystem: RuntimeHostInfo.operatingSystem,
-            displayCount: runtimeScreens.count,
+            displayCount: screens.screens.count,
             mediaWidth: media.pixelWidth,
             mediaHeight: media.pixelHeight,
             mediaFramesPerSecond: media.frameRate,
@@ -162,36 +149,6 @@ final class WallpaperRuntimeApplication {
     }
 }
 
-private struct BenchmarkConfiguration {
-    let duration: TimeInterval
-    let scenario: RuntimeBenchmarkScenario
-}
-
-private struct LaunchConfiguration {
-    let mediaID: UUID
-    let benchmark: BenchmarkConfiguration?
-
-    static func parse(_ arguments: [String]) -> LaunchConfiguration? {
-        if arguments.count == 1, let mediaID = UUID(uuidString: arguments[0]) {
-            return LaunchConfiguration(mediaID: mediaID, benchmark: nil)
-        }
-        guard arguments.count == 6,
-              arguments[0] == "benchmark",
-              let mediaID = UUID(uuidString: arguments[1]),
-              arguments[2] == "--duration",
-              let duration = Int(arguments[3]),
-              (5...3600).contains(duration),
-              arguments[4] == "--scenario",
-              let scenario = RuntimeBenchmarkScenario(rawValue: arguments[5]) else {
-            return nil
-        }
-        return LaunchConfiguration(
-            mediaID: mediaID,
-            benchmark: BenchmarkConfiguration(duration: TimeInterval(duration), scenario: scenario)
-        )
-    }
-}
-
 private struct SingleMediaCatalog: MediaCatalog {
     let media: MediaItem
     func item(id: UUID) throws -> MediaItem? { id == media.id ? media : nil }
@@ -204,7 +161,7 @@ private func writeError(_ text: String) {
 @MainActor
 private func launch() -> Int32 {
     let arguments = Array(CommandLine.arguments.dropFirst())
-    guard let configuration = LaunchConfiguration.parse(arguments) else {
+    guard let configuration = RuntimeLaunchConfiguration.parse(arguments) else {
         writeError("usage: wallume-runtime <media-uuid>\n")
         writeError("       wallume-runtime benchmark <media-uuid> --duration <5...3600> --scenario <single-1080p|single-4k|dual-shared|paused>\n")
         return 64

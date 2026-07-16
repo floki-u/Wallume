@@ -57,7 +57,14 @@ public struct CGWindowSnapshotProvider: WindowSnapshotProviding {
 
     public func snapshots() -> [WindowSnapshot]? {
         guard let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
-        let top = NSScreen.screens.map(\.frame.maxY).max() ?? 0
+        guard let primaryDisplayTop = NSScreen.screens.first?.frame.maxY else { return nil }
+        return Self.normalizedSnapshots(from: info, primaryDisplayTop: primaryDisplayTop)
+    }
+
+    static func normalizedSnapshots(
+        from info: [[String: Any]],
+        primaryDisplayTop: CGFloat
+    ) -> [WindowSnapshot]? {
         var result = [WindowSnapshot]()
         for entry in info {
             guard let pid = entry[kCGWindowOwnerPID as String] as? NSNumber,
@@ -65,8 +72,17 @@ public struct CGWindowSnapshotProvider: WindowSnapshotProviding {
                   let alpha = entry[kCGWindowAlpha as String] as? NSNumber,
                   let onscreen = entry[kCGWindowIsOnscreen as String] as? NSNumber,
                   let dictionary = entry[kCGWindowBounds as String] as? NSDictionary,
-                  let cgBounds = CGRect(dictionaryRepresentation: dictionary as CFDictionary) else { continue }
-            let bounds = CGRect(x: cgBounds.minX, y: top - cgBounds.maxY, width: cgBounds.width, height: cgBounds.height)
+                  let cgBounds = CGRect(dictionaryRepresentation: dictionary as CFDictionary),
+                  cgBounds.origin.x.isFinite,
+                  cgBounds.origin.y.isFinite,
+                  cgBounds.width.isFinite,
+                  cgBounds.height.isFinite else { return nil }
+            let bounds = CGRect(
+                x: cgBounds.minX,
+                y: primaryDisplayTop - cgBounds.maxY,
+                width: cgBounds.width,
+                height: cgBounds.height
+            )
             result.append(WindowSnapshot(ownerPID: pid.int32Value, layer: layer.intValue, alpha: alpha.doubleValue, bounds: bounds, isOnscreen: onscreen.boolValue))
         }
         return result

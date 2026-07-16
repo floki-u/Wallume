@@ -44,9 +44,9 @@ Run an explicit five-minute benchmark for each scenario:
 .build/release/wallume-runtime benchmark <media-uuid> --duration 300 --scenario paused
 ```
 
-Duration must be from 5 through 3600 seconds. Single and paused scenarios use at most one display; `dual-shared` uses at most two displays backed by the same player resource. Sampling occurs once per second only in benchmark mode. Normal playback does not create a performance sampler or sampling timer.
+Duration must be from 5 through 3600 seconds. Scenario names label the intended manual setup; they do not alter the detected displays or media. Arrange the requested display/media configuration before launching the command. Sampling occurs once per second only in benchmark mode. Normal playback does not create a performance sampler or sampling timer.
 
-The command writes one sorted-key JSON object to standard output. Schema version 1 includes the timestamp, scenario, hardware model, OS description, active display count, media dimensions and frame rate, raw RSS/CPU samples, sample count, average and peak RSS, average CPU, pause reasons, shared resource count, and manual GPU status. It also always records `developmentOnly: true` and `certification: "blockedByHardware"`.
+The command writes one sorted-key JSON object to standard output. Schema version 1 includes the timestamp, scenario, hardware model, OS description, active display count, media dimensions and frame rate, raw RSS/CPU samples, sample count, average and peak RSS, average and peak CPU, pause reasons, shared resource count, and manual GPU status. It also always records `developmentOnly: true` and `certification: "blockedByHardware"`.
 
 GPU status remains `notMeasured` because GPU activity must be checked manually with Instruments or Metal HUD. Results from hardware other than a base M1 running macOS 14 are development data only.
 

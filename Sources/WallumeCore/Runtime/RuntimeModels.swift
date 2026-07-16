@@ -33,6 +33,10 @@ public enum RuntimePauseReason: String, CaseIterable, Codable, Hashable, Sendabl
 public struct RuntimeEnvironment: Equatable, Sendable {
     public let pauseReasons: Set<RuntimePauseReason>
 
+    public init(pauseReasons: Set<RuntimePauseReason>) {
+        self.pauseReasons = pauseReasons
+    }
+
     public init(
         userPaused: Bool,
         appObscured: Bool,
@@ -40,13 +44,13 @@ public struct RuntimeEnvironment: Equatable, Sendable {
         lowPowerMode: Bool,
         systemSleeping: Bool
     ) {
-        pauseReasons = Set([
+        self.init(pauseReasons: Set([
             userPaused ? .user : nil,
             appObscured ? .appObscured : nil,
             screenLocked ? .screenLocked : nil,
             lowPowerMode ? .lowPower : nil,
             systemSleeping ? .systemSleep : nil,
-        ].compactMap { $0 })
+        ].compactMap { $0 }))
     }
 
     public static let active = RuntimeEnvironment(

@@ -18,6 +18,49 @@ public enum RuntimeBenchmarkScenario: String, Codable, CaseIterable, Sendable {
     case paused
 }
 
+public struct RuntimeBenchmarkConfiguration: Equatable, Sendable {
+    public let duration: TimeInterval
+    public let scenario: RuntimeBenchmarkScenario
+
+    public init(duration: TimeInterval, scenario: RuntimeBenchmarkScenario) {
+        self.duration = duration
+        self.scenario = scenario
+    }
+}
+
+public struct RuntimeLaunchConfiguration: Equatable, Sendable {
+    public let mediaID: UUID
+    public let benchmark: RuntimeBenchmarkConfiguration?
+
+    public init(mediaID: UUID, benchmark: RuntimeBenchmarkConfiguration?) {
+        self.mediaID = mediaID
+        self.benchmark = benchmark
+    }
+
+    public static func parse(_ arguments: [String]) -> RuntimeLaunchConfiguration? {
+        if arguments.count == 1, let mediaID = UUID(uuidString: arguments[0]) {
+            return RuntimeLaunchConfiguration(mediaID: mediaID, benchmark: nil)
+        }
+        guard arguments.count == 6,
+              arguments[0] == "benchmark",
+              let mediaID = UUID(uuidString: arguments[1]),
+              arguments[2] == "--duration",
+              let duration = Int(arguments[3]),
+              (5...3600).contains(duration),
+              arguments[4] == "--scenario",
+              let scenario = RuntimeBenchmarkScenario(rawValue: arguments[5]) else {
+            return nil
+        }
+        return RuntimeLaunchConfiguration(
+            mediaID: mediaID,
+            benchmark: RuntimeBenchmarkConfiguration(
+                duration: TimeInterval(duration),
+                scenario: scenario
+            )
+        )
+    }
+}
+
 public enum GPUVerificationStatus: String, Codable, Sendable {
     case notMeasured
     case pass
@@ -43,6 +86,7 @@ public struct RuntimeBenchmarkReport: Codable, Equatable, Sendable {
     public let averageResidentBytes: UInt64
     public let peakResidentBytes: UInt64
     public let averageCPUPercent: Double
+    public let peakCPUPercent: Double
     public let pauseReasons: [RuntimePauseReason]
     public let sharedResourceCount: Int
     public let gpuStatus: GPUVerificationStatus
@@ -78,10 +122,12 @@ public struct RuntimeBenchmarkReport: Codable, Equatable, Sendable {
             averageResidentBytes = 0
             peakResidentBytes = 0
             averageCPUPercent = 0
+            peakCPUPercent = 0
         } else {
             averageResidentBytes = samples.map(\.residentBytes).reduce(0, +) / UInt64(samples.count)
             peakResidentBytes = samples.map(\.residentBytes).max() ?? 0
             averageCPUPercent = samples.map(\.cpuPercent).reduce(0, +) / Double(samples.count)
+            peakCPUPercent = samples.map(\.cpuPercent).max() ?? 0
         }
         self.pauseReasons = pauseReasons.sorted { $0.rawValue < $1.rawValue }
         self.sharedResourceCount = sharedResourceCount
