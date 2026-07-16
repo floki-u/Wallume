@@ -22,7 +22,7 @@ public struct RuntimeAssignment: Hashable, Sendable {
     }
 }
 
-public enum RuntimePauseReason: String, CaseIterable, Hashable, Sendable {
+public enum RuntimePauseReason: String, CaseIterable, Codable, Hashable, Sendable {
     case user
     case appObscured
     case screenLocked
