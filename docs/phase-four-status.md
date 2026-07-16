@@ -4,7 +4,7 @@ Updated: 2026-07-16
 
 ## Batch 1: application shell, gallery, and import experience
 
-Implementation status: engineering complete pending final review and merge.
+Implementation status: engineering complete and approved for local merge.
 
 Delivered:
 
@@ -17,4 +17,4 @@ Delivered:
 
 Not delivered in this batch: display assignment/control, lock-screen UI, performance UI, settings UI, localization, volume control, or final phase-four UI acceptance.
 
-Verification: 194 tests passed with zero failures; release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed.
+Verification: 203 tests passed with zero failures; release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed. Completion review found no remaining Critical or Important issues.
