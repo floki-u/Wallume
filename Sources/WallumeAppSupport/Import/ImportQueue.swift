@@ -50,6 +50,11 @@ public actor ImportQueue {
         publish()
     }
 
+    public func cancelAllAndWait() async {
+        cancelAll()
+        while processor != nil { try? await Task.sleep(for: .milliseconds(20)) }
+    }
+
     public func retry(_ itemID: UUID) {
         guard let index = items.firstIndex(where: { $0.id == itemID }),
               items[index].attempts.last?.status == .failed else { return }

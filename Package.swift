@@ -7,6 +7,7 @@ let package = Package(
     products: [
         .library(name: "WallumeCore", targets: ["WallumeCore"]),
         .library(name: "WallumeAppSupport", targets: ["WallumeAppSupport"]),
+        .executable(name: "WallumeApp", targets: ["WallumeApp"]),
         .executable(name: "wallume-media", targets: ["WallumeMedia"]),
         .executable(name: "wallume-restore", targets: ["WallumeRestore"]),
         .executable(name: "wallume-runtime", targets: ["WallumeRuntime"]),
@@ -24,6 +25,7 @@ let package = Package(
         .executableTarget(name: "WallumeRestore", dependencies: ["WallumeCore"]),
         .executableTarget(name: "WallumeRuntime", dependencies: ["WallumeCore"]),
         .target(name: "WallumeAppSupport", dependencies: ["WallumeCore"]),
+        .executableTarget(name: "WallumeApp", dependencies: ["WallumeCore", "WallumeAppSupport"]),
         .testTarget(
             name: "WallumeCoreTests",
             dependencies: ["WallumeCore"],
