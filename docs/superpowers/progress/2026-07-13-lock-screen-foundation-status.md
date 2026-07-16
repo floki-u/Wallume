@@ -23,6 +23,7 @@ Updated: 2026-07-15
 9. Read-only live probe, CI, and phase-1 safety documentation — complete.
 10. Whole-branch review and local branch handoff — complete.
 11. Phase 2 media library and `wallume-media` importer — complete.
+12. Phase 3 testable runtime core — complete.
 
 Task 7 was accepted by an independent task review with no Critical, Important, or Minor findings. Its local head is `5009015`. The implementation includes schema-v2 recovery journals, atomic guarded replacement, crash-resumable artifacts, complete backup ownership checks, no-follow path validation, cross-process advisory locking, conservative conflict retention, and a documented local threat boundary.
 
