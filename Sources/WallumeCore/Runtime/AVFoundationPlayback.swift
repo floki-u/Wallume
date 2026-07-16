@@ -19,6 +19,10 @@ public final class AVPlayerPresentationRegistry: PlaybackPresentationRegistry {
         players[resourceID]
     }
 
+    public func presentationObject(resourceID: UUID) -> AnyObject? {
+        players[resourceID]
+    }
+
     func register(_ player: AVPlayer, resourceID: UUID) {
         players[resourceID] = player
     }

@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "WallumeCore", targets: ["WallumeCore"]),
         .executable(name: "wallume-media", targets: ["WallumeMedia"]),
         .executable(name: "wallume-restore", targets: ["WallumeRestore"]),
+        .executable(name: "wallume-runtime", targets: ["WallumeRuntime"]),
     ],
     targets: [
         .target(
@@ -20,6 +21,7 @@ let package = Package(
         ),
         .executableTarget(name: "WallumeMedia", dependencies: ["WallumeCore"]),
         .executableTarget(name: "WallumeRestore", dependencies: ["WallumeCore"]),
+        .executableTarget(name: "WallumeRuntime", dependencies: ["WallumeCore"]),
         .testTarget(
             name: "WallumeCoreTests",
             dependencies: ["WallumeCore"],

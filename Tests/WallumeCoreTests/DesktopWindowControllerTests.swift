@@ -55,6 +55,27 @@ final class DesktopWindowControllerTests: XCTestCase {
         XCTAssertEqual(factory.surface(for: displayID)?.presentation?.resourceID, resourceID)
         XCTAssertEqual(factory.surface(for: displayID)?.fallbackURL, media.coverURL)
     }
+
+    @MainActor
+    func testApplyUsesCoverWhenPlaybackCreationFailedWithoutSession() {
+        let factory = SurfaceFactory()
+        let controller = DesktopWindowController(factory: factory)
+        let displayID = DisplayID("one")
+        let media = MediaItem.presentationFixture()
+        _ = controller.reconcile([.init(id: displayID, frame: .zero)])
+
+        controller.apply(
+            snapshot: RuntimeSnapshot(
+                sessions: [], resourceReferenceCounts: [:], pauseReasons: [],
+                failures: [.init(displayID: displayID, mediaID: media.id, message: "unplayable")],
+                resourceCreationCount: 0
+            ),
+            mediaByID: [media.id: media]
+        )
+
+        XCTAssertNil(factory.surface(for: displayID)?.presentation)
+        XCTAssertEqual(factory.surface(for: displayID)?.fallbackURL, media.coverURL)
+    }
 }
 
 @MainActor private final class SurfaceFactory: DesktopSurfaceFactory {

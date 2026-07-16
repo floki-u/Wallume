@@ -24,15 +24,18 @@ public final class DesktopWindowController {
 
     public func apply(snapshot: RuntimeSnapshot, mediaByID: [UUID: MediaItem]) {
         let sessions = Dictionary(uniqueKeysWithValues: snapshot.sessions.map { ($0.displayID, $0) })
+        let failures = Dictionary(snapshot.failures.map { ($0.displayID, $0) }, uniquingKeysWith: { first, _ in first })
         for (displayID, value) in surfaces {
-            guard let session = sessions[displayID], let media = mediaByID[session.mediaID] else {
+            if let session = sessions[displayID], let media = mediaByID[session.mediaID] {
+                value.surface.setPresentation(
+                    PlaybackPresentation(resourceID: session.resourceID),
+                    fallbackURL: media.coverURL
+                )
+            } else if let failure = failures[displayID], let media = mediaByID[failure.mediaID] {
+                value.surface.setPresentation(nil, fallbackURL: media.coverURL)
+            } else {
                 value.surface.setPresentation(nil, fallbackURL: nil)
-                continue
             }
-            value.surface.setPresentation(
-                PlaybackPresentation(resourceID: session.resourceID),
-                fallbackURL: media.coverURL
-            )
         }
     }
 

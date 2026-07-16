@@ -25,6 +25,7 @@ Updated: 2026-07-15
 11. Phase 2 media library and `wallume-media` importer — complete.
 12. Phase 3 testable runtime core — complete.
 13. Phase 3 AppKit screen observation and desktop surfaces — complete.
+14. Phase 3 muted shared AVFoundation playback and system pause signals — complete.
 
 Task 7 was accepted by an independent task review with no Critical, Important, or Minor findings. Its local head is `5009015`. The implementation includes schema-v2 recovery journals, atomic guarded replacement, crash-resumable artifacts, complete backup ownership checks, no-follow path validation, cross-process advisory locking, conservative conflict retention, and a documented local threat boundary.
 

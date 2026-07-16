@@ -90,3 +90,5 @@ public struct MediaLibrary: Sendable {
         return path.count > rootPath.count && path.starts(with: rootPath)
     }
 }
+
+extension MediaLibrary: MediaCatalog {}
