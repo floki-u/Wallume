@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import XCTest
 @testable import WallumeAppSupport
+import WallumeCore
 
 final class AppKitShellTests: XCTestCase {
     @MainActor
@@ -26,5 +27,12 @@ final class AppKitShellTests: XCTestCase {
         XCTAssertFalse(ImportPanelConfiguration.files.canChooseDirectories)
         XCTAssertTrue(ImportPanelConfiguration.folder.canChooseDirectories)
         XCTAssertFalse(ImportPanelConfiguration.folder.canChooseFiles)
+    }
+
+    @MainActor
+    func testMediaDetailRendersInHostingView() {
+        let item = MediaItem(id: UUID(), sourceHash: "hash", sourceURL: URL(fileURLWithPath: "/tmp/source.mov"), displayName: "Ocean", sourceByteCount: 10, pixelWidth: 1920, pixelHeight: 1080, frameRate: 30, durationSeconds: 5, codec: "hvc1", variantURL: URL(fileURLWithPath: "/tmp/variant.mov"), thumbnailURL: URL(fileURLWithPath: "/tmp/thumb.jpg"), coverURL: URL(fileURLWithPath: "/tmp/cover.jpg"), createdAt: .distantPast)
+        let host = NSHostingView(rootView: MediaDetailView(item: item, onReveal: { false }, onDelete: {}))
+        XCTAssertGreaterThan(host.fittingSize.width, 0)
     }
 }

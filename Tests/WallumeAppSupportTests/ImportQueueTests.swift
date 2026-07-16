@@ -67,6 +67,22 @@ final class ImportQueueTests: XCTestCase {
         XCTAssertEqual(importer.sources.map(\.lastPathComponent), ["a.mov", "b.mov", "a.mov"])
     }
 
+    func testCancelAllAndWaitReturnsOnlyAfterImporterCleanupCompletes() async {
+        let importer = QueueImporter(results: [.imported], blocks: true)
+        let queue = ImportQueue(importer: importer, scanner: PassthroughScanner())
+        await queue.enqueue([URL(fileURLWithPath: "/a.mov")])
+        await importer.waitUntilStarted(1)
+        let waiter = Task { await queue.cancelAllAndWait() }
+        try? await Task.sleep(for: .milliseconds(20))
+        XCTAssertFalse(waiter.isCancelled)
+        let activeSnapshot = await queue.snapshot()
+        XCTAssertTrue(activeSnapshot.isActive)
+        await importer.releaseAll()
+        await waiter.value
+        let finishedSnapshot = await queue.snapshot()
+        XCTAssertFalse(finishedSnapshot.isActive)
+    }
+
     private func waitUntilIdle(_ queue: ImportQueue) async -> ImportQueueSnapshot {
         for _ in 0..<500 {
             let snapshot = await queue.snapshot()

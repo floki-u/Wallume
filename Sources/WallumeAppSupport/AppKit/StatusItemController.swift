@@ -19,6 +19,9 @@ public final class StatusItemController {
         menu.addItem(withTitle: Self.title(for: snapshot), action: nil, keyEquivalent: "")
         if let current = snapshot.items.first(where: { $0.attempts.last?.status == .running }), let attempt = current.attempts.last {
             menu.addItem(withTitle: "\(current.source.lastPathComponent) · \(attempt.stage?.rawValue ?? "准备中")", action: nil, keyEquivalent: "")
+            if let progress = attempt.progress {
+                menu.addItem(withTitle: "进度 \(Int((progress * 100).rounded()))%", action: nil, keyEquivalent: "")
+            }
         }
         let summary = snapshot.summary
         if !snapshot.isActive, summary.total > 0 {

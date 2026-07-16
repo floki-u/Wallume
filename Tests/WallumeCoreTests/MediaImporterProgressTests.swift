@@ -38,6 +38,29 @@ final class MediaImporterProgressTests: XCTestCase {
         }.value
         XCTAssertEqual(result.status, .cancelled)
     }
+
+    func testRealTaskCancellationDuringTranscodeCleansBeforeReturning() async throws {
+        let fixture = try ProgressImporterFixture(); defer { fixture.remove() }
+        fixture.transcoder.waitForTaskCancellation = true
+        let task = Task { await fixture.importer.importURL(fixture.source) { _ in } }
+        await fixture.transcoder.waitUntilStarted()
+        task.cancel()
+        let result = await task.value
+        XCTAssertEqual(result.status, .cancelled)
+        XCTAssertTrue(try fixture.workRootIsEmpty())
+    }
+
+    func testCancellationDuringHashingWinsBeforeDuplicateLookup() async throws {
+        let digester = BlockingDigester()
+        let fixture = try ProgressImporterFixture(digester: digester); defer { fixture.remove() }
+        let task = Task { await fixture.importer.importURL(fixture.source) { _ in } }
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async { digester.started.wait(); continuation.resume() }
+        }
+        task.cancel(); digester.release.signal()
+        let result = await task.value
+        XCTAssertEqual(result.status, .cancelled)
+    }
 }
 
 private final class LockedImportEvents: @unchecked Sendable {
@@ -57,7 +80,7 @@ private final class ProgressImporterFixture: @unchecked Sendable {
     let transcoder = ProgressTranscoder()
     let importer: MediaImporter
 
-    init() throws {
+    init(digester: any Digesting = SHA256Digester()) throws {
         let temporary = FileManager.default.temporaryDirectory
         let base = temporary.path.hasPrefix("/var/")
             ? URL(fileURLWithPath: "/private" + temporary.path) : temporary
@@ -72,6 +95,7 @@ private final class ProgressImporterFixture: @unchecked Sendable {
             paths: paths,
             files: store,
             library: library,
+            digester: digester,
             inspector: ProgressInspector(),
             transcoder: transcoder,
             artwork: ProgressArtwork(),
@@ -87,6 +111,13 @@ private final class ProgressImporterFixture: @unchecked Sendable {
     func remove() { try? FileManager.default.removeItem(at: root) }
 }
 
+private final class BlockingDigester: Digesting, @unchecked Sendable {
+    let started = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+    func sha256(of url: URL) throws -> String { started.signal(); release.wait(); return "hash" }
+    func sha256(data: Data) -> String { "hash" }
+}
+
 private struct ProgressInspector: MediaInspecting {
     func inspect(_ url: URL) async throws -> MediaInspection {
         MediaInspection(sourceByteCount: 6, pixelWidth: 16, pixelHeight: 16, frameRate: 30, durationSeconds: 1, codec: "hvc1")
@@ -94,7 +125,10 @@ private struct ProgressInspector: MediaInspecting {
 }
 
 private final class ProgressTranscoder: MediaTranscoding, @unchecked Sendable {
+    private let lock = NSLock()
     var shouldCancel = false
+    var waitForTaskCancellation = false
+    private var started = false
     func transcode(
         _ source: URL,
         to destination: URL,
@@ -102,8 +136,16 @@ private final class ProgressTranscoder: MediaTranscoding, @unchecked Sendable {
         progress: (@Sendable (Double) -> Void)?
     ) async throws {
         progress?(0.5)
+        lock.withLock { started = true }
+        if waitForTaskCancellation {
+            while !Task.isCancelled { await Task.yield() }
+            throw CancellationError()
+        }
         if shouldCancel { throw CancellationError() }
         try Data("variant".utf8).write(to: destination)
+    }
+    func waitUntilStarted() async {
+        while !lock.withLock({ started }) { try? await Task.sleep(for: .milliseconds(5)) }
     }
 }
 

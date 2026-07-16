@@ -59,8 +59,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Task { [queue] in
-            let active = await queue.snapshot().isActive
-            guard active else {
+            guard await TerminationPolicy.decision(queue: queue) == .requestConfirmation else {
                 NSApplication.shared.reply(toApplicationShouldTerminate: true); return
             }
             let alert = NSAlert()

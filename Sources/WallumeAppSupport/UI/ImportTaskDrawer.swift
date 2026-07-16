@@ -7,7 +7,13 @@ public struct ImportTaskDrawer: View {
     public var body: some View {
         VStack(spacing: 8) {
             HStack {
-                Text(store.menuBarSummary).font(.headline)
+                VStack(alignment: .leading) {
+                    Text(store.menuBarSummary).font(.headline)
+                    if let current = store.snapshot.items.first(where: { $0.attempts.last?.status == .running }), let attempt = current.attempts.last {
+                        Text("\(current.source.lastPathComponent) · \(attempt.stage?.rawValue ?? "准备中")").font(.caption)
+                        if let progress = attempt.progress { ProgressView(value: progress).frame(width: 180) }
+                    }
+                }
                 Spacer()
                 if store.snapshot.isActive {
                     Button("取消当前") { store.cancelCurrent() }

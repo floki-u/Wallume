@@ -36,7 +36,7 @@ public actor ImportQueue {
             let item = ImportQueueItem(source: source.standardizedFileURL)
             items.append(item); schedule.append((item.id, item.attempts[0].id))
         }
-        if result.candidates.isEmpty, result.warnings.isEmpty, let first = urls.first {
+        if result.candidates.isEmpty, let first = urls.first {
             warnings.append(.init(url: first, message: "未找到可导入视频"))
         }
         publish()

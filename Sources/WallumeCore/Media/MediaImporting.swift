@@ -143,6 +143,7 @@ public actor MediaImporter {
             try Task.checkCancellation()
             onEvent(.stage(.hashing, progress: nil))
             sourceHash = try digester.sha256(of: source)
+            try Task.checkCancellation()
             if let existing = try library.find(sourceHash: sourceHash) {
                 return MediaImportResult(source: source, status: .duplicate, item: existing)
             }
