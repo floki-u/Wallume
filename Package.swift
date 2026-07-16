@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "WallumeCore", targets: ["WallumeCore"]),
+        .library(name: "WallumeAppSupport", targets: ["WallumeAppSupport"]),
         .executable(name: "wallume-media", targets: ["WallumeMedia"]),
         .executable(name: "wallume-restore", targets: ["WallumeRestore"]),
         .executable(name: "wallume-runtime", targets: ["WallumeRuntime"]),
@@ -22,10 +23,15 @@ let package = Package(
         .executableTarget(name: "WallumeMedia", dependencies: ["WallumeCore"]),
         .executableTarget(name: "WallumeRestore", dependencies: ["WallumeCore"]),
         .executableTarget(name: "WallumeRuntime", dependencies: ["WallumeCore"]),
+        .target(name: "WallumeAppSupport", dependencies: ["WallumeCore"]),
         .testTarget(
             name: "WallumeCoreTests",
             dependencies: ["WallumeCore"],
             resources: [.copy("Fixtures")]
+        ),
+        .testTarget(
+            name: "WallumeAppSupportTests",
+            dependencies: ["WallumeAppSupport", "WallumeCore"]
         ),
     ]
 )
