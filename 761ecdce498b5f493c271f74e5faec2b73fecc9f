@@ -1,0 +1,29 @@
+docs/superpowers/plans/2026-07-16-phase-three-occlusion-benchmark.md
+  32e54daf3a523c64 1-174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "761ecdce498b5f493c271f74e5faec2b73fecc9f",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 174,
+      "total_deletions": 0,
+      "accepted_lines": 174,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/superpowers/plans/2026-07-16-phase-three-occlusion-benchmark.md": {
+          "additions": 174,
+          "accepted_lines": 174
+        }
+      }
+    }
+  }
+}
