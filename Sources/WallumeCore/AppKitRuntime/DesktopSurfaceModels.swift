@@ -28,6 +28,7 @@ public protocol DesktopSurface: AnyObject {
 @MainActor
 public protocol PlaybackPresentationRegistry: AnyObject {
     func contains(resourceID: UUID) -> Bool
+    func presentationObject(resourceID: UUID) -> AnyObject?
 }
 
 @MainActor

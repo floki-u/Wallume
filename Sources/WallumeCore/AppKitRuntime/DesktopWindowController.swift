@@ -21,4 +21,19 @@ public final class DesktopWindowController {
         }
         return failures.sorted { $0.displayID < $1.displayID }
     }
+
+    public func apply(snapshot: RuntimeSnapshot, mediaByID: [UUID: MediaItem]) {
+        let sessions = Dictionary(uniqueKeysWithValues: snapshot.sessions.map { ($0.displayID, $0) })
+        for (displayID, value) in surfaces {
+            guard let session = sessions[displayID], let media = mediaByID[session.mediaID] else {
+                value.surface.setPresentation(nil, fallbackURL: nil)
+                continue
+            }
+            value.surface.setPresentation(
+                PlaybackPresentation(resourceID: session.resourceID),
+                fallbackURL: media.coverURL
+            )
+        }
+    }
+
 }

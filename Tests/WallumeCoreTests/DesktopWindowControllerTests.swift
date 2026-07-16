@@ -31,6 +31,30 @@ final class DesktopWindowControllerTests: XCTestCase {
         XCTAssertEqual(failures.map(\.displayID), [bad])
         XCTAssertNotNil(factory.surface(for: good))
     }
+
+    @MainActor
+    func testApplyBindsSessionPresentationAndCoverToDisplay() {
+        let factory = SurfaceFactory()
+        let controller = DesktopWindowController(factory: factory)
+        let displayID = DisplayID("one")
+        let media = MediaItem.presentationFixture()
+        let resourceID = UUID()
+        _ = controller.reconcile([.init(id: displayID, frame: .zero)])
+
+        controller.apply(
+            snapshot: RuntimeSnapshot(
+                sessions: [.init(displayID: displayID, mediaID: media.id, resourceID: resourceID)],
+                resourceReferenceCounts: [media.id: 1],
+                pauseReasons: [],
+                failures: [],
+                resourceCreationCount: 1
+            ),
+            mediaByID: [media.id: media]
+        )
+
+        XCTAssertEqual(factory.surface(for: displayID)?.presentation?.resourceID, resourceID)
+        XCTAssertEqual(factory.surface(for: displayID)?.fallbackURL, media.coverURL)
+    }
 }
 
 @MainActor private final class SurfaceFactory: DesktopSurfaceFactory {
@@ -48,7 +72,25 @@ private enum SurfaceError: Error { case creationFailed }
 
 @MainActor private final class Surface: DesktopSurface {
     var frames = [CGRect](); var closeCount = 0
+    var presentation: PlaybackPresentation?
+    var fallbackURL: URL?
     func show(frame: CGRect) { frames.append(frame) }
-    func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?) {}
+    func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?) {
+        self.presentation = presentation
+        self.fallbackURL = fallbackURL
+    }
     func close() { closeCount += 1 }
+}
+
+private extension MediaItem {
+    static func presentationFixture() -> MediaItem {
+        MediaItem(
+            id: UUID(), sourceHash: String(repeating: "a", count: 64),
+            sourceURL: URL(fileURLWithPath: "/tmp/source.mov"), displayName: "Presentation",
+            sourceByteCount: 1, pixelWidth: 1920, pixelHeight: 1080, frameRate: 30,
+            durationSeconds: 1, codec: "hvc1", variantURL: URL(fileURLWithPath: "/tmp/variant.mov"),
+            thumbnailURL: URL(fileURLWithPath: "/tmp/thumb.jpg"),
+            coverURL: URL(fileURLWithPath: "/tmp/cover.jpg"), createdAt: Date(timeIntervalSince1970: 0)
+        )
+    }
 }
