@@ -1,0 +1,114 @@
+Sources/WallumeAppSupport/UI/MediaDetailView.swift
+  32e54daf3a523c64 7,10,12,29-30,34,41-43
+Tests/WallumeAppSupportTests/ImportQueueTests.swift
+  32e54daf3a523c64 57-69
+Tests/WallumeCoreTests/ImportScannerTests.swift
+  32e54daf3a523c64 54-62
+Sources/WallumeAppSupport/UI/GalleryView.swift
+  32e54daf3a523c64 45,50
+Tests/WallumeCoreTests/MediaImporterProgressTests.swift
+  32e54daf3a523c64 32-40,50
+Sources/WallumeCore/Media/MediaImporting.swift
+  32e54daf3a523c64 149-150
+Sources/WallumeAppSupport/UI/ImportTaskDrawer.swift
+  32e54daf3a523c64 25-30,32-37,49-50
+Sources/WallumeApp/ApplicationController.swift
+  32e54daf3a523c64 28,62-76
+Sources/WallumeAppSupport/AppKit/StatusItemController.swift
+  32e54daf3a523c64 20-26
+Tests/WallumeAppSupportTests/GalleryStoreTests.swift
+  32e54daf3a523c64 46-60
+Sources/WallumeCore/Media/ImportScanner.swift
+  32e54daf3a523c64 59,72
+Sources/WallumeAppSupport/Import/ImportQueue.swift
+  32e54daf3a523c64 9,36-37,39-40,55,68,75,81,122-125
+Sources/WallumeCore/Media/MediaPaths.swift
+  32e54daf3a523c64 9,23
+Sources/WallumeAppSupport/Gallery/PersistedMediaUsageChecker.swift
+  32e54daf3a523c64 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "4842f010c90f03461c534dacd38cf99ea64207f1",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 151,
+      "total_deletions": 31,
+      "accepted_lines": 151,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/AppKit/StatusItemController.swift": {
+          "additions": 7,
+          "accepted_lines": 7
+        },
+        "Sources/WallumeAppSupport/Gallery/PersistedMediaUsageChecker.swift": {
+          "additions": 35,
+          "accepted_lines": 35
+        },
+        "Tests/WallumeAppSupportTests/ImportQueueTests.swift": {
+          "additions": 13,
+          "accepted_lines": 13
+        },
+        "Tests/WallumeCoreTests/ImportScannerTests.swift": {
+          "additions": 9,
+          "accepted_lines": 9
+        },
+        "Tests/WallumeAppSupportTests/GalleryStoreTests.swift": {
+          "additions": 15,
+          "accepted_lines": 15
+        },
+        "Sources/WallumeAppSupport/UI/GalleryView.swift": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 2
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "additions": 16,
+          "deletions": 10,
+          "accepted_lines": 16
+        },
+        "Sources/WallumeAppSupport/UI/MediaDetailView.swift": {
+          "additions": 9,
+          "deletions": 3,
+          "accepted_lines": 9
+        },
+        "Sources/WallumeCore/Media/MediaImporting.swift": {
+          "additions": 2,
+          "accepted_lines": 2
+        },
+        "Sources/WallumeCore/Media/MediaPaths.swift": {
+          "additions": 2,
+          "accepted_lines": 2
+        },
+        "Tests/WallumeCoreTests/MediaImporterProgressTests.swift": {
+          "additions": 10,
+          "deletions": 1,
+          "accepted_lines": 10
+        },
+        "Sources/WallumeCore/Media/ImportScanner.swift": {
+          "additions": 2,
+          "deletions": 4,
+          "accepted_lines": 2
+        },
+        "Sources/WallumeAppSupport/UI/ImportTaskDrawer.swift": {
+          "additions": 15,
+          "deletions": 6,
+          "accepted_lines": 15
+        },
+        "Sources/WallumeAppSupport/Import/ImportQueue.swift": {
+          "additions": 14,
+          "deletions": 5,
+          "accepted_lines": 14
+        }
+      }
+    }
+  }
+}
