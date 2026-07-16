@@ -1,0 +1,50 @@
+docs/wallpaper-playback.md
+  32e54daf3a523c64 17,19,38-49,51,53,55
+Sources/WallumeRuntime/main.swift
+  32e54daf3a523c64 9,17,19-21,23,25,48,57,65,72,83-151,156-157,165-191,207,209,226-227,230
+docs/phase-three-status.md
+  32e54daf3a523c64 1-33
+docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md
+  32e54daf3a523c64 3,8-9,29-31,59-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "81faf63d84a2c84a7acaede46871be3da26ef3f8",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 178,
+      "total_deletions": 18,
+      "accepted_lines": 177,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/superpowers/progress/2026-07-13-lock-screen-foundation-status.md": {
+          "additions": 8,
+          "deletions": 3,
+          "accepted_lines": 8
+        },
+        "docs/phase-three-status.md": {
+          "additions": 33,
+          "accepted_lines": 33
+        },
+        "docs/wallpaper-playback.md": {
+          "additions": 19,
+          "deletions": 4,
+          "accepted_lines": 19
+        },
+        "Sources/WallumeRuntime/main.swift": {
+          "additions": 118,
+          "deletions": 11,
+          "accepted_lines": 117
+        }
+      }
+    }
+  }
+}
