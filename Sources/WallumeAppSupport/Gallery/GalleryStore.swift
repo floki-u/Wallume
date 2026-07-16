@@ -37,6 +37,8 @@ public final class GalleryStore {
         deletionBlock = displays.isEmpty ? nil : MediaDeletionBlock(mediaID: item.id, displays: displays)
     }
 
+    public func dismissDeletionBlock() { deletionBlock = nil }
+
     @discardableResult
     public func confirmDelete(_ item: MediaItem) -> Bool {
         let displays = usage.references(to: item.id)
