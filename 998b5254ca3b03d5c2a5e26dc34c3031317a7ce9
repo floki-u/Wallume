@@ -1,0 +1,106 @@
+Tests/WallumeCoreTests/AppKitDesktopSurfaceTests.swift
+  32e54daf3a523c64 24-25,32-45
+Tests/WallumeCoreTests/RuntimeCoordinatorTests.swift
+  32e54daf3a523c64 29-74
+Sources/WallumeCore/AppKitRuntime/DesktopWindowController.swift
+  32e54daf3a523c64 25-29,36-37,40,42,47-49
+Tests/WallumeCoreTests/PlaybackPresentationTests.swift
+  32e54daf3a523c64 12,25
+Sources/WallumeCore/AppKitRuntime/AppKitDesktopSurface.swift
+  32e54daf3a523c64 76-80,89,99,106,109-123
+Sources/WallumeCore/AppKitRuntime/DesktopSurfaceModels.swift
+  32e54daf3a523c64 24-28
+Sources/WallumeCore/AppKitRuntime/RuntimeEnvironmentMonitor.swift
+  32e54daf3a523c64 8-11,17-19,28,34,42,49,56,64,73-75,145-147,149-152,161-162
+Tests/WallumeCoreTests/DesktopWindowControllerTests.swift
+  32e54daf3a523c64 52-53,58,75-76,81,83-98,119,121,124
+Tests/WallumeCoreTests/RuntimeModelsTests.swift
+  32e54daf3a523c64 12-13,16
+Tests/WallumeCoreTests/RuntimeEnvironmentMonitorTests.swift
+  32e54daf3a523c64 27-50,56-60
+Sources/WallumeCore/Runtime/RuntimeCoordinator.swift
+  32e54daf3a523c64 20-22,61-73
+Sources/WallumeCore/Runtime/RuntimeModels.swift
+  32e54daf3a523c64 25-30,37,52-53,61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "998b5254ca3b03d5c2a5e26dc34c3031317a7ce9",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 229,
+      "total_deletions": 24,
+      "accepted_lines": 227,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/RuntimeEnvironmentMonitorTests.swift": {
+          "additions": 32,
+          "deletions": 2,
+          "accepted_lines": 30
+        },
+        "Sources/WallumeCore/AppKitRuntime/RuntimeEnvironmentMonitor.swift": {
+          "additions": 30,
+          "deletions": 1,
+          "accepted_lines": 30
+        },
+        "Sources/WallumeCore/Runtime/RuntimeModels.swift": {
+          "additions": 10,
+          "deletions": 1,
+          "accepted_lines": 10
+        },
+        "Tests/WallumeCoreTests/AppKitDesktopSurfaceTests.swift": {
+          "additions": 18,
+          "deletions": 2,
+          "accepted_lines": 18
+        },
+        "Sources/WallumeCore/AppKitRuntime/AppKitDesktopSurface.swift": {
+          "additions": 24,
+          "deletions": 4,
+          "accepted_lines": 24
+        },
+        "Tests/WallumeCoreTests/RuntimeCoordinatorTests.swift": {
+          "additions": 46,
+          "accepted_lines": 46
+        },
+        "Sources/WallumeCore/AppKitRuntime/DesktopSurfaceModels.swift": {
+          "additions": 5,
+          "deletions": 1,
+          "accepted_lines": 5
+        },
+        "Tests/WallumeCoreTests/DesktopWindowControllerTests.swift": {
+          "additions": 26,
+          "deletions": 3,
+          "accepted_lines": 26
+        },
+        "Sources/WallumeCore/AppKitRuntime/DesktopWindowController.swift": {
+          "additions": 14,
+          "deletions": 4,
+          "accepted_lines": 14
+        },
+        "Tests/WallumeCoreTests/PlaybackPresentationTests.swift": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 2
+        },
+        "Tests/WallumeCoreTests/RuntimeModelsTests.swift": {
+          "additions": 3,
+          "deletions": 2,
+          "accepted_lines": 3
+        },
+        "Sources/WallumeCore/Runtime/RuntimeCoordinator.swift": {
+          "additions": 19,
+          "deletions": 2,
+          "accepted_lines": 19
+        }
+      }
+    }
+  }
+}
