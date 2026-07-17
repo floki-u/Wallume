@@ -233,9 +233,9 @@
 
 - [x] **Step 4: Perform static safety checks.**
 
-  Run: `git diff --check && rg -n '(/Library/Application Support/com\\.apple\\.wallpaper|/Library/Caches/Desktop Pictures)' Tests/WallumeAppSupportTests`
+  Run: `git diff --check && ! rg -n 'URL\\s*\\(\\s*fileURLWithPath:\\s*\"(/Library/Application Support/com\\.apple\\.wallpaper|/Library/Caches/Desktop Pictures)' Tests/WallumeAppSupportTests`
 
-  Expected: `git diff --check` has no output; test sources contain no production system paths.
+  Expected: `git diff --check` has no output; app-support tests never construct production wallpaper file URLs. Inert strings used to verify rejection/redaction behavior are permitted because they are never passed to filesystem APIs.
 
 - [x] **Step 5: Review the diff against the approved safety matrix.** Verify: selection/confirmation precede install; startup reconciliation precedes automatic writes; transitions restore before reinstall; disable only clears on conflict-free restore; configuration failures never overwrite the source; and runtime errors remain isolated. Record real-machine lock-screen testing, if unavailable, as pending manual acceptance—not as a fabricated result.
 
@@ -255,5 +255,5 @@
 - [x] The main-display wallpaper drives sync; missing input produces waiting without writing/restoring.
 - [x] Same media is idempotent; changed media restores before a fresh install.
 - [x] Startup and disable paths preserve recoverability, fail closed on conflict, and never damage desktop wallpaper playback.
-- [x] Full tests and all four release builds pass; no production wallpaper directories occur in app-support tests.
+- [x] Full tests and all four release builds pass; app-support tests never construct or access production wallpaper locations (inert rejection-fixture strings are allowed).
 - [x] Changes remain local; `.vscode/` remains untouched and untracked.

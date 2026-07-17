@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import WallumeCore
 
 /// Injectable page commands. The production values forward to the synchronization service;
 /// keeping this boundary here lets the presentation layer publish command failures consistently.
@@ -9,19 +10,22 @@ public struct LockScreenFeatureCommands: Sendable {
     public var confirmEnable: @Sendable () async throws -> LockScreenCommandTicket?
     public var disableAndRestore: @Sendable () async throws -> LockScreenCommandTicket?
     public var retry: @Sendable () async throws -> LockScreenCommandTicket?
+    public var resynchronize: @Sendable () async throws -> LockScreenCommandTicket?
 
     public init(
         refreshProbe: @escaping @Sendable () async throws -> LockScreenCommandTicket?,
         selectAerialSlot: @escaping @Sendable (String) async throws -> LockScreenCommandTicket?,
         confirmEnable: @escaping @Sendable () async throws -> LockScreenCommandTicket?,
         disableAndRestore: @escaping @Sendable () async throws -> LockScreenCommandTicket?,
-        retry: @escaping @Sendable () async throws -> LockScreenCommandTicket?
+        retry: @escaping @Sendable () async throws -> LockScreenCommandTicket?,
+        resynchronize: (@Sendable () async throws -> LockScreenCommandTicket?)? = nil
     ) {
         self.refreshProbe = refreshProbe
         self.selectAerialSlot = selectAerialSlot
         self.confirmEnable = confirmEnable
         self.disableAndRestore = disableAndRestore
         self.retry = retry
+        self.resynchronize = resynchronize ?? retry
     }
 
     public static func service(_ service: LockScreenSyncService) -> Self {
@@ -30,7 +34,8 @@ public struct LockScreenFeatureCommands: Sendable {
             selectAerialSlot: { await service.selectAerialSlot($0) },
             confirmEnable: { await service.confirmEnable() },
             disableAndRestore: { await service.disableAndRestore() },
-            retry: { await service.retry() }
+            retry: { await service.retry() },
+            resynchronize: { await service.resynchronize() }
         )
     }
 }
@@ -90,6 +95,20 @@ public final class LockScreenFeatureStore {
         }
     }
 
+    public func resynchronize() async {
+        await perform(command: .retry) {
+            try await commands.resynchronize()
+        }
+    }
+
+    /// Produces a path-free, local-only snapshot. Saving remains an explicit UI choice.
+    public func makeDiagnosticExportData() throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try encoder.encode(LockScreenDiagnosticSnapshot(state: state))
+    }
+
     public func reportPageError(_ message: String) {
         pageError = message
         pageErrorSource = .reported
@@ -128,6 +147,63 @@ public final class LockScreenFeatureStore {
         } catch {
             pageError = error.localizedDescription
             pageErrorSource = .command(ticket: nil)
+        }
+    }
+}
+
+public struct LockScreenDiagnosticSnapshot: Codable, Equatable, Sendable {
+    public static let currentSchemaVersion = 1
+
+    public let schemaVersion: Int
+    public let phase: String
+    public let macOSGeneration: String?
+    public let writesPermitted: Bool?
+    public let manifestExists: Bool?
+    public let indexExists: Bool?
+    public let availableSlotCount: Int
+    public let foreignBackupCount: Int
+    public let selectedAerialID: String?
+    public let activeTransactionID: UUID?
+    public let syncedMediaID: UUID?
+    public let lastSyncedAt: Date?
+    public let lastResult: String?
+
+    public init(state: LockScreenSyncState) {
+        schemaVersion = Self.currentSchemaVersion
+        phase = Self.phaseName(state.phase)
+        macOSGeneration = state.probe.map { Self.generationName($0.generation) }
+        writesPermitted = state.probe?.writesPermitted
+        manifestExists = state.probe?.manifestExists
+        indexExists = state.probe?.indexExists
+        availableSlotCount = state.probe?.availableSlots.count ?? 0
+        foreignBackupCount = state.probe?.foreignBackupNames.count ?? 0
+        selectedAerialID = state.selectedAerialID
+        activeTransactionID = state.activeTransactionID
+        syncedMediaID = state.syncedMedia?.id
+        lastSyncedAt = state.lastSyncedAt
+        lastResult = state.lastResult?.rawValue
+    }
+
+    private static func phaseName(_ phase: LockScreenSyncPhase) -> String {
+        switch phase {
+        case .unconfigured: "unconfigured"
+        case .probing: "probing"
+        case .readyToConfigure: "readyToConfigure"
+        case .waitingForMainWallpaper: "waitingForMainWallpaper"
+        case .syncing: "syncing"
+        case .synced: "synced"
+        case .restoring: "restoring"
+        case .needsRepair: "needsRepair"
+        case .unsupported: "unsupported"
+        }
+    }
+
+    private static func generationName(_ generation: MacOSGeneration) -> String {
+        switch generation {
+        case .sonoma: "sonoma"
+        case .sequoia: "sequoia"
+        case .tahoe: "tahoe"
+        case let .unsupported(version): "unsupported-\(version)"
         }
     }
 }

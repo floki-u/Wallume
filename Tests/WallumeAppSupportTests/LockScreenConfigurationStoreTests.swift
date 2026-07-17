@@ -270,6 +270,57 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
         XCTAssertEqual(try fixture.files.read(fixture.url), data)
         XCTAssertEqual(fixture.files.writeCount, writesBeforeLoad)
     }
+
+    func testValidReplacementCannotReopenStoreAfterMalformedLoadInSameProcess() async throws {
+        let fixture = try LockScreenConfigurationFixture()
+        defer { fixture.cleanup() }
+        let malformed = Data("not json".utf8)
+        try fixture.files.writeAtomically(malformed, to: fixture.url)
+        let writesBeforeLoad = fixture.files.writeCount
+
+        do {
+            _ = try await fixture.store.load()
+            XCTFail("Expected malformed load")
+        } catch {}
+        fixture.files.replaceExternally(
+            Data(#"{"schemaVersion":1,"isEnabled":false}"#.utf8),
+            at: fixture.url
+        )
+
+        do {
+            _ = try await fixture.store.load()
+            XCTFail("Expected failed store to reject reload until process relaunch")
+        } catch let error as LockScreenConfigurationStoreError {
+            XCTAssertEqual(error, .unavailableAfterLoadFailure)
+        }
+        do {
+            try await fixture.store.update(.disabled)
+            XCTFail("Expected failed store to reject mutation")
+        } catch let error as LockScreenConfigurationStoreError {
+            XCTAssertEqual(error, .unavailableAfterLoadFailure)
+        }
+
+        XCTAssertEqual(fixture.files.writeCount, writesBeforeLoad)
+    }
+
+    func testRestoreMarkerWithoutTransactionReferenceFailsClosed() async throws {
+        let fixture = try LockScreenConfigurationFixture()
+        defer { fixture.cleanup() }
+        _ = try await fixture.store.load()
+        let writesBeforeUpdate = fixture.files.writeCount
+        let invalid = LockScreenConfiguration(
+            isEnabled: true,
+            selectedAerialID: "com.apple.aerials.sea",
+            lastResult: .restoring
+        )
+
+        do {
+            try await fixture.store.update(invalid)
+            XCTFail("Expected restore marker without transaction to be rejected")
+        } catch {}
+
+        XCTAssertEqual(fixture.files.writeCount, writesBeforeUpdate)
+    }
 }
 
 private final class LockScreenConfigurationFixture {

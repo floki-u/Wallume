@@ -42,6 +42,9 @@ public actor LockScreenConfigurationStore {
 
     @discardableResult
     public func load() throws -> LockScreenConfiguration {
+        guard loadState != .failed else {
+            throw LockScreenConfigurationStoreError.unavailableAfterLoadFailure
+        }
         loadState = .failed
         do {
             guard files.exists(url) else {
@@ -142,6 +145,13 @@ public actor LockScreenConfigurationStore {
         if (configuration.lastSyncedMediaID == nil) != (configuration.lastSyncedAt == nil) {
             throw LockScreenConfigurationStoreError.incompleteSyncMetadata
         }
+        if configuration.lastResult == .restoring {
+            guard configuration.activeTransactionID != nil,
+                  configuration.lastSyncedMediaID != nil,
+                  configuration.lastSyncedAt != nil else {
+                throw LockScreenConfigurationStoreError.incompleteRestoreMarker
+            }
+        }
     }
 
     private func readValidatedFile() throws -> (
@@ -228,6 +238,7 @@ public enum LockScreenConfigurationStoreError: Error, Equatable {
     case enabledConfigurationMissingAerialID
     case disabledConfigurationContainsSyncState
     case incompleteSyncMetadata
+    case incompleteRestoreMarker
     case unavailableBeforeLoad
     case unavailableAfterLoadFailure
 }
@@ -242,6 +253,7 @@ extension LockScreenConfigurationStoreError: LocalizedError {
         case .enabledConfigurationMissingAerialID: "启用锁屏同步前必须选择 Aerial 槽"
         case .disabledConfigurationContainsSyncState: "已停用的锁屏配置不能保留同步状态"
         case .incompleteSyncMetadata: "锁屏同步媒体和时间必须同时存在"
+        case .incompleteRestoreMarker: "锁屏恢复标记必须引用活动事务和已同步媒体"
         case .unavailableBeforeLoad: "锁屏配置仍在加载，请稍后重试"
         case .unavailableAfterLoadFailure: "锁屏配置读取失败；为保护原文件，本次启动不允许修改"
         }

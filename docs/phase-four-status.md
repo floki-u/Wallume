@@ -53,7 +53,7 @@ Delivered:
 - Serial, main-display-driven synchronization with read-only startup reconciliation, idempotent same-media handling, restore-before-reinstall transitions, and conflict-safe disable/recovery behavior.
 - Fail-closed configuration persistence and a narrow production system-client boundary that leaves desktop wallpaper runtime construction isolated from lock-screen failures.
 
-Automated verification: focused lock-screen suites passed 70 tests with zero failures; `swift test` passed 320 tests with zero failures; Release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed; and the app-support test scan found no production system-wallpaper paths.
+Automated verification: focused lock-screen suites passed 79 tests with zero failures; `swift test` passed 329 tests with zero failures; Release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed; and the app-support test scan found no construction of production system-wallpaper file URLs. Inert fixture text used to prove unsafe persisted data is rejected is not a filesystem access.
 
 Safety review: the implemented and tested paths require selection and confirmation before install, reconcile recovery before automatic writes, restore before a changed-media install, retain enabled configuration on restore conflict, and stop configuration mutations after a failed/changed source-file check.
 

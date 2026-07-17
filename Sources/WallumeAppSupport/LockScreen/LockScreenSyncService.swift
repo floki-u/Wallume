@@ -126,6 +126,11 @@ public actor LockScreenSyncService {
         return ticket
     }
 
+    /// Explicit page API for re-evaluating probe, recovery, and the latest wallpaper input.
+    @discardableResult public func resynchronize() -> LockScreenCommandTicket? {
+        retry()
+    }
+
     public func events() -> AsyncStream<LockScreenSyncState> {
         let id = UUID()
         return AsyncStream { continuation in
@@ -145,6 +150,7 @@ public actor LockScreenSyncService {
 
     public func stopAcceptingNewCommandsAndWait() async {
         acceptingCommands = false
+        commands.removeAll()
         await waitForIdle()
     }
 
@@ -238,12 +244,12 @@ public actor LockScreenSyncService {
             publishRepair(.foreignBackup)
             return
         }
+        guard await align(configuration: loaded, candidates: candidates) else { return }
+        writesTrusted = true
         guard probed.writesPermitted else {
             publish(phase: .unsupported)
             return
         }
-        guard await align(configuration: loaded, candidates: candidates) else { return }
-        writesTrusted = true
         await evaluateLatestInput()
     }
 
@@ -266,8 +272,8 @@ public actor LockScreenSyncService {
             return
         }
         guard probed.writesPermitted else {
-            writesTrusted = false
             explicitRecoveryEligibleTransactionID = nil
+            writesTrusted = wasTrusted
             publish(phase: .unsupported)
             return
         }
@@ -289,6 +295,9 @@ public actor LockScreenSyncService {
 
         if let transactionID = loaded.activeTransactionID {
             guard let candidate = candidates.first(where: { $0.id == transactionID }) else {
+                if loaded.lastResult == .restoring {
+                    return await clearRestoredTransactionReference()
+                }
                 publishRepair(.missingConfiguredTransaction)
                 return false
             }
@@ -338,6 +347,22 @@ public actor LockScreenSyncService {
         return await persist(cleared)
     }
 
+    private func clearRestoredTransactionReference() async -> Bool {
+        guard let current = configuration,
+              current.isEnabled,
+              current.activeTransactionID != nil,
+              current.lastResult == .restoring else {
+            publishRepair(.missingConfiguredTransaction)
+            return false
+        }
+        let cleared = LockScreenConfiguration(
+            isEnabled: true,
+            selectedAerialID: current.selectedAerialID,
+            lastResult: .waiting
+        )
+        return await persist(cleared)
+    }
+
     private func restoreOrphan(_ transactionID: UUID) async -> Bool {
         publish(phase: .restoring)
         guard await restoreWithoutConflict(transactionID) else { return false }
@@ -372,14 +397,31 @@ public actor LockScreenSyncService {
             return
         }
         let evaluatedRevision = inputRevision
-        if current.activeTransactionID != nil, current.lastSyncedMediaID == media.id {
+        if current.activeTransactionID != nil,
+           current.lastSyncedMediaID == media.id,
+           current.lastResult != .restoring {
             publish(phase: .synced)
             return
         }
 
         if let activeTransactionID = current.activeTransactionID {
             publish(phase: .restoring)
-            guard await restoreWithoutConflict(activeTransactionID) else { return }
+            let restoring = LockScreenConfiguration(
+                isEnabled: true,
+                selectedAerialID: current.selectedAerialID,
+                activeTransactionID: current.activeTransactionID,
+                lastSyncedMediaID: current.lastSyncedMediaID,
+                lastSyncedAt: current.lastSyncedAt,
+                lastResult: .restoring
+            )
+            guard await persist(restoring) else { return }
+            guard await restoreWithoutConflict(activeTransactionID) else {
+                let restoreError = latestState.lastError
+                if await persist(current) {
+                    publish(phase: .needsRepair, error: restoreError)
+                }
+                return
+            }
             let cleared = LockScreenConfiguration(
                 isEnabled: true,
                 selectedAerialID: current.selectedAerialID,

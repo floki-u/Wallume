@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import WallumeCore
 
 public struct LockScreenPageViewState: Equatable, Sendable {
@@ -27,6 +28,8 @@ public struct LockScreenPageViewState: Equatable, Sendable {
     public let canRequestEnable: Bool
     public let canRestore: Bool
     public let canRetry: Bool
+    public let canResynchronize: Bool
+    public let canExportDiagnostics: Bool
     public let showsRiskConfirmation: Bool
     public let nextAction: NextAction
 
@@ -45,6 +48,9 @@ public struct LockScreenPageViewState: Equatable, Sendable {
         canRequestEnable = state.capabilities.canConfirmEnable
         canRestore = state.capabilities.canDisableAndRestore
         canRetry = state.capabilities.canRetry
+        let isBusy = state.phase == .probing || state.phase == .syncing || state.phase == .restoring
+        canResynchronize = state.phase != .unconfigured && !isBusy
+        canExportDiagnostics = true
         showsRiskConfirmation = state.capabilities.canConfirmEnable && state.selectedAerialID != nil
 
         switch state.phase {
@@ -96,6 +102,8 @@ public struct LockScreenView: View {
     @Bindable private var store: LockScreenFeatureStore
     private let openSystemWallpaperSettings: () -> Void
     @State private var presentsConfirmation = false
+    @State private var presentsDiagnosticExporter = false
+    @State private var diagnosticDocument: LockScreenDiagnosticDocument?
 
     public init(
         store: LockScreenFeatureStore,
@@ -128,6 +136,16 @@ public struct LockScreenView: View {
             Text(store.pageError ?? "")
         }
         .sheet(isPresented: $presentsConfirmation) { confirmationSheet }
+        .fileExporter(
+            isPresented: $presentsDiagnosticExporter,
+            document: diagnosticDocument,
+            contentType: .json,
+            defaultFilename: "Wallume-lock-screen-diagnostics"
+        ) { result in
+            if case let .failure(error) = result {
+                store.reportPageError(error.localizedDescription)
+            }
+        }
     }
 
     private func statusCard(_ page: LockScreenPageViewState) -> some View {
@@ -222,6 +240,21 @@ public struct LockScreenView: View {
             if page.canRetry {
                 Button("重新检测并重试") { Task { await store.retry() } }
             }
+            if page.canResynchronize {
+                Button("重新同步") { Task { await store.resynchronize() } }
+            }
+            if page.canExportDiagnostics {
+                Button("导出本地诊断") {
+                    do {
+                        diagnosticDocument = LockScreenDiagnosticDocument(
+                            data: try store.makeDiagnosticExportData()
+                        )
+                        presentsDiagnosticExporter = true
+                    } catch {
+                        store.reportPageError(error.localizedDescription)
+                    }
+                }
+            }
         }
         .padding(16)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
@@ -276,5 +309,20 @@ public struct LockScreenView: View {
         case .tahoe: "Tahoe"
         case let .unsupported(version): "不支持的版本 \(version)"
         }
+    }
+}
+
+private struct LockScreenDiagnosticDocument: FileDocument {
+    static let readableContentTypes: [UTType] = [.json]
+    let data: Data
+
+    init(data: Data) { self.data = data }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
     }
 }

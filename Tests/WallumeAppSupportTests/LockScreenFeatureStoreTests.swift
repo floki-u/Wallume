@@ -16,7 +16,8 @@ final class LockScreenFeatureStoreTests: XCTestCase {
                 selectAerialSlot: { await recorder.append("select:\($0)"); return nil },
                 confirmEnable: { await recorder.append("confirm"); return nil },
                 disableAndRestore: { await recorder.append("restore"); return nil },
-                retry: { await recorder.append("retry"); return nil }
+                retry: { await recorder.append("retry"); return nil },
+                resynchronize: { await recorder.append("resynchronize"); return nil }
             )
         )
 
@@ -30,9 +31,36 @@ final class LockScreenFeatureStoreTests: XCTestCase {
         await store.confirmEnable()
         await store.disableAndRestore()
         await store.retry()
+        await store.resynchronize()
 
         let commands = await recorder.commands
-        XCTAssertEqual(commands, ["refresh", "select:\(fixture.aerialID)", "confirm", "restore", "retry"])
+        XCTAssertEqual(
+            commands,
+            ["refresh", "select:\(fixture.aerialID)", "confirm", "restore", "retry", "resynchronize"]
+        )
+    }
+
+    @MainActor
+    func testDiagnosticExportIsLocalPathFreeSnapshotWithoutSystemWrites() async throws {
+        let fixture = try LockScreenFeatureStoreFixture()
+        defer { fixture.cleanup() }
+        let store = LockScreenFeatureStore(service: fixture.service)
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+        await eventually { store.state.phase == .readyToConfigure }
+        let callsBeforeExport = fixture.client.probeCallCount
+
+        let data = try store.makeDiagnosticExportData()
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(object["schemaVersion"] as? Int, 1)
+        XCTAssertEqual(object["phase"] as? String, "readyToConfigure")
+        XCTAssertEqual(object["macOSGeneration"] as? String, "sequoia")
+        XCTAssertEqual(object["availableSlotCount"] as? Int, 1)
+        XCTAssertEqual(fixture.client.probeCallCount, callsBeforeExport)
+        let text = try XCTUnwrap(String(data: data, encoding: .utf8))
+        XCTAssertFalse(text.contains(fixture.root.path))
+        XCTAssertFalse(text.contains("/fixture.mov"))
     }
 
     @MainActor

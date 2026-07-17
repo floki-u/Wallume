@@ -50,6 +50,8 @@ final class LockScreenViewTests: XCTestCase {
         XCTAssertEqual(model.syncedAt, date)
         XCTAssertEqual(model.syncTimeText, date.formatted(date: .abbreviated, time: .shortened))
         XCTAssertTrue(model.canRestore)
+        XCTAssertTrue(model.canResynchronize)
+        XCTAssertTrue(model.canExportDiagnostics)
     }
 
     func testRepairStateOffersRestoreAndRetry() {

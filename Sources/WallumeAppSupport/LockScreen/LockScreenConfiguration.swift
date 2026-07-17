@@ -44,6 +44,7 @@ public struct LockScreenConfiguration: Codable, Equatable, Sendable {
 public enum LockScreenConfigurationResult: String, Codable, Equatable, Sendable {
     case synced
     case waiting
+    case restoring
     case failed
     case needsRepair
 }
