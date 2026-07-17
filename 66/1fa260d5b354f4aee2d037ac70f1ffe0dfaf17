@@ -1,0 +1,48 @@
+docs/superpowers/specs/2026-07-17-lock-screen-performance-settings-design.md
+  32e54daf3a523c64 1-190
+docs/superpowers/specs/2026-07-17-lock-screen-application-sync-design.md
+  32e54daf3a523c64 1-57
+docs/superpowers/specs/2026-07-17-performance-diagnostics-page-design.md
+  32e54daf3a523c64 1-36
+docs/superpowers/specs/2026-07-17-settings-page-design.md
+  32e54daf3a523c64 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "661fa260d5b354f4aee2d037ac70f1ffe0dfaf17",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 322,
+      "total_deletions": 2,
+      "accepted_lines": 320,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/superpowers/specs/2026-07-17-settings-page-design.md": {
+          "additions": 37,
+          "accepted_lines": 37
+        },
+        "docs/superpowers/specs/2026-07-17-lock-screen-performance-settings-design.md": {
+          "additions": 192,
+          "deletions": 2,
+          "accepted_lines": 190
+        },
+        "docs/superpowers/specs/2026-07-17-performance-diagnostics-page-design.md": {
+          "additions": 36,
+          "accepted_lines": 36
+        },
+        "docs/superpowers/specs/2026-07-17-lock-screen-application-sync-design.md": {
+          "additions": 57,
+          "accepted_lines": 57
+        }
+      }
+    }
+  }
+}
