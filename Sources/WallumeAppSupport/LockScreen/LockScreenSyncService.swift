@@ -229,6 +229,7 @@ public actor LockScreenSyncService {
             publishRepair(.probeFailed)
             return
         }
+        guard acceptingCommands else { return }
         probeReport = probed
 
         let candidates: [RecoveryCandidate]
@@ -239,6 +240,7 @@ public actor LockScreenSyncService {
             publishRepair(.recoveryInspectionFailed)
             return
         }
+        guard acceptingCommands else { return }
 
         guard probed.foreignBackupNames.isEmpty else {
             publishRepair(.foreignBackup)
@@ -295,9 +297,6 @@ public actor LockScreenSyncService {
 
         if let transactionID = loaded.activeTransactionID {
             guard let candidate = candidates.first(where: { $0.id == transactionID }) else {
-                if loaded.lastResult == .restoring {
-                    return await clearRestoredTransactionReference()
-                }
                 publishRepair(.missingConfiguredTransaction)
                 return false
             }
@@ -308,14 +307,11 @@ public actor LockScreenSyncService {
             switch candidate.phase {
             case .committed:
                 return true
-            case .prepared, .writing, .restoring:
+            case .prepared, .writing, .restoring, .restored:
                 return await restoreConfiguredTransaction(transactionID)
             case .conflicted:
                 explicitRecoveryEligibleTransactionID = transactionID
                 publishRepair(.conflictedTransaction)
-                return false
-            case .restored:
-                publishRepair(.unsupportedRecoveryPhase)
                 return false
             }
         }
@@ -347,22 +343,6 @@ public actor LockScreenSyncService {
         return await persist(cleared)
     }
 
-    private func clearRestoredTransactionReference() async -> Bool {
-        guard let current = configuration,
-              current.isEnabled,
-              current.activeTransactionID != nil,
-              current.lastResult == .restoring else {
-            publishRepair(.missingConfiguredTransaction)
-            return false
-        }
-        let cleared = LockScreenConfiguration(
-            isEnabled: true,
-            selectedAerialID: current.selectedAerialID,
-            lastResult: .waiting
-        )
-        return await persist(cleared)
-    }
-
     private func restoreOrphan(_ transactionID: UUID) async -> Bool {
         publish(phase: .restoring)
         guard await restoreWithoutConflict(transactionID) else { return false }
@@ -379,7 +359,7 @@ public actor LockScreenSyncService {
     }
 
     private func evaluateLatestInput() async {
-        guard writesTrusted else { return }
+        guard acceptingCommands, writesTrusted else { return }
         guard let current = configuration else {
             publishRepair(.configurationUnavailable)
             return
@@ -405,6 +385,7 @@ public actor LockScreenSyncService {
         }
 
         if let activeTransactionID = current.activeTransactionID {
+            guard acceptingCommands else { return }
             publish(phase: .restoring)
             let restoring = LockScreenConfiguration(
                 isEnabled: true,
@@ -422,6 +403,7 @@ public actor LockScreenSyncService {
                 }
                 return
             }
+            guard acceptingCommands else { return }
             let cleared = LockScreenConfiguration(
                 isEnabled: true,
                 selectedAerialID: current.selectedAerialID,
@@ -433,11 +415,13 @@ public actor LockScreenSyncService {
                 return
             }
         }
+        guard acceptingCommands else { return }
         await install(media)
     }
 
     private func install(_ media: MediaItem) async {
-        guard let current = configuration,
+        guard acceptingCommands,
+              let current = configuration,
               current.isEnabled,
               let aerialID = current.selectedAerialID else {
             publishRepair(.confirmationUnavailable)
@@ -562,6 +546,7 @@ public actor LockScreenSyncService {
     }
 
     private func restoreWithoutConflict(_ transactionID: UUID) async -> Bool {
+        guard acceptingCommands else { return false }
         let report: RecoveryReport
         do {
             let client = systemClient

@@ -42,6 +42,9 @@ public actor LockScreenConfigurationStore {
 
     @discardableResult
     public func load() throws -> LockScreenConfiguration {
+        if loadState == .loaded {
+            return value
+        }
         guard loadState != .failed else {
             throw LockScreenConfigurationStoreError.unavailableAfterLoadFailure
         }

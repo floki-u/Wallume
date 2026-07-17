@@ -211,26 +211,19 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
         XCTAssertEqual(fixture.advisoryLock.acquireCount, 1)
     }
 
-    func testFailedReloadPublishesDisabledSnapshotToExistingSubscribers() async throws {
+    func testLoadedStoreDoesNotRereadMalformedExternalReplacement() async throws {
         let fixture = try LockScreenConfigurationFixture()
         defer { fixture.cleanup() }
         let enabled = LockScreenConfiguration(isEnabled: true, selectedAerialID: "com.apple.aerials.sea")
         _ = try await fixture.store.load()
         try await fixture.store.update(enabled)
-        let stream = await fixture.store.events()
-        var iterator = stream.makeAsyncIterator()
-        let initial = await iterator.next()
-        XCTAssertEqual(initial, enabled)
-
         let invalidData = Data("not json".utf8)
         try fixture.files.writeAtomically(invalidData, to: fixture.url)
-        do {
-            _ = try await fixture.store.load()
-            XCTFail("Expected malformed reload")
-        } catch {}
+        let retried = try await fixture.store.load()
 
-        let safe = await iterator.next()
-        XCTAssertEqual(safe, .disabled)
+        XCTAssertEqual(retried, enabled)
+        let snapshot = await fixture.store.snapshot()
+        XCTAssertEqual(snapshot, enabled)
     }
 
     func testMutationBeforeLoadDoesNotAttemptWrite() async throws {
@@ -320,6 +313,23 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
         } catch {}
 
         XCTAssertEqual(fixture.files.writeCount, writesBeforeUpdate)
+    }
+
+    func testLoadedStoreReturnsTrustedSnapshotWithoutRereadingExternalReplacement() async throws {
+        let fixture = try LockScreenConfigurationFixture()
+        defer { fixture.cleanup() }
+        let initial = try await fixture.store.load()
+        XCTAssertEqual(initial, .disabled)
+        fixture.files.replaceExternally(
+            Data(#"{"schemaVersion":1,"isEnabled":true,"selectedAerialID":"com.apple.aerials.sea"}"#.utf8),
+            at: fixture.url
+        )
+
+        let retried = try await fixture.store.load()
+
+        XCTAssertEqual(retried, .disabled)
+        let snapshot = await fixture.store.snapshot()
+        XCTAssertEqual(snapshot, .disabled)
     }
 }
 

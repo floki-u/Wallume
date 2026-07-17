@@ -219,6 +219,38 @@ final class LockScreenSyncServiceTests: XCTestCase {
         }
     }
 
+    func testConfiguredRestoredTransactionResumesCleanupBeforeResynchronizing() async throws {
+        let transactionID = LockScreenSyncFixture.existingTransactionID
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .enabled(
+                aerialID: aerialID,
+                transactionID: transactionID,
+                mediaID: LockScreenSyncFixture.firstMediaID
+            ),
+            recoveryResults: [.success([.candidate(
+                id: transactionID,
+                phase: .restored,
+                aerialID: aerialID
+            )])]
+        )
+        defer { fixture.cleanup() }
+        let replacement = try fixture.makeAvailableMedia(id: fixture.secondMediaID, name: "Second")
+        await fixture.service.apply(input: fixture.input(media: replacement))
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(
+            fixture.client.calls,
+            [
+                .probe,
+                .inspectRecovery,
+                .restore(transactionID: transactionID),
+                .install(mediaID: replacement.id, aerialID: aerialID),
+            ]
+        )
+    }
+
     func testConfiguredConflictBlocksWrites() async throws {
         let fixture = try await LockScreenSyncFixture.make(
             configuration: .enabled(
@@ -588,6 +620,25 @@ final class LockScreenSyncServiceTests: XCTestCase {
         })
         let state = await fixture.service.snapshot()
         XCTAssertEqual(state.phase, .needsRepair)
+    }
+
+    func testRetryDoesNotAdoptValidExternalConfigurationReplacementAfterInitialLoad() async throws {
+        let fixture = try await LockScreenSyncFixture.make()
+        defer { fixture.cleanup() }
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+        let external = LockScreenConfiguration(isEnabled: true, selectedAerialID: aerialID)
+        try AtomicJSONStore(files: fixture.files).write(external, to: fixture.configurationURL)
+        let media = try fixture.makeAvailableMedia(id: fixture.firstMediaID, name: "First")
+        await fixture.service.apply(input: fixture.input(media: media))
+
+        await fixture.service.retry()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery, .probe, .inspectRecovery])
+        XCTAssertFalse(fixture.client.calls.contains { if case .install = $0 { return true }; return false })
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .readyToConfigure)
     }
 
     func testMultipleRecoveryCandidatesBlockAllWrites() async throws {
@@ -1226,7 +1277,7 @@ final class LockScreenSyncServiceTests: XCTestCase {
         await fixture.service.waitForIdle()
     }
 
-    func testRestartAfterVerifiedMediaSwitchRestoreWithOmittedJournalResynchronizes() async throws {
+    func testRestartWithRestoreMarkerAndMissingReferencedJournalFailsClosed() async throws {
         let staleReference = LockScreenConfiguration(
             isEnabled: true,
             selectedAerialID: aerialID,
@@ -1246,15 +1297,45 @@ final class LockScreenSyncServiceTests: XCTestCase {
         await fixture.service.start()
         await fixture.service.waitForIdle()
 
-        XCTAssertEqual(
-            fixture.client.calls,
-            [.probe, .inspectRecovery, .install(mediaID: replacement.id, aerialID: aerialID)]
-        )
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+        XCTAssertFalse(fixture.client.calls.contains { if case .install = $0 { return true }; return false })
         let persisted = try await fixture.reloadedConfiguration()
-        XCTAssertEqual(persisted.activeTransactionID, fixture.installedTransactionID)
-        XCTAssertEqual(persisted.lastSyncedMediaID, replacement.id)
+        XCTAssertEqual(persisted, staleReference)
         let state = await fixture.service.snapshot()
-        XCTAssertEqual(state.phase, .synced)
+        XCTAssertEqual(state.phase, .needsRepair)
+    }
+
+    func testRestartWithRestoreMarkerAndUnrelatedJournalFailsClosed() async throws {
+        let transactionID = LockScreenSyncFixture.existingTransactionID
+        let staleReference = LockScreenConfiguration(
+            isEnabled: true,
+            selectedAerialID: aerialID,
+            activeTransactionID: transactionID,
+            lastSyncedMediaID: LockScreenSyncFixture.firstMediaID,
+            lastSyncedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            lastResult: .restoring
+        )
+        let unrelatedID = fixtureID(88)
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: staleReference,
+            recoveryResults: [.success([.candidate(
+                id: unrelatedID,
+                phase: .committed,
+                aerialID: aerialID
+            )])]
+        )
+        defer { fixture.cleanup() }
+        let replacement = try fixture.makeAvailableMedia(id: fixture.secondMediaID, name: "Second")
+        await fixture.service.apply(input: fixture.input(media: replacement))
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+        let persisted = try await fixture.reloadedConfiguration()
+        XCTAssertEqual(persisted, staleReference)
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .needsRepair)
     }
 
     func testStopAfterIdleRejectsLaterCommands() async throws {
@@ -1314,6 +1395,82 @@ final class LockScreenSyncServiceTests: XCTestCase {
         let persisted = try await fixture.reloadedConfiguration()
         XCTAssertEqual(persisted.activeTransactionID, firstTransactionID)
         XCTAssertEqual(persisted.lastSyncedMediaID, first.id)
+    }
+
+    func testTerminationDuringStartupProbePreventsSubsequentRecoveryMutation() async throws {
+        let gate = BlockingClientGate()
+        let transactionID = LockScreenSyncFixture.existingTransactionID
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .enabled(
+                aerialID: aerialID,
+                transactionID: transactionID,
+                mediaID: LockScreenSyncFixture.firstMediaID
+            ),
+            recoveryResults: [.success([.candidate(
+                id: transactionID,
+                phase: .writing,
+                aerialID: aerialID
+            )])],
+            probeGate: gate
+        )
+        defer { fixture.cleanup() }
+        await fixture.service.start()
+        XCTAssertTrue(gate.waitUntilEntered(timeout: 2))
+
+        let service = fixture.service
+        let stopped = expectation(description: "termination finishes after probe")
+        Task { await service.stopAcceptingNewCommandsAndWait(); stopped.fulfill() }
+        var admissionClosed = false
+        for _ in 0..<100 where !admissionClosed {
+            admissionClosed = await fixture.service.retry() == nil
+            if !admissionClosed { await Task.yield() }
+        }
+        XCTAssertTrue(admissionClosed)
+        gate.release()
+        await fulfillment(of: [stopped], timeout: 2)
+
+        XCTAssertEqual(fixture.client.calls, [.probe])
+    }
+
+    func testTerminationAfterMediaSwitchRestorePreventsReplacementInstall() async throws {
+        let gate = BlockingClientGate()
+        let transactionID = LockScreenSyncFixture.existingTransactionID
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .enabled(
+                aerialID: aerialID,
+                transactionID: transactionID,
+                mediaID: LockScreenSyncFixture.firstMediaID
+            ),
+            recoveryResults: [.success([.candidate(
+                id: transactionID,
+                phase: .committed,
+                aerialID: aerialID
+            )])],
+            restoreGate: gate
+        )
+        defer { fixture.cleanup() }
+        let replacement = try fixture.makeAvailableMedia(id: fixture.secondMediaID, name: "Second")
+        await fixture.service.apply(input: fixture.input(media: replacement))
+        await fixture.service.start()
+        XCTAssertTrue(gate.waitUntilEntered(timeout: 2))
+
+        let service = fixture.service
+        let stopped = expectation(description: "termination waits for restore")
+        Task { await service.stopAcceptingNewCommandsAndWait(); stopped.fulfill() }
+        var admissionClosed = false
+        for _ in 0..<100 where !admissionClosed {
+            admissionClosed = await fixture.service.retry() == nil
+            if !admissionClosed { await Task.yield() }
+        }
+        XCTAssertTrue(admissionClosed)
+        gate.release()
+        await fulfillment(of: [stopped], timeout: 2)
+
+        XCTAssertEqual(
+            fixture.client.calls,
+            [.probe, .inspectRecovery, .restore(transactionID: transactionID)]
+        )
+        XCTAssertFalse(fixture.client.calls.contains { if case .install = $0 { return true }; return false })
     }
 
     func testUnsupportedProbeStillInspectsRecoveryButBlocksInstall() async throws {
@@ -1493,6 +1650,7 @@ private final class FakeLockScreenSystemClient: LockScreenSystemClient, @uncheck
     private let lock = NSLock()
     private let installGate: BlockingClientGate?
     private let restoreGate: BlockingClientGate?
+    private let probeGate: BlockingClientGate?
     private var recordedCalls: [Call] = []
     var calls: [Call] {
         lock.lock()
@@ -1512,6 +1670,7 @@ private final class FakeLockScreenSystemClient: LockScreenSystemClient, @uncheck
         restoreResults = [restoreResult]
         installGate = nil
         restoreGate = nil
+        probeGate = nil
     }
 
     init(
@@ -1519,6 +1678,7 @@ private final class FakeLockScreenSystemClient: LockScreenSystemClient, @uncheck
         installResults: [Result<LockScreenTransactionManifest, FakeClientError>],
         recoveryResults: [Result<[RecoveryCandidate], FakeClientError>],
         restoreResults: [Result<RecoveryReport, FakeClientError>],
+        probeGate: BlockingClientGate? = nil,
         installGate: BlockingClientGate? = nil,
         restoreGate: BlockingClientGate? = nil
     ) {
@@ -1526,6 +1686,7 @@ private final class FakeLockScreenSystemClient: LockScreenSystemClient, @uncheck
         self.installResults = installResults
         self.recoveryResults = recoveryResults
         self.restoreResults = restoreResults
+        self.probeGate = probeGate
         self.installGate = installGate
         self.restoreGate = restoreGate
     }
@@ -1535,6 +1696,7 @@ private final class FakeLockScreenSystemClient: LockScreenSystemClient, @uncheck
         recordedCalls.append(.probe)
         let result = next(&probeResults)
         lock.unlock()
+        probeGate?.enterAndWaitOnce()
         return try result.get()
     }
 
@@ -1653,6 +1815,7 @@ private final class LockScreenSyncFixture {
         ],
         recoveryResults: [Result<[RecoveryCandidate], FakeClientError>] = [.success([])],
         restoreResults: [Result<RecoveryReport, FakeClientError>] = [.success(.conflictFree)],
+        probeGate: BlockingClientGate? = nil,
         installGate: BlockingClientGate? = nil,
         restoreGate: BlockingClientGate? = nil
     ) async throws -> LockScreenSyncFixture {
@@ -1683,6 +1846,7 @@ private final class LockScreenSyncFixture {
             installResults: installResults,
             recoveryResults: recoveryResults,
             restoreResults: restoreResults,
+            probeGate: probeGate,
             installGate: installGate,
             restoreGate: restoreGate
         )
