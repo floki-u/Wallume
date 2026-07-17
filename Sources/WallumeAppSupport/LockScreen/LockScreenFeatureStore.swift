@@ -47,7 +47,7 @@ public final class LockScreenFeatureStore {
 
     private enum PageErrorSource {
         case command(ticket: LockScreenCommandTicket?)
-        case service
+        case service(baselineGeneration: UInt64)
         case reported
     }
     private let commands: LockScreenFeatureCommands
@@ -104,8 +104,10 @@ public final class LockScreenFeatureStore {
         state = snapshot
         if let error = snapshot.lastError {
             pageError = error
-            pageErrorSource = snapshot.errorOriginTicket.map { .command(ticket: $0) } ?? .service
-        } else if case .service? = pageErrorSource,
+            pageErrorSource = snapshot.errorOriginTicket.map { .command(ticket: $0) }
+                ?? .service(baselineGeneration: snapshot.completedCommandGeneration)
+        } else if case let .service(baselineGeneration) = pageErrorSource,
+                  snapshot.completedCommandGeneration > baselineGeneration,
                   snapshot.lastCompletedCommandSucceeded == true {
             pageError = nil
             pageErrorSource = nil
