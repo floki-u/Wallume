@@ -13,7 +13,7 @@ Updated: 2026-07-17
 
 ## Current position
 
-Phase 4 batch 3 Lock Screen engineering and automated verification are complete: the focused Lock Screen suites passed 85 tests, the full suite passed 335 tests, and all four release products built successfully. The safety review found the required fail-closed and recovery ordering safeguards covered by implementation and automated tests. Real-device/system-wallpaper acceptance is still pending manual verification. Phase 4 itself remains in progress.
+Phase 4 batch 3 Lock Screen engineering and automated verification are complete: the focused Lock Screen suites passed 86 tests, the full suite passed 336 tests, and all four release products built successfully. The safety review found the required fail-closed and recovery ordering safeguards covered by implementation and automated tests. Real-device/system-wallpaper acceptance is still pending manual verification. Phase 4 itself remains in progress.
 
 ## Next work
 

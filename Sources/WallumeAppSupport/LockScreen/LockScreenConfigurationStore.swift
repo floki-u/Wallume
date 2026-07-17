@@ -74,6 +74,29 @@ public actor LockScreenConfigurationStore {
 
     public func snapshot() -> LockScreenConfiguration { value }
 
+    /// Confirms the source accepted by `load()` or the latest `update(_:)` is still unchanged.
+    ///
+    /// This intentionally does not reload the file: callers may use it before an irreversible
+    /// system mutation without adopting a replacement supplied by another process.
+    public func verifyTrustedSource() throws {
+        try ensureAcceptsMutations()
+        let token: any AdvisoryLockToken
+        do {
+            token = try advisoryLock.acquire()
+        } catch {
+            transitionToFailed()
+            throw error
+        }
+        defer { withExtendedLifetime(token) {} }
+
+        do {
+            try verifyPersistedFileIsUnchanged()
+        } catch {
+            transitionToFailed()
+            throw error
+        }
+    }
+
     public func update(_ configuration: LockScreenConfiguration) throws {
         try ensureAcceptsMutations()
         try validate(configuration)

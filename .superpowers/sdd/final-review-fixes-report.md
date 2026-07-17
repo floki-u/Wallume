@@ -16,10 +16,10 @@ All six merge-blocking review findings are resolved without broadening the syste
 ## Verification
 
 - `swift test --filter LockScreenConfigurationStoreTests`: 16 passed.
-- `swift test --filter LockScreenSyncServiceTests`: 55 passed.
+- `swift test --filter LockScreenSyncServiceTests`: 56 passed.
 - `swift test --filter LockScreenFeatureStoreTests`: 6 passed.
 - `swift test --filter LockScreenViewTests`: 8 passed.
-- `swift test`: 335 passed.
+- `swift test`: 336 passed.
 - Release builds passed for `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore`.
 - `git diff --check`: passed.
 - Documented production-URL construction scan: passed.
@@ -31,3 +31,8 @@ No real system wallpaper path or process is used by the new tests. Real-device/s
 1. A loaded configuration store returns its trusted in-memory snapshot on retry/re-sync; only a fresh store/process reads disk again.
 2. Restore markers no longer authorize clearing an absent referenced transaction. Missing or unrelated candidates fail closed, while a matching `.restored` candidate resumes idempotent terminal cleanup before reevaluation.
 3. Termination is checked after probe/inspection and around every new install/restore boundary. A gated probe cannot advance to recovery after termination, and a restore already in progress can finish without beginning a replacement install.
+
+## Third Final Review Fixes
+
+1. Once a media-switch restore reaches a verified endpoint, the service durably clears the restoring reference before it observes termination. Shutdown therefore prevents the replacement install without leaving a stale restore marker for the next process.
+2. Every new install now verifies the previously trusted configuration source immediately beforehand. This non-adopting check rejects both malformed and valid external replacements, transitions to repair, and issues no system install.

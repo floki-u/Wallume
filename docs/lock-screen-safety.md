@@ -33,6 +33,8 @@ Wallume may write only after an explicit install or restore command:
 
 `entries.json` is always read-only. Wallume never writes `/System`, never requests root, and never changes authentication or unlock behavior.
 
+Before every new installation, Wallume verifies that its already-loaded configuration source is still the same safe regular file and has identical bytes. It does not reload or adopt an externally replaced configuration at that boundary; any replacement, corruption, unsafe path, or verification failure stops the install and enters repair.
+
 ## Explicit Slot Rule
 
 Wallume never chooses the first Aerial slot implicitly. Installation requires an explicit Aerial UUID that is present in `entries.json` and has a matching downloaded `.mov` file. Any foreign backup or unknown sidecar file for that slot blocks installation.

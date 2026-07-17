@@ -641,6 +641,33 @@ final class LockScreenSyncServiceTests: XCTestCase {
         XCTAssertEqual(state.phase, .readyToConfigure)
     }
 
+    func testInstallPreflightRejectsExternalConfigurationChangesBeforeSystemInstall() async throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let replacements = [
+            Data("not json".utf8),
+            try encoder.encode(LockScreenConfiguration(isEnabled: true, selectedAerialID: "external-slot")),
+        ]
+
+        for replacement in replacements {
+            let fixture = try await LockScreenSyncFixture.make(configuration: .enabled(aerialID: aerialID))
+            defer { fixture.cleanup() }
+            await fixture.service.start()
+            await fixture.service.waitForIdle()
+            let waitingState = await fixture.service.snapshot()
+            XCTAssertEqual(waitingState.phase, .waitingForMainWallpaper)
+
+            try fixture.files.writeAtomically(replacement, to: fixture.configurationURL)
+            let media = try fixture.makeAvailableMedia(id: fixture.firstMediaID, name: "First")
+            await fixture.service.apply(input: fixture.input(media: media))
+            await fixture.service.waitForIdle()
+
+            XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+            let state = await fixture.service.snapshot()
+            XCTAssertEqual(state.phase, .needsRepair)
+        }
+    }
+
     func testMultipleRecoveryCandidatesBlockAllWrites() async throws {
         let fixture = try await LockScreenSyncFixture.make(
             configuration: .enabled(aerialID: aerialID),
@@ -1471,6 +1498,13 @@ final class LockScreenSyncServiceTests: XCTestCase {
             [.probe, .inspectRecovery, .restore(transactionID: transactionID)]
         )
         XCTAssertFalse(fixture.client.calls.contains { if case .install = $0 { return true }; return false })
+        let persisted = try await fixture.reloadedConfiguration()
+        XCTAssertTrue(persisted.isEnabled)
+        XCTAssertEqual(persisted.selectedAerialID, aerialID)
+        XCTAssertNil(persisted.activeTransactionID)
+        XCTAssertNil(persisted.lastSyncedMediaID)
+        XCTAssertNil(persisted.lastSyncedAt)
+        XCTAssertEqual(persisted.lastResult, .waiting)
     }
 
     func testUnsupportedProbeStillInspectsRecoveryButBlocksInstall() async throws {

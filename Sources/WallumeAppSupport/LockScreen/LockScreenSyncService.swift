@@ -403,13 +403,13 @@ public actor LockScreenSyncService {
                 }
                 return
             }
-            guard acceptingCommands else { return }
             let cleared = LockScreenConfiguration(
                 isEnabled: true,
                 selectedAerialID: current.selectedAerialID,
                 lastResult: .waiting
             )
             guard await persist(cleared) else { return }
+            guard acceptingCommands else { return }
             if evaluatedRevision != inputRevision {
                 await evaluateLatestInput()
                 return
@@ -427,6 +427,14 @@ public actor LockScreenSyncService {
             publishRepair(.confirmationUnavailable)
             return
         }
+        do {
+            try await configurationStore.verifyTrustedSource()
+        } catch {
+            configuration = nil
+            publishRepair(.configurationUnavailable)
+            return
+        }
+        guard acceptingCommands else { return }
         publish(phase: .syncing)
         let manifest: LockScreenTransactionManifest
         do {
