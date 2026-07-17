@@ -22,6 +22,16 @@ final class AppKitShellTests: XCTestCase {
         XCTAssertEqual(StatusItemController.title(for: .init(items: [failed], warnings: [], isActive: false)), "1 个导入失败")
     }
 
+    func testCombinedStatusTitleUsesImportFirstThenWallpaperState() {
+        let idle = ImportQueueSnapshot(items: [], warnings: [], isActive: false)
+        XCTAssertEqual(StatusItemController.title(for: StatusItemState(imports: idle, activeDisplayCount: 2, pauseReasons: [.user])), "已暂停 · 2 台显示器")
+        XCTAssertEqual(StatusItemController.title(for: StatusItemState(imports: idle, activeDisplayCount: 2, pauseReasons: [])), "播放中 · 2 台显示器")
+
+        let running = ImportQueueItem(source: URL(fileURLWithPath: "/a.mov"), attempts: [.init(status: .running)])
+        let importing = ImportQueueSnapshot(items: [running], warnings: [], isActive: true)
+        XCTAssertEqual(StatusItemController.title(for: StatusItemState(imports: importing, activeDisplayCount: 2, pauseReasons: [])), "导入 0/1")
+    }
+
     func testPanelConfigurationsSeparateFilesAndFolders() {
         XCTAssertTrue(ImportPanelConfiguration.files.allowsMultipleSelection)
         XCTAssertFalse(ImportPanelConfiguration.files.canChooseDirectories)

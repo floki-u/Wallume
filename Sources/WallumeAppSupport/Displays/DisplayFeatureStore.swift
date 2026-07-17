@@ -70,7 +70,6 @@ public final class DisplayFeatureStore {
         assignmentTargets = catalog.filter { $0.connection == .connected }
         userPaused = assignments.userPaused
         effectivePauseReasons = runtime?.pauseReasons ?? (assignments.userPaused ? [.user] : [])
-        pageError = nil
     }
 
     public func assign(mediaID: UUID, displayIDs: Set<DisplayID>) async { await perform { try await commands.assign(mediaID, displayIDs) } }
@@ -79,6 +78,8 @@ public final class DisplayFeatureStore {
     public func setPresentationMode(_ mode: WallpaperPresentationMode, displayID: DisplayID) async { await perform { try await commands.setMode(mode, displayID) } }
     public func setUserPaused(_ paused: Bool) async { await perform { try await commands.setPaused(paused) } }
     public func retry(displayID: DisplayID) async { await perform { try await commands.retry(displayID) } }
+    public func reportPageError(_ message: String) { pageError = message }
+    public func dismissPageError() { pageError = nil }
 
     private func perform(_ operation: () async throws -> Void) async {
         do { try await operation(); pageError = nil }

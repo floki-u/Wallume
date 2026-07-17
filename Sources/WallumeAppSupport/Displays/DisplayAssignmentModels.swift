@@ -93,4 +93,5 @@ public enum DisplayAssignmentStoreError: Error, Equatable {
     case emptyTargets
     case duplicateTarget(DisplayID)
     case unknownDisplay(DisplayID)
+    case unavailableAfterLoadFailure
 }

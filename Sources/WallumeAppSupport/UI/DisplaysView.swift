@@ -50,9 +50,9 @@ public struct DisplaysView: View {
         }
         .alert("操作失败", isPresented: Binding(
             get: { store.pageError != nil },
-            set: { _ in }
+            set: { if !$0 { store.dismissPageError() } }
         )) {
-            Button("知道了") {}
+            Button("知道了") { store.dismissPageError() }
         } message: {
             Text(store.pageError ?? "")
         }

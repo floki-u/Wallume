@@ -73,6 +73,13 @@ final class DisplayAssignmentStoreTests: XCTestCase {
             XCTAssertEqual(error, .unsupportedSchema(99))
         }
 
+        do {
+            try await fixture.store.setUserPaused(true)
+            XCTFail("Expected failed-closed store")
+        } catch let error as DisplayAssignmentStoreError {
+            XCTAssertEqual(error, .unavailableAfterLoadFailure)
+        }
+
         XCTAssertEqual(try fixture.files.read(fixture.url), data)
         let snapshot = await fixture.store.snapshot()
         XCTAssertEqual(snapshot, .empty)

@@ -1,7 +1,7 @@
 import SwiftUI
 
 public struct ApplicationShellView: View {
-    @State private var selection: WallumeFeatureID = .gallery
+    @Bindable private var navigation: ApplicationNavigation
     private let gallery: GalleryStore
     private let tasks: ImportTaskStore
     private let displays: DisplayFeatureStore?
@@ -9,22 +9,22 @@ public struct ApplicationShellView: View {
     private let onImportFolder: () -> Void
     private let onDrop: ([URL]) -> Void
 
-    public init(gallery: GalleryStore, tasks: ImportTaskStore, displays: DisplayFeatureStore? = nil, onImportFiles: @escaping () -> Void, onImportFolder: @escaping () -> Void, onDrop: @escaping ([URL]) -> Void) {
-        self.gallery = gallery; self.tasks = tasks; self.displays = displays; self.onImportFiles = onImportFiles; self.onImportFolder = onImportFolder; self.onDrop = onDrop
+    public init(gallery: GalleryStore, tasks: ImportTaskStore, displays: DisplayFeatureStore? = nil, navigation: ApplicationNavigation = ApplicationNavigation(), onImportFiles: @escaping () -> Void, onImportFolder: @escaping () -> Void, onDrop: @escaping ([URL]) -> Void) {
+        self.gallery = gallery; self.tasks = tasks; self.displays = displays; self.navigation = navigation; self.onImportFiles = onImportFiles; self.onImportFolder = onImportFolder; self.onDrop = onDrop
     }
 
     public var body: some View {
         NavigationSplitView {
-            List(FeatureRegistry.features, selection: $selection) { feature in
+            List(FeatureRegistry.features, selection: $navigation.selection) { feature in
                 Label(feature.title, systemImage: feature.systemImage).tag(feature.id)
             }.navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
-            if selection == .gallery {
+            if navigation.selection == .gallery {
                 GalleryView(gallery: gallery, tasks: tasks, displays: displays, onImportFiles: onImportFiles, onImportFolder: onImportFolder, onDrop: onDrop)
-            } else if selection == .displays, let displays {
-                DisplaysView(store: displays) { _ in selection = .gallery }
+            } else if navigation.selection == .displays, let displays {
+                DisplaysView(store: displays) { _ in navigation.open(.gallery) }
             } else {
-                ContentUnavailableView("将在后续批次开放", systemImage: FeatureRegistry.features.first { $0.id == selection }?.systemImage ?? "hammer")
+                ContentUnavailableView("将在后续批次开放", systemImage: FeatureRegistry.features.first { $0.id == navigation.selection }?.systemImage ?? "hammer")
             }
         }.frame(minWidth: 820, minHeight: 560)
     }

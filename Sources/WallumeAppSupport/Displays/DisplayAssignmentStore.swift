@@ -7,6 +7,7 @@ public actor DisplayAssignmentStore {
     private let jsonStore: AtomicJSONStore
     private let library: any MediaLibraryManaging
     private var value = DisplayAssignmentSnapshot.empty
+    private var acceptsMutations = true
     private var continuations = [UUID: AsyncStream<DisplayAssignmentSnapshot>.Continuation]()
 
     public init(
@@ -23,36 +24,40 @@ public actor DisplayAssignmentStore {
 
     public func load() throws -> DisplayAssignmentSnapshot {
         guard files.exists(url) else {
+            acceptsMutations = true
             value = .empty
             publish()
             return value
         }
-        let data = try files.read(url)
-        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        let schemaVersion = object?["schemaVersion"] as? Int ?? -1
-        switch schemaVersion {
-        case 1:
-            let legacy = try JSONDecoder().decode(LegacyDisplayAssignmentsDocument.self, from: data)
-            value = DisplayAssignmentSnapshot(
-                records: legacy.assignments.map {
-                    PersistedDisplayRecord(
-                        displayID: DisplayID($0.displayID),
-                        displayName: $0.displayName,
-                        pixelWidth: 0,
-                        pixelHeight: 0,
-                        wasMain: false,
-                        identityPersistence: .persistent,
-                        mediaID: $0.mediaID,
-                        presentationMode: .fill
-                    )
-                },
-                userPaused: false
-            )
-        case DisplayAssignmentsDocument.currentSchemaVersion:
-            let document = try jsonStore.read(DisplayAssignmentsDocument.self, from: url)
-            value = DisplayAssignmentSnapshot(records: document.displays, userPaused: document.userPaused)
-        default:
-            throw DisplayAssignmentStoreError.unsupportedSchema(schemaVersion)
+        acceptsMutations = false
+        do {
+            let data = try files.read(url)
+            let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let schemaVersion = object?["schemaVersion"] as? Int ?? -1
+            switch schemaVersion {
+            case 1:
+                let legacy = try JSONDecoder().decode(LegacyDisplayAssignmentsDocument.self, from: data)
+                value = DisplayAssignmentSnapshot(
+                    records: legacy.assignments.map {
+                        PersistedDisplayRecord(
+                            displayID: DisplayID($0.displayID), displayName: $0.displayName,
+                            pixelWidth: 0, pixelHeight: 0, wasMain: false,
+                            identityPersistence: .persistent, mediaID: $0.mediaID,
+                            presentationMode: .fill
+                        )
+                    },
+                    userPaused: false
+                )
+            case DisplayAssignmentsDocument.currentSchemaVersion:
+                let document = try jsonStore.read(DisplayAssignmentsDocument.self, from: url)
+                value = DisplayAssignmentSnapshot(records: document.displays, userPaused: document.userPaused)
+            default:
+                throw DisplayAssignmentStoreError.unsupportedSchema(schemaVersion)
+            }
+            acceptsMutations = true
+        } catch {
+            value = .empty
+            throw error
         }
         publish()
         return value
@@ -61,6 +66,7 @@ public actor DisplayAssignmentStore {
     public func snapshot() -> DisplayAssignmentSnapshot { value }
 
     public func assign(mediaID: UUID, to screens: [DesktopScreen]) throws {
+        try ensureAcceptsMutations()
         guard !screens.isEmpty else { throw DisplayAssignmentStoreError.emptyTargets }
         guard try library.item(id: mediaID) != nil else {
             throw DisplayAssignmentStoreError.mediaUnavailable(mediaID)
@@ -79,6 +85,7 @@ public actor DisplayAssignmentStore {
     }
 
     public func removeAssignment(displayID: DisplayID) throws {
+        try ensureAcceptsMutations()
         var candidate = value
         guard let index = candidate.records.firstIndex(where: { $0.displayID == displayID }) else {
             throw DisplayAssignmentStoreError.unknownDisplay(displayID)
@@ -88,6 +95,7 @@ public actor DisplayAssignmentStore {
     }
 
     public func clearRememberedDisplay(displayID: DisplayID) throws {
+        try ensureAcceptsMutations()
         var candidate = value
         guard candidate.records.contains(where: { $0.displayID == displayID }) else {
             throw DisplayAssignmentStoreError.unknownDisplay(displayID)
@@ -97,6 +105,7 @@ public actor DisplayAssignmentStore {
     }
 
     public func setPresentationMode(_ mode: WallpaperPresentationMode, displayID: DisplayID) throws {
+        try ensureAcceptsMutations()
         var candidate = value
         guard let index = candidate.records.firstIndex(where: { $0.displayID == displayID }) else {
             throw DisplayAssignmentStoreError.unknownDisplay(displayID)
@@ -106,6 +115,7 @@ public actor DisplayAssignmentStore {
     }
 
     public func setUserPaused(_ paused: Bool) throws {
+        try ensureAcceptsMutations()
         var candidate = value
         candidate.userPaused = paused
         try commit(candidate)
@@ -130,6 +140,12 @@ public actor DisplayAssignmentStore {
         )
         value = DisplayAssignmentSnapshot(records: candidate.records, userPaused: candidate.userPaused)
         publish()
+    }
+
+    private func ensureAcceptsMutations() throws {
+        guard acceptsMutations else {
+            throw DisplayAssignmentStoreError.unavailableAfterLoadFailure
+        }
     }
 
     private func publish() {

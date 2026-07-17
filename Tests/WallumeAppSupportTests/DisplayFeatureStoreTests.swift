@@ -35,6 +35,23 @@ final class DisplayFeatureStoreTests: XCTestCase {
         XCTAssertEqual(store.cards.map(\.id), [online.id])
         XCTAssertNotNil(store.pageError)
     }
+
+    @MainActor
+    func testPageErrorCanBeReportedAndDismissed() {
+        let store = DisplayFeatureStore(commands: .noop)
+        store.reportPageError("配置损坏")
+        XCTAssertEqual(store.pageError, "配置损坏")
+        store.dismissPageError()
+        XCTAssertNil(store.pageError)
+    }
+
+    @MainActor
+    func testSnapshotRefreshDoesNotHideConfigurationLoadError() {
+        let store = DisplayFeatureStore(commands: .noop)
+        store.reportPageError("配置损坏")
+        store.update(catalog: [], assignments: .empty, media: [], runtime: nil)
+        XCTAssertEqual(store.pageError, "配置损坏")
+    }
 }
 
 private enum CommandError: Error { case failed }
