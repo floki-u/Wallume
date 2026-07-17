@@ -3,6 +3,15 @@ import WallumeCore
 
 /// Serializes lock-screen configuration reads and writes, preserving an unreadable file in place.
 public actor LockScreenConfigurationStore {
+    private static let documentKeys: Set<String> = [
+        "schemaVersion",
+        "isEnabled",
+        "selectedAerialID",
+        "activeTransactionID",
+        "lastSyncedMediaID",
+        "lastSyncedAt",
+        "lastResult",
+    ]
     private let url: URL
     private let files: any FileStore
     private let jsonStore: AtomicJSONStore
@@ -29,6 +38,11 @@ public actor LockScreenConfigurationStore {
         do {
             let data = try files.read(url)
             let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let documentKeySet = object.map { Set($0.keys) } ?? []
+            let unexpectedKeys = documentKeySet.subtracting(Self.documentKeys)
+            guard unexpectedKeys.isEmpty else {
+                throw LockScreenConfigurationStoreError.unexpectedFields(unexpectedKeys)
+            }
             let schemaVersion = object?["schemaVersion"] as? Int ?? -1
             guard schemaVersion == LockScreenConfiguration.currentSchemaVersion else {
                 throw LockScreenConfigurationStoreError.unsupportedSchema(schemaVersion)
@@ -39,6 +53,7 @@ public actor LockScreenConfigurationStore {
             loadState = .loaded
         } catch {
             value = .disabled
+            publish()
             throw error
         }
 
@@ -104,6 +119,7 @@ public actor LockScreenConfigurationStore {
 
 public enum LockScreenConfigurationStoreError: Error, Equatable {
     case unsupportedSchema(Int)
+    case unexpectedFields(Set<String>)
     case enabledConfigurationMissingAerialID
     case disabledConfigurationContainsSyncState
     case incompleteSyncMetadata
@@ -115,6 +131,7 @@ extension LockScreenConfigurationStoreError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case let .unsupportedSchema(version): "不支持的锁屏配置版本：\(version)"
+        case let .unexpectedFields(fields): "锁屏配置包含不支持的字段：\(fields.sorted().joined(separator: ", "))"
         case .enabledConfigurationMissingAerialID: "启用锁屏同步前必须选择 Aerial 槽"
         case .disabledConfigurationContainsSyncState: "已停用的锁屏配置不能保留同步状态"
         case .incompleteSyncMetadata: "锁屏同步媒体和时间必须同时存在"

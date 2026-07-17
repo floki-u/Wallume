@@ -110,6 +110,59 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
         XCTAssertEqual(fixture.files.writeCount, writesBeforeLoad)
     }
 
+    func testUnknownPersistedFieldsFailClosedWithoutOverwrite() async throws {
+        let fixture = try LockScreenConfigurationFixture()
+        defer { fixture.cleanup() }
+        let data = Data("""
+        {"schemaVersion":1,"isEnabled":false,"backupPath":"/temporary/recovery","targetHash":"not-a-hash","mediaPath":"/temporary/media.mov"}
+        """.utf8)
+        try fixture.files.writeAtomically(data, to: fixture.url)
+        let writesBeforeLoad = fixture.files.writeCount
+
+        do {
+            _ = try await fixture.store.load()
+            XCTFail("Expected unknown persisted fields to be rejected")
+        } catch {}
+
+        do {
+            try await fixture.store.update(.disabled)
+            XCTFail("Expected failed load to gate mutations")
+        } catch let error as LockScreenConfigurationStoreError {
+            XCTAssertEqual(error, .unavailableAfterLoadFailure)
+        }
+
+        XCTAssertEqual(try fixture.files.read(fixture.url), data)
+        XCTAssertEqual(fixture.files.writeCount, writesBeforeLoad)
+    }
+
+    func testFailedReloadPublishesDisabledSnapshotToExistingSubscribers() async throws {
+        let fixture = try LockScreenConfigurationFixture()
+        defer { fixture.cleanup() }
+        let enabled = LockScreenConfiguration(isEnabled: true, selectedAerialID: "com.apple.aerials.sea")
+        _ = try await fixture.store.load()
+        try await fixture.store.update(enabled)
+        let stream = await fixture.store.events()
+        let publishedSafeSnapshot = expectation(description: "published disabled snapshot")
+
+        Task {
+            var iterator = stream.makeAsyncIterator()
+            let initial = await iterator.next()
+            XCTAssertEqual(initial, enabled)
+            let safe = await iterator.next()
+            XCTAssertEqual(safe, .disabled)
+            publishedSafeSnapshot.fulfill()
+        }
+
+        let invalidData = Data("not json".utf8)
+        try fixture.files.writeAtomically(invalidData, to: fixture.url)
+        do {
+            _ = try await fixture.store.load()
+            XCTFail("Expected malformed reload")
+        } catch {}
+
+        await fulfillment(of: [publishedSafeSnapshot], timeout: 0.2)
+    }
+
     func testMutationBeforeLoadDoesNotAttemptWrite() async throws {
         let fixture = try LockScreenConfigurationFixture()
         defer { fixture.cleanup() }
