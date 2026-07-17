@@ -24,8 +24,38 @@ final class RuntimeEnvironmentMonitorTests: XCTestCase {
 
         XCTAssertEqual(environments.last?.pauseReasons, [.systemSleep])
     }
+
+    @MainActor
+    func testThermalNotificationPausesOnlyForSeriousAndCriticalStates() {
+        let processCenter = NotificationCenter()
+        let thermal = MutableThermalState(.nominal)
+        let monitor = RuntimeEnvironmentMonitor(
+            sessionCenter: NotificationCenter(),
+            workspaceCenter: NotificationCenter(),
+            processCenter: processCenter,
+            powerState: FixedPowerState(isLowPowerModeEnabled: false),
+            thermalState: thermal,
+            observesDistributedSession: false
+        )
+        var environments = [RuntimeEnvironment]()
+        monitor.start { environments.append($0) }
+
+        thermal.value = .serious
+        processCenter.post(name: RuntimeEnvironmentMonitor.thermalStateDidChangeNotification, object: nil)
+        XCTAssertEqual(environments.last?.pauseReasons, [.thermalPressure])
+
+        thermal.value = .fair
+        processCenter.post(name: RuntimeEnvironmentMonitor.thermalStateDidChangeNotification, object: nil)
+        XCTAssertEqual(environments.last?.pauseReasons, [])
+    }
 }
 
 private struct FixedPowerState: PowerStateProviding {
     let isLowPowerModeEnabled: Bool
+}
+
+private final class MutableThermalState: ThermalStateProviding, @unchecked Sendable {
+    var value: ProcessInfo.ThermalState
+    init(_ value: ProcessInfo.ThermalState) { self.value = value }
+    var thermalState: ProcessInfo.ThermalState { value }
 }

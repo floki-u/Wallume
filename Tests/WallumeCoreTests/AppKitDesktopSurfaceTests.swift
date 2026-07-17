@@ -21,12 +21,28 @@ final class AppKitDesktopSurfaceTests: XCTestCase {
         let second = AppKitDesktopSurface(registry: registry)
         let presentation = PlaybackPresentation(resourceID: resourceID)
 
-        first.setPresentation(presentation, fallbackURL: nil)
-        second.setPresentation(presentation, fallbackURL: nil)
+        first.setPresentation(presentation, fallbackURL: nil, mode: .fill)
+        second.setPresentation(presentation, fallbackURL: nil, mode: .fill)
 
         XCTAssertEqual(first.videoGravity, .resizeAspectFill)
         XCTAssertEqual(second.videoGravity, .resizeAspectFill)
         XCTAssertNotEqual(first.presentationLayerIdentity, second.presentationLayerIdentity)
+    }
+
+    @MainActor
+    func testSurfaceMapsEveryPresentationMode() {
+        let registry = AVPlayerPresentationRegistry()
+        let resourceID = UUID()
+        registry.register(AVPlayer(), resourceID: resourceID)
+        let surface = AppKitDesktopSurface(registry: registry)
+        let presentation = PlaybackPresentation(resourceID: resourceID)
+
+        surface.setPresentation(presentation, fallbackURL: nil, mode: .fill)
+        XCTAssertEqual(surface.videoGravity, .resizeAspectFill)
+        surface.setPresentation(presentation, fallbackURL: nil, mode: .fit)
+        XCTAssertEqual(surface.videoGravity, .resizeAspect)
+        surface.setPresentation(presentation, fallbackURL: nil, mode: .stretch)
+        XCTAssertEqual(surface.videoGravity, .resize)
     }
 
     @MainActor

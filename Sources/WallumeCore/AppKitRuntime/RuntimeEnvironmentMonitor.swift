@@ -5,9 +5,18 @@ public protocol PowerStateProviding: Sendable {
     var isLowPowerModeEnabled: Bool { get }
 }
 
+public protocol ThermalStateProviding: Sendable {
+    var thermalState: ProcessInfo.ThermalState { get }
+}
+
 public struct ProcessInfoPowerState: PowerStateProviding {
     public init() {}
     public var isLowPowerModeEnabled: Bool { ProcessInfo.processInfo.isLowPowerModeEnabled }
+}
+
+public struct ProcessInfoThermalState: ThermalStateProviding {
+    public init() {}
+    public var thermalState: ProcessInfo.ThermalState { ProcessInfo.processInfo.thermalState }
 }
 
 @MainActor
@@ -16,11 +25,13 @@ public final class RuntimeEnvironmentMonitor {
     public static let sessionUnlockedNotification = Notification.Name("com.apple.screenIsUnlocked")
     public static let systemWillSleepNotification = NSWorkspace.willSleepNotification
     public static let systemDidWakeNotification = NSWorkspace.didWakeNotification
+    public static let thermalStateDidChangeNotification = ProcessInfo.thermalStateDidChangeNotification
 
     private let sessionCenter: NotificationCenter
     private let workspaceCenter: NotificationCenter
     private let processCenter: NotificationCenter
     private let powerState: any PowerStateProviding
+    private let thermalState: any ThermalStateProviding
     private let observesDistributedSession: Bool
     private var notificationTokens = [NSObjectProtocol]()
     private var distributedTokens = [NSObjectProtocol]()
@@ -28,18 +39,21 @@ public final class RuntimeEnvironmentMonitor {
     private var screenLocked = false
     private var systemSleeping = false
     private var lowPowerMode = false
+    private var thermalPressure = false
 
     public init(
         sessionCenter: NotificationCenter = .default,
         workspaceCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
         processCenter: NotificationCenter = .default,
         powerState: any PowerStateProviding = ProcessInfoPowerState(),
+        thermalState: any ThermalStateProviding = ProcessInfoThermalState(),
         observesDistributedSession: Bool = true
     ) {
         self.sessionCenter = sessionCenter
         self.workspaceCenter = workspaceCenter
         self.processCenter = processCenter
         self.powerState = powerState
+        self.thermalState = thermalState
         self.observesDistributedSession = observesDistributedSession
     }
 
@@ -47,6 +61,7 @@ public final class RuntimeEnvironmentMonitor {
         stop()
         self.onChange = onChange
         lowPowerMode = powerState.isLowPowerModeEnabled
+        thermalPressure = Self.hasThermalPressure(thermalState.thermalState)
 
         observe(sessionCenter, name: Self.sessionLockedNotification) { $0.setLocked(true) }
         observe(sessionCenter, name: Self.sessionUnlockedNotification) { $0.setLocked(false) }
@@ -54,6 +69,9 @@ public final class RuntimeEnvironmentMonitor {
         observe(workspaceCenter, name: Self.systemDidWakeNotification) { $0.setSleeping(false) }
         observe(processCenter, name: .NSProcessInfoPowerStateDidChange) { monitor in
             monitor.setLowPower(monitor.powerState.isLowPowerModeEnabled)
+        }
+        observe(processCenter, name: Self.thermalStateDidChangeNotification) { monitor in
+            monitor.setThermalPressure(Self.hasThermalPressure(monitor.thermalState.thermalState))
         }
 
         if observesDistributedSession {
@@ -124,13 +142,24 @@ public final class RuntimeEnvironmentMonitor {
         emit()
     }
 
+    private func setThermalPressure(_ value: Bool) {
+        guard thermalPressure != value else { return }
+        thermalPressure = value
+        emit()
+    }
+
+    private static func hasThermalPressure(_ state: ProcessInfo.ThermalState) -> Bool {
+        state == .serious || state == .critical
+    }
+
     private func emit() {
         onChange?(RuntimeEnvironment(
             userPaused: false,
             appObscured: false,
             screenLocked: screenLocked,
             lowPowerMode: lowPowerMode,
-            systemSleeping: systemSleeping
+            systemSleeping: systemSleeping,
+            thermalPressure: thermalPressure
         ))
     }
 }

@@ -9,10 +9,11 @@ final class RuntimeModelsTests: XCTestCase {
             appObscured: false,
             screenLocked: true,
             lowPowerMode: true,
-            systemSleeping: false
+            systemSleeping: false,
+            thermalPressure: true
         )
 
-        XCTAssertEqual(environment.pauseReasons, [.user, .screenLocked, .lowPower])
+        XCTAssertEqual(environment.pauseReasons, [.user, .screenLocked, .lowPower, .thermalPressure])
     }
 
     func testSnapshotSortsSessionsByDisplayID() {

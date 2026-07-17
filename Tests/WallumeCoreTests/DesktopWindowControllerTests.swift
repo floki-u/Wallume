@@ -49,11 +49,13 @@ final class DesktopWindowControllerTests: XCTestCase {
                 failures: [],
                 resourceCreationCount: 1
             ),
-            mediaByID: [media.id: media]
+            mediaByID: [media.id: media],
+            modesByDisplay: [displayID: .fit]
         )
 
         XCTAssertEqual(factory.surface(for: displayID)?.presentation?.resourceID, resourceID)
         XCTAssertEqual(factory.surface(for: displayID)?.fallbackURL, media.coverURL)
+        XCTAssertEqual(factory.surface(for: displayID)?.mode, .fit)
     }
 
     @MainActor
@@ -70,11 +72,30 @@ final class DesktopWindowControllerTests: XCTestCase {
                 failures: [.init(displayID: displayID, mediaID: media.id, message: "unplayable")],
                 resourceCreationCount: 0
             ),
-            mediaByID: [media.id: media]
+            mediaByID: [media.id: media],
+            modesByDisplay: [displayID: .stretch]
         )
 
         XCTAssertNil(factory.surface(for: displayID)?.presentation)
         XCTAssertEqual(factory.surface(for: displayID)?.fallbackURL, media.coverURL)
+        XCTAssertEqual(factory.surface(for: displayID)?.mode, .stretch)
+    }
+
+    @MainActor
+    func testCloseAllClosesEverySurface() {
+        let factory = SurfaceFactory()
+        let controller = DesktopWindowController(factory: factory)
+        let one = DisplayID("one")
+        let two = DisplayID("two")
+        _ = controller.reconcile([
+            .init(id: one, frame: .zero),
+            .init(id: two, frame: .zero),
+        ])
+
+        controller.closeAll()
+
+        XCTAssertEqual(factory.surface(for: one)?.closeCount, 1)
+        XCTAssertEqual(factory.surface(for: two)?.closeCount, 1)
     }
 }
 
@@ -95,10 +116,12 @@ private enum SurfaceError: Error { case creationFailed }
     var frames = [CGRect](); var closeCount = 0
     var presentation: PlaybackPresentation?
     var fallbackURL: URL?
+    var mode: WallpaperPresentationMode?
     func show(frame: CGRect) { frames.append(frame) }
-    func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?) {
+    func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?, mode: WallpaperPresentationMode) {
         self.presentation = presentation
         self.fallbackURL = fallbackURL
+        self.mode = mode
     }
     func close() { closeCount += 1 }
 }

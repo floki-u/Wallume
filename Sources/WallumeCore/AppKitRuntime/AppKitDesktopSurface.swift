@@ -73,7 +73,11 @@ public final class AppKitDesktopSurface: DesktopSurface {
         window.orderFrontRegardless()
     }
 
-    public func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?) {
+    public func setPresentation(
+        _ presentation: PlaybackPresentation?,
+        fallbackURL: URL?,
+        mode: WallpaperPresentationMode
+    ) {
         playerLayer?.removeFromSuperlayer()
         fallbackLayer?.removeFromSuperlayer()
         playerLayer = nil
@@ -82,7 +86,7 @@ public final class AppKitDesktopSurface: DesktopSurface {
         if let presentation,
            let player = registry.presentationObject(resourceID: presentation.resourceID) as? AVPlayer {
             let layer = AVPlayerLayer(player: player)
-            layer.videoGravity = .resizeAspectFill
+            layer.videoGravity = videoGravity(for: mode)
             layer.frame = rootLayer.bounds
             rootLayer.addSublayer(layer)
             playerLayer = layer
@@ -92,15 +96,31 @@ public final class AppKitDesktopSurface: DesktopSurface {
         guard let fallbackURL, let image = NSImage(contentsOf: fallbackURL) else { return }
         let layer = CALayer()
         layer.contents = image
-        layer.contentsGravity = .resizeAspectFill
+        layer.contentsGravity = contentsGravity(for: mode)
         layer.frame = rootLayer.bounds
         rootLayer.addSublayer(layer)
         fallbackLayer = layer
     }
 
     public func close() {
-        setPresentation(nil, fallbackURL: nil)
+        setPresentation(nil, fallbackURL: nil, mode: .fill)
         window.close()
+    }
+
+    private func videoGravity(for mode: WallpaperPresentationMode) -> AVLayerVideoGravity {
+        switch mode {
+        case .fill: .resizeAspectFill
+        case .fit: .resizeAspect
+        case .stretch: .resize
+        }
+    }
+
+    private func contentsGravity(for mode: WallpaperPresentationMode) -> CALayerContentsGravity {
+        switch mode {
+        case .fill: .resizeAspectFill
+        case .fit: .resizeAspect
+        case .stretch: .resize
+        }
     }
 }
 

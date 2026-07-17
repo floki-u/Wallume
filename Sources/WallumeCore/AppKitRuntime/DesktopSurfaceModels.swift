@@ -21,7 +21,11 @@ public protocol DesktopScreenProvider: AnyObject {
 @MainActor
 public protocol DesktopSurface: AnyObject {
     func show(frame: CGRect)
-    func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?)
+    func setPresentation(
+        _ presentation: PlaybackPresentation?,
+        fallbackURL: URL?,
+        mode: WallpaperPresentationMode
+    )
     func close()
 }
 

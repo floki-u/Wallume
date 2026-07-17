@@ -22,12 +22,19 @@ public struct RuntimeAssignment: Hashable, Sendable {
     }
 }
 
+public enum WallpaperPresentationMode: String, Codable, CaseIterable, Sendable {
+    case fill
+    case fit
+    case stretch
+}
+
 public enum RuntimePauseReason: String, CaseIterable, Codable, Hashable, Sendable {
     case user
     case appObscured
     case screenLocked
     case lowPower
     case systemSleep
+    case thermalPressure
 }
 
 public struct RuntimeEnvironment: Equatable, Sendable {
@@ -42,7 +49,8 @@ public struct RuntimeEnvironment: Equatable, Sendable {
         appObscured: Bool,
         screenLocked: Bool,
         lowPowerMode: Bool,
-        systemSleeping: Bool
+        systemSleeping: Bool,
+        thermalPressure: Bool = false
     ) {
         self.init(pauseReasons: Set([
             userPaused ? .user : nil,
@@ -50,6 +58,7 @@ public struct RuntimeEnvironment: Equatable, Sendable {
             screenLocked ? .screenLocked : nil,
             lowPowerMode ? .lowPower : nil,
             systemSleeping ? .systemSleep : nil,
+            thermalPressure ? .thermalPressure : nil,
         ].compactMap { $0 }))
     }
 

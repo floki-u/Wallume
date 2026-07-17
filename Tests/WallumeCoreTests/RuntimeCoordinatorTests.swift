@@ -26,6 +26,52 @@ final class RuntimeCoordinatorTests: XCTestCase {
         XCTAssertEqual(factory.releaseCount, 1)
     }
 
+    func testRemovingAssignmentReleasesItsOnlyResourceWhileDisplayRemains() async {
+        let item = MediaItem.fixture()
+        let factory = NoopFactory()
+        let coordinator = RuntimeCoordinator(
+            catalog: Catalog(items: [item]),
+            pool: PlayerPool(factory: factory)
+        )
+        let display = DisplayID("display-1")
+
+        _ = await coordinator.reconcile(
+            displays: [display],
+            assignments: [.init(displayID: display, mediaID: item.id)],
+            environment: .active
+        )
+        let snapshot = await coordinator.reconcile(
+            displays: [display], assignments: [], environment: .active
+        )
+
+        XCTAssertTrue(snapshot.sessions.isEmpty)
+        XCTAssertTrue(snapshot.resourceReferenceCounts.isEmpty)
+        XCTAssertEqual(factory.releaseCount, 1)
+    }
+
+    func testShutdownReleasesEverySession() async {
+        let item = MediaItem.fixture()
+        let factory = NoopFactory()
+        let coordinator = RuntimeCoordinator(
+            catalog: Catalog(items: [item]),
+            pool: PlayerPool(factory: factory)
+        )
+
+        _ = await coordinator.reconcile(
+            displays: [DisplayID("one"), DisplayID("two")],
+            assignments: [
+                .init(displayID: DisplayID("one"), mediaID: item.id),
+                .init(displayID: DisplayID("two"), mediaID: item.id),
+            ],
+            environment: .active
+        )
+        let snapshot = await coordinator.shutdown()
+
+        XCTAssertTrue(snapshot.sessions.isEmpty)
+        XCTAssertTrue(snapshot.resourceReferenceCounts.isEmpty)
+        XCTAssertEqual(factory.releaseCount, 1)
+    }
+
     func testDuplicateAssignmentsPreserveExistingSessionAndReportFailure() async {
         let old = MediaItem.fixture()
         let first = MediaItem.fixture()

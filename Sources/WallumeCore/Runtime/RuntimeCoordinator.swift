@@ -17,12 +17,13 @@ public actor RuntimeCoordinator {
     ) async -> RuntimeSnapshot {
         var failures = [RuntimeFailure]()
 
-        for (displayID, session) in sessions where !displays.contains(displayID) {
+        let assignmentsByDisplay = Dictionary(grouping: assignments, by: \.displayID)
+        for (displayID, session) in sessions
+        where !displays.contains(displayID) || assignmentsByDisplay[displayID] == nil {
             sessions.removeValue(forKey: displayID)
             await pool.release(mediaID: session.mediaID)
         }
 
-        let assignmentsByDisplay = Dictionary(grouping: assignments, by: \.displayID)
         let duplicateDisplays = assignmentsByDisplay
             .filter { $0.value.count > 1 }
             .map(\.key)
@@ -54,6 +55,22 @@ public actor RuntimeCoordinator {
             resourceReferenceCounts: poolSnapshot.resourceReferenceCounts,
             pauseReasons: environment.pauseReasons,
             failures: failures,
+            resourceCreationCount: poolSnapshot.resourceCreationCount
+        )
+    }
+
+    public func shutdown() async -> RuntimeSnapshot {
+        for session in sessions.values {
+            await pool.release(mediaID: session.mediaID)
+        }
+        sessions.removeAll()
+        await pool.setPaused(false)
+        let poolSnapshot = await pool.snapshot()
+        return RuntimeSnapshot(
+            sessions: [],
+            resourceReferenceCounts: poolSnapshot.resourceReferenceCounts,
+            pauseReasons: [],
+            failures: [],
             resourceCreationCount: poolSnapshot.resourceCreationCount
         )
     }

@@ -22,21 +22,31 @@ public final class DesktopWindowController {
         return failures.sorted { $0.displayID < $1.displayID }
     }
 
-    public func apply(snapshot: RuntimeSnapshot, mediaByID: [UUID: MediaItem]) {
+    public func apply(
+        snapshot: RuntimeSnapshot,
+        mediaByID: [UUID: MediaItem],
+        modesByDisplay: [DisplayID: WallpaperPresentationMode] = [:]
+    ) {
         let sessions = Dictionary(uniqueKeysWithValues: snapshot.sessions.map { ($0.displayID, $0) })
         let failures = Dictionary(snapshot.failures.map { ($0.displayID, $0) }, uniquingKeysWith: { first, _ in first })
         for (displayID, value) in surfaces {
             if let session = sessions[displayID], let media = mediaByID[session.mediaID] {
                 value.surface.setPresentation(
                     PlaybackPresentation(resourceID: session.resourceID),
-                    fallbackURL: media.coverURL
+                    fallbackURL: media.coverURL,
+                    mode: modesByDisplay[displayID] ?? .fill
                 )
             } else if let failure = failures[displayID], let media = mediaByID[failure.mediaID] {
-                value.surface.setPresentation(nil, fallbackURL: media.coverURL)
+                value.surface.setPresentation(nil, fallbackURL: media.coverURL, mode: modesByDisplay[displayID] ?? .fill)
             } else {
-                value.surface.setPresentation(nil, fallbackURL: nil)
+                value.surface.setPresentation(nil, fallbackURL: nil, mode: .fill)
             }
         }
+    }
+
+    public func closeAll() {
+        surfaces.values.forEach { $0.surface.close() }
+        surfaces.removeAll()
     }
 
 }
