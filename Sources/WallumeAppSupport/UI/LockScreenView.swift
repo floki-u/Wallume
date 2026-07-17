@@ -17,6 +17,7 @@ public struct LockScreenPageViewState: Equatable, Sendable {
     public let slotGuidance: String?
     public let selectedSlotName: String?
     public let syncedMediaName: String?
+    public let syncedAt: Date?
     public let syncTimeText: String?
     public let errorText: String?
     public let canRefresh: Bool
@@ -27,16 +28,15 @@ public struct LockScreenPageViewState: Equatable, Sendable {
     public let showsRiskConfirmation: Bool
     public let nextAction: NextAction
 
-    public init(state: LockScreenSyncState, now: Date = Date()) {
+    public init(state: LockScreenSyncState) {
         let slots = state.probe?.availableSlots ?? []
         selectedSlotName = slots.first(where: { $0.id == state.selectedAerialID })?.displayName
             ?? state.selectedAerialID
         syncedMediaName = state.syncedMedia?.displayName
-        syncTimeText = state.phase == .synced
-            ? now.formatted(date: .abbreviated, time: .shortened)
-            : nil
+        syncedAt = state.lastSyncedAt
+        syncTimeText = state.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened)
         errorText = state.lastError
-        canRefresh = state.capabilities.canRefreshProbe
+        canRefresh = state.capabilities.canRefreshProbe || state.phase == .unconfigured
         canChooseSlot = state.capabilities.canSelectAerialSlot
         canRequestEnable = state.capabilities.canConfirmEnable
         canRestore = state.capabilities.canDisableAndRestore
@@ -222,7 +222,9 @@ public struct LockScreenView: View {
 
     private func actionRow(_ page: LockScreenPageViewState) -> some View {
         HStack {
-            if page.nextAction == .openSystemWallpaperSettings {
+            if page.nextAction == .refresh {
+                Button("开始检测") { Task { await store.refreshProbe() } }
+            } else if page.nextAction == .openSystemWallpaperSettings {
                 Button("打开系统壁纸设置") { openSystemWallpaperSettings() }
             }
             Spacer()

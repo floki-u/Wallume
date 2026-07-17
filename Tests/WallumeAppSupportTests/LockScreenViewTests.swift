@@ -8,6 +8,7 @@ final class LockScreenViewTests: XCTestCase {
     func testUnconfiguredStateOffersSetupRefresh() {
         let model = LockScreenPageViewState(state: .unconfigured)
         XCTAssertEqual(model.nextAction, .refresh)
+        XCTAssertTrue(model.canRefresh)
         XCTAssertFalse(model.canRequestEnable)
     }
 
@@ -36,11 +37,13 @@ final class LockScreenViewTests: XCTestCase {
         let model = LockScreenPageViewState(state: LockScreenSyncState(
             phase: .synced,
             syncedMedia: .init(id: UUID(), displayName: "Ocean"),
+            lastSyncedAt: date,
             lastResult: .synced,
             capabilities: capabilities(disable: true)
-        ), now: date)
+        ))
         XCTAssertEqual(model.syncedMediaName, "Ocean")
-        XCTAssertNotNil(model.syncTimeText)
+        XCTAssertEqual(model.syncedAt, date)
+        XCTAssertEqual(model.syncTimeText, date.formatted(date: .abbreviated, time: .shortened))
         XCTAssertTrue(model.canRestore)
     }
 

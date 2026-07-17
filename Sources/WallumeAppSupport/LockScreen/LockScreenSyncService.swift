@@ -561,6 +561,7 @@ public actor LockScreenSyncService {
             probe: probeReport,
             activeTransactionID: current?.activeTransactionID,
             syncedMedia: syncedMedia,
+            lastSyncedAt: current?.lastSyncedAt,
             lastResult: current?.lastResult,
             lastError: error,
             capabilities: LockScreenSyncCapabilities(

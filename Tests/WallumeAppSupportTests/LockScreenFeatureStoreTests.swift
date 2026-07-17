@@ -36,7 +36,7 @@ final class LockScreenFeatureStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testCommandErrorRemainsUntilLaterSuccessfulSnapshot() async throws {
+    func testCommandErrorSurvivesUnrelatedNonErrorServiceSnapshots() async throws {
         let fixture = try LockScreenFeatureStoreFixture()
         defer { fixture.cleanup() }
         let commands = LockScreenFeatureCommands(
@@ -54,7 +54,7 @@ final class LockScreenFeatureStoreTests: XCTestCase {
         await fixture.service.start()
         await fixture.service.waitForIdle()
         await eventually { store.state.phase == .readyToConfigure }
-        XCTAssertNil(store.pageError)
+        XCTAssertEqual(store.pageError, "操作失败")
     }
 
     @MainActor

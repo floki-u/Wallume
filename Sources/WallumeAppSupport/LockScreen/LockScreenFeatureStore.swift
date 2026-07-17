@@ -45,8 +45,10 @@ public final class LockScreenFeatureStore {
     public private(set) var state: LockScreenSyncState = .unconfigured
     public private(set) var pageError: String?
 
+    private enum PageErrorSource { case command, service, reported }
     private let commands: LockScreenFeatureCommands
     private let observation = LockScreenObservation()
+    private var pageErrorSource: PageErrorSource?
 
     public init(service: LockScreenSyncService, commands: LockScreenFeatureCommands? = nil) {
         self.commands = commands ?? .service(service)
@@ -66,15 +68,24 @@ public final class LockScreenFeatureStore {
     public func disableAndRestore() async { await perform { try await commands.disableAndRestore() } }
     public func retry() async { await perform { try await commands.retry() } }
 
-    public func reportPageError(_ message: String) { pageError = message }
-    public func dismissPageError() { pageError = nil }
+    public func reportPageError(_ message: String) {
+        pageError = message
+        pageErrorSource = .reported
+    }
+
+    public func dismissPageError() {
+        pageError = nil
+        pageErrorSource = nil
+    }
 
     private func receive(_ snapshot: LockScreenSyncState) {
         state = snapshot
         if let error = snapshot.lastError {
             pageError = error
-        } else if pageError != nil {
+            pageErrorSource = .service
+        } else if pageErrorSource == .service {
             pageError = nil
+            pageErrorSource = nil
         }
     }
 
@@ -83,6 +94,7 @@ public final class LockScreenFeatureStore {
             try await operation()
         } catch {
             pageError = error.localizedDescription
+            pageErrorSource = .command
         }
     }
 }

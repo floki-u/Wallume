@@ -48,6 +48,7 @@ final class LockScreenSyncServiceTests: XCTestCase {
         XCTAssertEqual(configuration.lastSyncedMediaID, media.id)
         let state = await fixture.service.snapshot()
         XCTAssertEqual(state.phase, .synced)
+        XCTAssertEqual(state.lastSyncedAt, Date(timeIntervalSince1970: 1_800_000_000))
     }
 
     func testSameMediaIsDeduplicatedAgainstConfiguredCommittedTransaction() async throws {

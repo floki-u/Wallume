@@ -59,6 +59,7 @@ public struct LockScreenSyncState: Equatable, Sendable {
     public let probe: LockScreenProbeReport?
     public let activeTransactionID: UUID?
     public let syncedMedia: LockScreenSyncedMediaSummary?
+    public let lastSyncedAt: Date?
     public let lastResult: LockScreenConfigurationResult?
     public let lastError: String?
     public let capabilities: LockScreenSyncCapabilities
@@ -69,6 +70,7 @@ public struct LockScreenSyncState: Equatable, Sendable {
         probe: LockScreenProbeReport? = nil,
         activeTransactionID: UUID? = nil,
         syncedMedia: LockScreenSyncedMediaSummary? = nil,
+        lastSyncedAt: Date? = nil,
         lastResult: LockScreenConfigurationResult? = nil,
         lastError: String? = nil,
         capabilities: LockScreenSyncCapabilities = .unavailable
@@ -78,6 +80,7 @@ public struct LockScreenSyncState: Equatable, Sendable {
         self.probe = probe
         self.activeTransactionID = activeTransactionID
         self.syncedMedia = syncedMedia
+        self.lastSyncedAt = lastSyncedAt
         self.lastResult = lastResult
         self.lastError = lastError
         self.capabilities = capabilities
