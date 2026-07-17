@@ -177,8 +177,13 @@ public actor DisplayAssignmentStore {
 
     private func validate(_ records: [PersistedDisplayRecord]) throws {
         var seen = Set<DisplayID>()
-        for record in records where !seen.insert(record.displayID).inserted {
-            throw DisplayAssignmentStoreError.duplicatePersistedDisplay(record.displayID)
+        for record in records {
+            guard record.identityPersistence == .persistent else {
+                throw DisplayAssignmentStoreError.nonpersistentStoredDisplay(record.displayID)
+            }
+            guard seen.insert(record.displayID).inserted else {
+                throw DisplayAssignmentStoreError.duplicatePersistedDisplay(record.displayID)
+            }
         }
     }
 

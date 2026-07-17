@@ -128,6 +128,30 @@ final class DisplayAssignmentStoreTests: XCTestCase {
         XCTAssertEqual(snapshot, .empty)
     }
 
+    func testConnectionOnlyIdentityInDurableDocumentFailsClosed() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let record = PersistedDisplayRecord(
+            displayID: DisplayID("cg-direct:42"), displayName: "Temporary Display",
+            pixelWidth: 1920, pixelHeight: 1080, wasMain: false,
+            identityPersistence: .connectionOnly, mediaID: fixture.media.id,
+            presentationMode: .fill
+        )
+        let data = try JSONEncoder().encode(DisplayAssignmentsDocument(displays: [record]))
+        try fixture.files.writeAtomically(data, to: fixture.url)
+
+        do {
+            _ = try await fixture.store.load()
+            XCTFail("Expected nonpersistent identity validation failure")
+        } catch let error as DisplayAssignmentStoreError {
+            XCTAssertEqual(error, .nonpersistentStoredDisplay(record.displayID))
+        }
+
+        XCTAssertEqual(try fixture.files.read(fixture.url), data)
+        let snapshot = await fixture.store.snapshot()
+        XCTAssertEqual(snapshot, .empty)
+    }
+
     func testRefreshMetadataPersistsLastConnectedDisplayValues() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanup() }

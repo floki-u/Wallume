@@ -93,6 +93,7 @@ public enum DisplayAssignmentStoreError: Error, Equatable {
     case emptyTargets
     case duplicateTarget(DisplayID)
     case duplicatePersistedDisplay(DisplayID)
+    case nonpersistentStoredDisplay(DisplayID)
     case unknownDisplay(DisplayID)
     case unavailableBeforeLoad
     case unavailableAfterLoadFailure
@@ -106,6 +107,8 @@ extension DisplayAssignmentStoreError: LocalizedError {
         case .emptyTargets: "请至少选择一台已连接的显示器"
         case let .duplicateTarget(id), let .duplicatePersistedDisplay(id):
             "显示器配置包含重复项目：\(id.rawValue)"
+        case let .nonpersistentStoredDisplay(id):
+            "显示器配置包含不可跨重启保存的临时身份：\(id.rawValue)"
         case let .unknownDisplay(id): "找不到显示器配置：\(id.rawValue)"
         case .unavailableBeforeLoad: "显示器配置仍在加载，请稍后重试"
         case .unavailableAfterLoadFailure: "显示器配置读取失败；为保护原文件，本次启动不允许修改"
