@@ -77,14 +77,32 @@ public final class AppKitDesktopSurface: DesktopSurface {
         _ presentation: PlaybackPresentation?,
         fallbackURL: URL?,
         mode: WallpaperPresentationMode
-    ) {
+    ) throws {
+        let resolvedPlayer: AVPlayer?
+        let resolvedImage: NSImage?
+        if let presentation {
+            guard let player = registry.presentationObject(resourceID: presentation.resourceID) as? AVPlayer else {
+                throw DesktopSurfacePresentationError.missingPlayer(presentation.resourceID)
+            }
+            resolvedPlayer = player
+            resolvedImage = nil
+        } else if let fallbackURL {
+            guard let image = NSImage(contentsOf: fallbackURL) else {
+                throw DesktopSurfacePresentationError.unreadableFallback(fallbackURL)
+            }
+            resolvedPlayer = nil
+            resolvedImage = image
+        } else {
+            resolvedPlayer = nil
+            resolvedImage = nil
+        }
+
         playerLayer?.removeFromSuperlayer()
         fallbackLayer?.removeFromSuperlayer()
         playerLayer = nil
         fallbackLayer = nil
 
-        if let presentation,
-           let player = registry.presentationObject(resourceID: presentation.resourceID) as? AVPlayer {
+        if let player = resolvedPlayer {
             let layer = AVPlayerLayer(player: player)
             layer.videoGravity = videoGravity(for: mode)
             layer.frame = rootLayer.bounds
@@ -93,7 +111,7 @@ public final class AppKitDesktopSurface: DesktopSurface {
             return
         }
 
-        guard let fallbackURL, let image = NSImage(contentsOf: fallbackURL) else { return }
+        guard let image = resolvedImage else { return }
         let layer = CALayer()
         layer.contents = image
         layer.contentsGravity = contentsGravity(for: mode)
@@ -103,7 +121,7 @@ public final class AppKitDesktopSurface: DesktopSurface {
     }
 
     public func close() {
-        setPresentation(nil, fallbackURL: nil, mode: .fill)
+        try? setPresentation(nil, fallbackURL: nil, mode: .fill)
         window.close()
     }
 

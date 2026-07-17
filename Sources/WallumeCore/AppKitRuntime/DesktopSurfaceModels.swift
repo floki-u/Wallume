@@ -84,7 +84,7 @@ public protocol DesktopSurface: AnyObject {
         _ presentation: PlaybackPresentation?,
         fallbackURL: URL?,
         mode: WallpaperPresentationMode
-    )
+    ) throws
     func close()
 }
 
@@ -106,5 +106,17 @@ public struct DesktopSurfaceFailure: Equatable, Sendable {
     public init(displayID: DisplayID, message: String) {
         self.displayID = displayID
         self.message = message
+    }
+}
+
+public enum DesktopSurfacePresentationError: Error, Equatable, Sendable, LocalizedError {
+    case missingPlayer(UUID)
+    case unreadableFallback(URL)
+
+    public var errorDescription: String? {
+        switch self {
+        case .missingPlayer: "无法连接壁纸播放器"
+        case .unreadableFallback: "无法读取壁纸封面"
+        }
     }
 }

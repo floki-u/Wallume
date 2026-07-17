@@ -7,7 +7,7 @@ public actor DisplayAssignmentStore {
     private let jsonStore: AtomicJSONStore
     private let library: any MediaLibraryManaging
     private var value = DisplayAssignmentSnapshot.empty
-    private var acceptsMutations = true
+    private var loadState = LoadState.unloaded
     private var continuations = [UUID: AsyncStream<DisplayAssignmentSnapshot>.Continuation]()
 
     public init(
@@ -24,12 +24,12 @@ public actor DisplayAssignmentStore {
 
     public func load() throws -> DisplayAssignmentSnapshot {
         guard files.exists(url) else {
-            acceptsMutations = true
+            loadState = .loaded
             value = .empty
             publish()
             return value
         }
-        acceptsMutations = false
+        loadState = .failed
         do {
             let data = try files.read(url)
             let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -37,24 +37,24 @@ public actor DisplayAssignmentStore {
             switch schemaVersion {
             case 1:
                 let legacy = try JSONDecoder().decode(LegacyDisplayAssignmentsDocument.self, from: data)
-                value = DisplayAssignmentSnapshot(
-                    records: legacy.assignments.map {
+                let records = legacy.assignments.map {
                         PersistedDisplayRecord(
                             displayID: DisplayID($0.displayID), displayName: $0.displayName,
                             pixelWidth: 0, pixelHeight: 0, wasMain: false,
                             identityPersistence: .persistent, mediaID: $0.mediaID,
                             presentationMode: .fill
                         )
-                    },
-                    userPaused: false
-                )
+                    }
+                try validate(records)
+                value = DisplayAssignmentSnapshot(records: records, userPaused: false)
             case DisplayAssignmentsDocument.currentSchemaVersion:
                 let document = try jsonStore.read(DisplayAssignmentsDocument.self, from: url)
+                try validate(document.displays)
                 value = DisplayAssignmentSnapshot(records: document.displays, userPaused: document.userPaused)
             default:
                 throw DisplayAssignmentStoreError.unsupportedSchema(schemaVersion)
             }
-            acceptsMutations = true
+            loadState = .loaded
         } catch {
             value = .empty
             throw error
@@ -121,6 +121,31 @@ public actor DisplayAssignmentStore {
         try commit(candidate)
     }
 
+    public func refreshMetadata(from screens: [DesktopScreen]) throws {
+        try ensureAcceptsMutations()
+        let persistent = Dictionary(
+            uniqueKeysWithValues: screens
+                .filter { $0.identityPersistence == .persistent }
+                .map { ($0.id, $0) }
+        )
+        var candidate = value
+        var changed = false
+        for index in candidate.records.indices {
+            let record = candidate.records[index]
+            guard let screen = persistent[record.displayID] else { continue }
+            let refreshed = PersistedDisplayRecord(
+                screen: screen,
+                mediaID: record.mediaID,
+                presentationMode: record.presentationMode
+            )
+            if refreshed != record {
+                candidate.records[index] = refreshed
+                changed = true
+            }
+        }
+        if changed { try commit(candidate) }
+    }
+
     public func events() -> AsyncStream<DisplayAssignmentSnapshot> {
         let id = UUID()
         return AsyncStream { continuation in
@@ -143,8 +168,17 @@ public actor DisplayAssignmentStore {
     }
 
     private func ensureAcceptsMutations() throws {
-        guard acceptsMutations else {
-            throw DisplayAssignmentStoreError.unavailableAfterLoadFailure
+        switch loadState {
+        case .loaded: return
+        case .unloaded: throw DisplayAssignmentStoreError.unavailableBeforeLoad
+        case .failed: throw DisplayAssignmentStoreError.unavailableAfterLoadFailure
+        }
+    }
+
+    private func validate(_ records: [PersistedDisplayRecord]) throws {
+        var seen = Set<DisplayID>()
+        for record in records where !seen.insert(record.displayID).inserted {
+            throw DisplayAssignmentStoreError.duplicatePersistedDisplay(record.displayID)
         }
     }
 
@@ -156,3 +190,5 @@ public actor DisplayAssignmentStore {
         continuations.removeValue(forKey: id)
     }
 }
+
+private enum LoadState { case unloaded, loaded, failed }

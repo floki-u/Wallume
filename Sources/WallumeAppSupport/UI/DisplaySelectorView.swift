@@ -22,6 +22,7 @@ public struct DisplaySelectorModel: Equatable {
 public struct DisplaySelectorView: View {
     private let mediaName: String
     private let currentAssignments: [DisplayID: String]
+    private let errorMessage: String?
     private let onCancel: () -> Void
     private let onConfirm: (Set<DisplayID>) -> Void
     @State private var model: DisplaySelectorModel
@@ -30,14 +31,17 @@ public struct DisplaySelectorView: View {
         mediaName: String,
         targets: [DisplayRecord],
         currentAssignments: [DisplayID: String],
+        selectedIDs: Set<DisplayID> = [],
+        errorMessage: String? = nil,
         onCancel: @escaping () -> Void,
         onConfirm: @escaping (Set<DisplayID>) -> Void
     ) {
         self.mediaName = mediaName
         self.currentAssignments = currentAssignments
+        self.errorMessage = errorMessage
         self.onCancel = onCancel
         self.onConfirm = onConfirm
-        _model = State(initialValue: DisplaySelectorModel(targets: targets))
+        _model = State(initialValue: DisplaySelectorModel(targets: targets, selectedIDs: selectedIDs))
     }
 
     public var body: some View {
@@ -68,6 +72,12 @@ public struct DisplaySelectorView: View {
                 }
             }
             .frame(minHeight: 200)
+
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("display-assignment-error")
+            }
 
             HStack {
                 Spacer()

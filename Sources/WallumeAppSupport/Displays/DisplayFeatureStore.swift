@@ -4,11 +4,19 @@ import WallumeCore
 
 public struct DisplayCardState: Identifiable, Equatable, Sendable {
     public let display: DisplayRecord
+    public let assignedMediaID: UUID?
     public let media: MediaItem?
     public let presentationMode: WallpaperPresentationMode
     public let runtimeError: String?
     public var id: DisplayID { display.id }
     public var connection: DisplayConnection { display.connection }
+    public var hasAssignment: Bool { assignedMediaID != nil }
+    public var canRemoveAssignment: Bool { connection == .connected && hasAssignment }
+    public var canSetPresentationMode: Bool { connection == .connected && hasAssignment }
+    public var wallpaperTitle: String {
+        if let media { return media.displayName }
+        return hasAssignment ? "媒体不可用" : "尚未设置壁纸"
+    }
 }
 
 public struct DisplayFeatureCommands: Sendable {
@@ -56,7 +64,7 @@ public final class DisplayFeatureStore {
         runtime: RuntimeSnapshot?,
         surfaceFailures: [DesktopSurfaceFailure] = []
     ) {
-        let records = Dictionary(uniqueKeysWithValues: assignments.records.map { ($0.displayID, $0) })
+        let records = Dictionary(assignments.records.map { ($0.displayID, $0) }, uniquingKeysWith: { first, _ in first })
         let mediaByID = Dictionary(uniqueKeysWithValues: media.map { ($0.id, $0) })
         let runtimeFailures = Dictionary((runtime?.failures ?? []).map { ($0.displayID, $0.message) }, uniquingKeysWith: { first, _ in first })
         let windowFailures = Dictionary(surfaceFailures.map { ($0.displayID, $0.message) }, uniquingKeysWith: { first, _ in first })
@@ -64,6 +72,7 @@ public final class DisplayFeatureStore {
             let record = records[display.id]
             return DisplayCardState(
                 display: display,
+                assignedMediaID: record?.mediaID,
                 media: record?.mediaID.flatMap { mediaByID[$0] },
                 presentationMode: record?.presentationMode ?? .fill,
                 runtimeError: [runtimeFailures[display.id], windowFailures[display.id]]

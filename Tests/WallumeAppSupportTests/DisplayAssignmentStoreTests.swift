@@ -27,6 +27,7 @@ final class DisplayAssignmentStoreTests: XCTestCase {
         let one = fixture.screen("one", name: "Built-in", main: true)
         let two = fixture.screen("two", name: "Studio")
 
+        _ = try await fixture.store.load()
         try await fixture.store.assign(mediaID: fixture.media.id, to: [one, two])
         try await fixture.store.setPresentationMode(.stretch, displayID: two.id)
         try await fixture.store.setUserPaused(true)
@@ -45,6 +46,7 @@ final class DisplayAssignmentStoreTests: XCTestCase {
         let fixture = try Fixture()
         defer { fixture.cleanup() }
         let screen = fixture.screen("one", name: "Built-in")
+        _ = try await fixture.store.load()
         try await fixture.store.assign(mediaID: fixture.media.id, to: [screen])
         let before = await fixture.store.snapshot()
         let beforeData = try fixture.files.read(fixture.url)
@@ -83,6 +85,71 @@ final class DisplayAssignmentStoreTests: XCTestCase {
         XCTAssertEqual(try fixture.files.read(fixture.url), data)
         let snapshot = await fixture.store.snapshot()
         XCTAssertEqual(snapshot, .empty)
+    }
+
+    func testMutationBeforeLoadCannotOverwriteExistingDocument() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let data = Data(#"{"schemaVersion":99,"displays":[],"userPaused":false}"#.utf8)
+        try fixture.files.writeAtomically(data, to: fixture.url)
+
+        do {
+            try await fixture.store.setUserPaused(true)
+            XCTFail("Expected unloaded store to reject mutation")
+        } catch let error as DisplayAssignmentStoreError {
+            XCTAssertEqual(error, .unavailableBeforeLoad)
+        }
+
+        XCTAssertEqual(try fixture.files.read(fixture.url), data)
+    }
+
+    func testDuplicateDisplayIDsFailClosedWithoutPublishingDocument() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let record = PersistedDisplayRecord(
+            displayID: DisplayID("cg-uuid:duplicate"), displayName: "Studio",
+            pixelWidth: 1920, pixelHeight: 1080, wasMain: false,
+            identityPersistence: .persistent, mediaID: fixture.media.id,
+            presentationMode: .fill
+        )
+        let document = DisplayAssignmentsDocument(displays: [record, record])
+        let data = try JSONEncoder().encode(document)
+        try fixture.files.writeAtomically(data, to: fixture.url)
+
+        do {
+            _ = try await fixture.store.load()
+            XCTFail("Expected duplicate ID validation failure")
+        } catch let error as DisplayAssignmentStoreError {
+            XCTAssertEqual(error, .duplicatePersistedDisplay(record.displayID))
+        }
+
+        XCTAssertEqual(try fixture.files.read(fixture.url), data)
+        let snapshot = await fixture.store.snapshot()
+        XCTAssertEqual(snapshot, .empty)
+    }
+
+    func testRefreshMetadataPersistsLastConnectedDisplayValues() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let original = fixture.screen("one", name: "Old Name")
+        _ = try await fixture.store.load()
+        try await fixture.store.assign(mediaID: fixture.media.id, to: [original])
+        let refreshed = DesktopScreen(
+            id: original.id, frame: .zero, name: "Studio Display",
+            pixelWidth: 5120, pixelHeight: 2880, isMain: true,
+            identityPersistence: .persistent
+        )
+
+        try await fixture.store.refreshMetadata(from: [refreshed])
+
+        let refreshedSnapshot = await fixture.store.snapshot()
+        let record = try XCTUnwrap(refreshedSnapshot.records.first)
+        XCTAssertEqual(record.displayName, "Studio Display")
+        XCTAssertEqual(record.pixelWidth, 5120)
+        XCTAssertEqual(record.pixelHeight, 2880)
+        XCTAssertTrue(record.wasMain)
+        let reloaded = try await fixture.makeStore().load()
+        XCTAssertEqual(reloaded.records.first, record)
     }
 }
 

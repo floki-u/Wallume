@@ -9,7 +9,7 @@ final class PlaybackPresentationTests: XCTestCase {
         let presentation = PlaybackPresentation(resourceID: UUID())
         let fallback = URL(fileURLWithPath: "/tmp/cover.jpg")
 
-        surface.setPresentation(presentation, fallbackURL: fallback, mode: .fill)
+        try? surface.setPresentation(presentation, fallbackURL: fallback, mode: .fill)
 
         XCTAssertEqual(surface.presentation, presentation)
         XCTAssertEqual(surface.fallbackURL, fallback)
@@ -22,7 +22,7 @@ private final class RecordingPresentationSurface: DesktopSurface {
     var fallbackURL: URL?
 
     func show(frame: CGRect) {}
-    func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?, mode: WallpaperPresentationMode) {
+    func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?, mode: WallpaperPresentationMode) throws {
         self.presentation = presentation
         self.fallbackURL = fallbackURL
     }

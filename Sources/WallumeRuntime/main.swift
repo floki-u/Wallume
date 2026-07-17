@@ -68,11 +68,11 @@ final class WallpaperRuntimeApplication {
         )
         latestSnapshot = snapshot
         let windowFailures = windows.reconcile(currentScreens)
-        windows.apply(snapshot: snapshot, mediaByID: [media.id: media])
+        let presentationFailures = windows.apply(snapshot: snapshot, mediaByID: [media.id: media])
         for failure in snapshot.failures {
             writeError("runtime \(failure.displayID.rawValue): \(failure.message)\n")
         }
-        for failure in windowFailures {
+        for failure in windowFailures + presentationFailures {
             writeError("window \(failure.displayID.rawValue): \(failure.message)\n")
         }
     }

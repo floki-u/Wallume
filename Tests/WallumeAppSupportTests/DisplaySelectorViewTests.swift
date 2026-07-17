@@ -26,6 +26,14 @@ final class DisplaySelectorViewTests: XCTestCase {
         XCTAssertTrue(model.selectedIDs.isEmpty)
     }
 
+    func testInitialSelectionKeepsOnlyConnectedTargets() {
+        let model = DisplaySelectorModel(
+            targets: [target("one")],
+            selectedIDs: [DisplayID("one"), DisplayID("offline")]
+        )
+        XCTAssertEqual(model.selectedIDs, [DisplayID("one")])
+    }
+
     @MainActor
     func testSelectorRendersTargets() {
         let host = NSHostingView(rootView: DisplaySelectorView(
@@ -33,6 +41,16 @@ final class DisplaySelectorViewTests: XCTestCase {
             onCancel: {}, onConfirm: { _ in }
         ))
         XCTAssertGreaterThan(host.fittingSize.width, 0)
+    }
+
+    @MainActor
+    func testSelectorRendersVisibleAssignmentError() {
+        let host = NSHostingView(rootView: DisplaySelectorView(
+            mediaName: "Ocean", targets: [target("one")], currentAssignments: [:],
+            errorMessage: "保存显示器配置失败", onCancel: {}, onConfirm: { _ in }
+        ))
+
+        XCTAssertGreaterThan(host.fittingSize.height, 0)
     }
 }
 

@@ -92,6 +92,23 @@ public enum DisplayAssignmentStoreError: Error, Equatable {
     case mediaUnavailable(UUID)
     case emptyTargets
     case duplicateTarget(DisplayID)
+    case duplicatePersistedDisplay(DisplayID)
     case unknownDisplay(DisplayID)
+    case unavailableBeforeLoad
     case unavailableAfterLoadFailure
+}
+
+extension DisplayAssignmentStoreError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case let .unsupportedSchema(version): "不支持的显示器配置版本：\(version)"
+        case let .mediaUnavailable(id): "媒体不可用：\(id.uuidString)"
+        case .emptyTargets: "请至少选择一台已连接的显示器"
+        case let .duplicateTarget(id), let .duplicatePersistedDisplay(id):
+            "显示器配置包含重复项目：\(id.rawValue)"
+        case let .unknownDisplay(id): "找不到显示器配置：\(id.rawValue)"
+        case .unavailableBeforeLoad: "显示器配置仍在加载，请稍后重试"
+        case .unavailableAfterLoadFailure: "显示器配置读取失败；为保护原文件，本次启动不允许修改"
+        }
+    }
 }

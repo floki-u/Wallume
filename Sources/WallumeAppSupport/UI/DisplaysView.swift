@@ -91,8 +91,8 @@ public struct DisplaysView: View {
                 .frame(width: 150, height: 86).clipped().clipShape(RoundedRectangle(cornerRadius: 8))
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(card.media?.displayName ?? "尚未设置壁纸").font(.headline)
-                    if card.connection == .connected {
+                    Text(card.wallpaperTitle).font(.headline)
+                    if card.canSetPresentationMode {
                         Picker("显示方式", selection: modeBinding(card)) {
                             ForEach(WallpaperPresentationMode.allCases, id: \.self) { mode in
                                 Text(mode.displayTitle).tag(mode)
@@ -107,8 +107,8 @@ public struct DisplaysView: View {
                 Spacer()
                 VStack(alignment: .trailing) {
                     if card.connection == .connected {
-                        Button(card.media == nil ? "选择壁纸" : "更换壁纸") { onChooseWallpaper(card.id) }
-                        if card.media != nil {
+                        Button(card.hasAssignment ? "更换壁纸" : "选择壁纸") { onChooseWallpaper(card.id) }
+                        if card.canRemoveAssignment {
                             Button("移除", role: .destructive) { Task { await store.removeAssignment(displayID: card.id) } }
                         }
                         if card.runtimeError != nil {

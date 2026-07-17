@@ -24,6 +24,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private var runtimeObservationTask: Task<Void, Never>?
     private var latestAssignments = DisplayAssignmentSnapshot.empty
     private var latestRuntime = WallpaperRuntimeSnapshot.empty
+    private var assignmentConfigurationLoaded = false
 
     override init() {
         let environment = ProcessInfo.processInfo.environment
@@ -161,8 +162,10 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             guard let self else { return }
             do {
                 latestAssignments = try await assignmentStore.load()
+                assignmentConfigurationLoaded = true
             } catch {
                 latestAssignments = .empty
+                assignmentConfigurationLoaded = false
                 displayStore.reportPageError("显示器配置无法读取：\(error.localizedDescription)")
             }
             runtimeService.start(assignments: latestAssignments)
@@ -190,6 +193,10 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             let stream = runtimeService.events()
             for await snapshot in stream {
                 guard let self else { return }
+                if assignmentConfigurationLoaded {
+                    do { try await assignmentStore.refreshMetadata(from: screens.screens) }
+                    catch { displayStore.reportPageError(error.localizedDescription) }
+                }
                 latestRuntime = snapshot
                 status.updatePlayback(
                     activeDisplayCount: snapshot.activeDisplayCount,

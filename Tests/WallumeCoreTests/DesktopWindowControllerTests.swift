@@ -41,7 +41,7 @@ final class DesktopWindowControllerTests: XCTestCase {
         let resourceID = UUID()
         _ = controller.reconcile([.init(id: displayID, frame: .zero)])
 
-        controller.apply(
+        _ = controller.apply(
             snapshot: RuntimeSnapshot(
                 sessions: [.init(displayID: displayID, mediaID: media.id, resourceID: resourceID)],
                 resourceReferenceCounts: [media.id: 1],
@@ -66,7 +66,7 @@ final class DesktopWindowControllerTests: XCTestCase {
         let media = MediaItem.presentationFixture()
         _ = controller.reconcile([.init(id: displayID, frame: .zero)])
 
-        controller.apply(
+        _ = controller.apply(
             snapshot: RuntimeSnapshot(
                 sessions: [], resourceReferenceCounts: [:], pauseReasons: [],
                 failures: [.init(displayID: displayID, mediaID: media.id, message: "unplayable")],
@@ -79,6 +79,45 @@ final class DesktopWindowControllerTests: XCTestCase {
         XCTAssertNil(factory.surface(for: displayID)?.presentation)
         XCTAssertEqual(factory.surface(for: displayID)?.fallbackURL, media.coverURL)
         XCTAssertEqual(factory.surface(for: displayID)?.mode, .stretch)
+    }
+
+    @MainActor
+    func testUnchangedApplyDoesNotRecreatePresentation() {
+        let factory = SurfaceFactory()
+        let controller = DesktopWindowController(factory: factory)
+        let displayID = DisplayID("one")
+        let media = MediaItem.presentationFixture()
+        let snapshot = RuntimeSnapshot(
+            sessions: [.init(displayID: displayID, mediaID: media.id, resourceID: UUID())],
+            resourceReferenceCounts: [media.id: 1], pauseReasons: [], failures: [],
+            resourceCreationCount: 1
+        )
+        _ = controller.reconcile([.init(id: displayID, frame: .zero)])
+
+        _ = controller.apply(snapshot: snapshot, mediaByID: [media.id: media], modesByDisplay: [displayID: .fill])
+        _ = controller.apply(snapshot: snapshot, mediaByID: [media.id: media], modesByDisplay: [displayID: .fill])
+
+        XCTAssertEqual(factory.surface(for: displayID)?.presentationCallCount, 1)
+    }
+
+    @MainActor
+    func testPresentationFailureIsReturnedForAffectedDisplay() {
+        let displayID = DisplayID("one")
+        let factory = SurfaceFactory(presentationFailingIDs: [displayID])
+        let controller = DesktopWindowController(factory: factory)
+        let media = MediaItem.presentationFixture()
+        _ = controller.reconcile([.init(id: displayID, frame: .zero)])
+
+        let failures = controller.apply(
+            snapshot: RuntimeSnapshot(
+                sessions: [.init(displayID: displayID, mediaID: media.id, resourceID: UUID())],
+                resourceReferenceCounts: [media.id: 1], pauseReasons: [], failures: [],
+                resourceCreationCount: 1
+            ),
+            mediaByID: [media.id: media], modesByDisplay: [displayID: .fill]
+        )
+
+        XCTAssertEqual(failures.map(\.displayID), [displayID])
     }
 
     @MainActor
@@ -102,10 +141,16 @@ final class DesktopWindowControllerTests: XCTestCase {
 @MainActor private final class SurfaceFactory: DesktopSurfaceFactory {
     private var surfaces = [DisplayID: Surface]()
     private let failingIDs: Set<DisplayID>
-    init(failingIDs: Set<DisplayID> = []) { self.failingIDs = failingIDs }
+    private let presentationFailingIDs: Set<DisplayID>
+    init(failingIDs: Set<DisplayID> = [], presentationFailingIDs: Set<DisplayID> = []) {
+        self.failingIDs = failingIDs
+        self.presentationFailingIDs = presentationFailingIDs
+    }
     func makeSurface(for screen: DesktopScreen) throws -> any DesktopSurface {
         if failingIDs.contains(screen.id) { throw SurfaceError.creationFailed }
-        let value = Surface(); surfaces[screen.id] = value; return value
+        let value = Surface(failsPresentation: presentationFailingIDs.contains(screen.id))
+        surfaces[screen.id] = value
+        return value
     }
     func surface(for id: DisplayID) -> Surface? { surfaces[id] }
 }
@@ -117,8 +162,13 @@ private enum SurfaceError: Error { case creationFailed }
     var presentation: PlaybackPresentation?
     var fallbackURL: URL?
     var mode: WallpaperPresentationMode?
+    var presentationCallCount = 0
+    let failsPresentation: Bool
+    init(failsPresentation: Bool = false) { self.failsPresentation = failsPresentation }
     func show(frame: CGRect) { frames.append(frame) }
-    func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?, mode: WallpaperPresentationMode) {
+    func setPresentation(_ presentation: PlaybackPresentation?, fallbackURL: URL?, mode: WallpaperPresentationMode) throws {
+        presentationCallCount += 1
+        if failsPresentation { throw SurfaceError.creationFailed }
         self.presentation = presentation
         self.fallbackURL = fallbackURL
         self.mode = mode

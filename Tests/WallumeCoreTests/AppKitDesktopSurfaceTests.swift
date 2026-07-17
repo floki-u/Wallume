@@ -21,8 +21,8 @@ final class AppKitDesktopSurfaceTests: XCTestCase {
         let second = AppKitDesktopSurface(registry: registry)
         let presentation = PlaybackPresentation(resourceID: resourceID)
 
-        first.setPresentation(presentation, fallbackURL: nil, mode: .fill)
-        second.setPresentation(presentation, fallbackURL: nil, mode: .fill)
+        try? first.setPresentation(presentation, fallbackURL: nil, mode: .fill)
+        try? second.setPresentation(presentation, fallbackURL: nil, mode: .fill)
 
         XCTAssertEqual(first.videoGravity, .resizeAspectFill)
         XCTAssertEqual(second.videoGravity, .resizeAspectFill)
@@ -37,12 +37,21 @@ final class AppKitDesktopSurfaceTests: XCTestCase {
         let surface = AppKitDesktopSurface(registry: registry)
         let presentation = PlaybackPresentation(resourceID: resourceID)
 
-        surface.setPresentation(presentation, fallbackURL: nil, mode: .fill)
+        try? surface.setPresentation(presentation, fallbackURL: nil, mode: .fill)
         XCTAssertEqual(surface.videoGravity, .resizeAspectFill)
-        surface.setPresentation(presentation, fallbackURL: nil, mode: .fit)
+        try? surface.setPresentation(presentation, fallbackURL: nil, mode: .fit)
         XCTAssertEqual(surface.videoGravity, .resizeAspect)
-        surface.setPresentation(presentation, fallbackURL: nil, mode: .stretch)
+        try? surface.setPresentation(presentation, fallbackURL: nil, mode: .stretch)
         XCTAssertEqual(surface.videoGravity, .resize)
+    }
+
+    @MainActor
+    func testMissingRegisteredPlayerReportsPresentationFailure() {
+        let surface = AppKitDesktopSurface(registry: AVPlayerPresentationRegistry())
+
+        XCTAssertThrowsError(try surface.setPresentation(
+            PlaybackPresentation(resourceID: UUID()), fallbackURL: nil, mode: .fill
+        ))
     }
 
     @MainActor

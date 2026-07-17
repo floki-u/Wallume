@@ -55,6 +55,18 @@ final class WallpaperRuntimeServiceTests: XCTestCase {
 
         XCTAssertEqual(fixture.events.values.suffix(5), ["screens.stop", "environment.stop", "occlusion.stop", "windows.closeAll", "runtime.shutdown"])
     }
+
+    @MainActor
+    func testPresentationFailureIsPublishedInServiceSnapshot() async {
+        let fixture = RuntimeFixture()
+        fixture.screens.value = [fixture.one]
+        fixture.windows.applyFailures = [.init(displayID: fixture.one.id, message: "无法显示壁纸")]
+
+        fixture.service.start(assignments: fixture.assignments([fixture.one: .fill]))
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(fixture.service.latestSnapshot.surfaceFailures, fixture.windows.applyFailures)
+    }
 }
 
 @MainActor
@@ -128,10 +140,15 @@ private final class StubRuntime: RuntimeCoordinating, @unchecked Sendable {
 }
 
 @MainActor private final class StubWindows: DesktopWindowControlling {
-    let events: EventRecorder; var lastModes = [DisplayID: WallpaperPresentationMode]()
+    let events: EventRecorder
+    var lastModes = [DisplayID: WallpaperPresentationMode]()
+    var applyFailures = [DesktopSurfaceFailure]()
     init(events: EventRecorder) { self.events = events }
     func reconcile(_ screens: [DesktopScreen]) -> [DesktopSurfaceFailure] { [] }
-    func apply(snapshot: RuntimeSnapshot, mediaByID: [UUID: MediaItem], modesByDisplay: [DisplayID: WallpaperPresentationMode]) { lastModes = modesByDisplay }
+    func apply(snapshot: RuntimeSnapshot, mediaByID: [UUID: MediaItem], modesByDisplay: [DisplayID: WallpaperPresentationMode]) -> [DesktopSurfaceFailure] {
+        lastModes = modesByDisplay
+        return applyFailures
+    }
     func closeAll() { events.values.append("windows.closeAll") }
 }
 

@@ -19,7 +19,7 @@ public protocol DesktopWindowControlling: AnyObject {
         snapshot: RuntimeSnapshot,
         mediaByID: [UUID: MediaItem],
         modesByDisplay: [DisplayID: WallpaperPresentationMode]
-    )
+    ) -> [DesktopSurfaceFailure]
     func closeAll()
 }
 
@@ -182,13 +182,16 @@ public final class WallpaperRuntimeService {
         for mediaID in Set(assignedRecords.compactMap(\.mediaID)) {
             if let item = try? catalog.item(id: mediaID) { mediaByID[mediaID] = item }
         }
-        let failures = windows.reconcile(targetScreens)
-        windows.apply(
+        let creationFailures = windows.reconcile(targetScreens)
+        let presentationFailures = windows.apply(
             snapshot: runtimeSnapshot,
             mediaByID: mediaByID,
             modesByDisplay: Dictionary(uniqueKeysWithValues: assignedRecords.map { ($0.displayID, $0.presentationMode) })
         )
-        latestSnapshot = WallpaperRuntimeSnapshot(runtime: runtimeSnapshot, surfaceFailures: failures)
+        latestSnapshot = WallpaperRuntimeSnapshot(
+            runtime: runtimeSnapshot,
+            surfaceFailures: (creationFailures + presentationFailures).sorted { $0.displayID < $1.displayID }
+        )
         publish()
     }
 

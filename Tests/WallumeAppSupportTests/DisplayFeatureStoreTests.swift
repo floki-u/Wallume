@@ -65,6 +65,37 @@ final class DisplayFeatureStoreTests: XCTestCase {
 
         XCTAssertEqual(store.cards.first?.runtimeError, "无法创建桌面窗口")
     }
+
+    @MainActor
+    func testMissingMediaRemainsAnAssignedRemovableDisplayState() {
+        let missingID = UUID()
+        let online = DisplayRecord(screen: screen("online", name: "Built-in"), connection: .connected)
+        let assignments = DisplayAssignmentSnapshot(
+            records: [assignmentRecord("online", name: "Built-in", mediaID: missingID)],
+            userPaused: false
+        )
+        let store = DisplayFeatureStore(commands: .noop)
+
+        store.update(catalog: [online], assignments: assignments, media: [], runtime: nil)
+
+        XCTAssertTrue(store.cards[0].hasAssignment)
+        XCTAssertTrue(store.cards[0].canRemoveAssignment)
+        XCTAssertTrue(store.cards[0].canSetPresentationMode)
+        XCTAssertEqual(store.cards[0].wallpaperTitle, "媒体不可用")
+    }
+
+    @MainActor
+    func testUnassignedDisplayDoesNotExposePresentationOrRemoveActions() {
+        let online = DisplayRecord(screen: screen("online", name: "Built-in"), connection: .connected)
+        let store = DisplayFeatureStore(commands: .noop)
+
+        store.update(catalog: [online], assignments: .empty, media: [], runtime: nil)
+
+        XCTAssertFalse(store.cards[0].hasAssignment)
+        XCTAssertFalse(store.cards[0].canRemoveAssignment)
+        XCTAssertFalse(store.cards[0].canSetPresentationMode)
+        XCTAssertEqual(store.cards[0].wallpaperTitle, "尚未设置壁纸")
+    }
 }
 
 private enum CommandError: Error { case failed }
