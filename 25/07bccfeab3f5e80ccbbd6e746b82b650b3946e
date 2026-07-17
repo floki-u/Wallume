@@ -1,0 +1,49 @@
+docs/phase-four-status.md
+  8696c979740de9f4 45-61,64
+docs/progress-status.md
+  8696c979740de9f4 12,16,20,22
+docs/superpowers/plans/2026-07-17-lock-screen-application-sync.md
+  8696c979740de9f4 216,222,228,234,240,242,244,253-259
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "2507bccfeab3f5e80ccbbd6e746b82b650b3946e",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 57,
+      "total_deletions": 384,
+      "accepted_lines": 57,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        ".superpowers/sdd/task-6-report.md": {
+          "additions": 21,
+          "deletions": 366,
+          "accepted_lines": 21
+        },
+        "docs/progress-status.md": {
+          "additions": 4,
+          "deletions": 3,
+          "accepted_lines": 4
+        },
+        "docs/phase-four-status.md": {
+          "additions": 18,
+          "deletions": 1,
+          "accepted_lines": 18
+        },
+        "docs/superpowers/plans/2026-07-17-lock-screen-application-sync.md": {
+          "additions": 14,
+          "deletions": 14,
+          "accepted_lines": 14
+        }
+      }
+    }
+  }
+}
