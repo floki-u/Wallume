@@ -4,6 +4,601 @@ import XCTest
 import WallumeCore
 
 final class LockScreenSyncServiceTests: XCTestCase {
+    private let aerialID = "com.apple.aerials.sea"
+
+    func testStartPerformsReadOnlyProbeWithoutSelectingDefaultSlot() async throws {
+        let fixture = try await LockScreenSyncFixture.make()
+        defer { fixture.cleanup() }
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .readyToConfigure)
+        XCTAssertNil(state.selectedAerialID)
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+        XCTAssertFalse(fixture.files.exists(fixture.configurationURL))
+    }
+
+    func testExplicitSelectionAndConfirmationEnableFirstInstall() async throws {
+        let fixture = try await LockScreenSyncFixture.make()
+        defer { fixture.cleanup() }
+        let media = try fixture.makeAvailableMedia(id: fixture.firstMediaID, name: "First")
+        await fixture.service.apply(input: fixture.input(media: media))
+
+        await fixture.service.start()
+        await fixture.service.selectAerialSlot(aerialID)
+        await fixture.service.waitForIdle()
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+        let selectedState = await fixture.service.snapshot()
+        XCTAssertEqual(selectedState.selectedAerialID, aerialID)
+
+        await fixture.service.confirmEnable()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(
+            fixture.client.calls,
+            [.probe, .inspectRecovery, .install(mediaID: media.id, aerialID: aerialID)]
+        )
+        let configuration = try await fixture.reloadedConfiguration()
+        XCTAssertTrue(configuration.isEnabled)
+        XCTAssertEqual(configuration.selectedAerialID, aerialID)
+        XCTAssertEqual(configuration.activeTransactionID, fixture.installedTransactionID)
+        XCTAssertEqual(configuration.lastSyncedMediaID, media.id)
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .synced)
+    }
+
+    func testSameMediaIsDeduplicatedAgainstConfiguredCommittedTransaction() async throws {
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .enabled(
+                aerialID: aerialID,
+                transactionID: LockScreenSyncFixture.existingTransactionID,
+                mediaID: LockScreenSyncFixture.firstMediaID
+            ),
+            recoveryResults: [.success([.candidate(
+                id: LockScreenSyncFixture.existingTransactionID,
+                phase: .committed,
+                aerialID: aerialID
+            )])]
+        )
+        defer { fixture.cleanup() }
+        let media = try fixture.makeAvailableMedia(id: fixture.firstMediaID, name: "First")
+        await fixture.service.apply(input: fixture.input(media: media))
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .synced)
+        XCTAssertEqual(state.activeTransactionID, fixture.existingTransactionID)
+        XCTAssertEqual(state.syncedMedia?.id, media.id)
+    }
+
+    func testUnavailableMainWallpaperConditionsWaitWithoutRestoreOrInstall() async throws {
+        for condition in LockScreenSyncFixture.WaitingCondition.allCases {
+            let fixture = try await LockScreenSyncFixture.make(
+                configuration: .enabled(
+                    aerialID: aerialID,
+                    transactionID: LockScreenSyncFixture.existingTransactionID,
+                    mediaID: LockScreenSyncFixture.firstMediaID
+                ),
+                recoveryResults: [.success([.candidate(
+                    id: LockScreenSyncFixture.existingTransactionID,
+                    phase: .committed,
+                    aerialID: aerialID
+                )])]
+            )
+            defer { fixture.cleanup() }
+            await fixture.service.apply(input: try fixture.waitingInput(condition))
+
+            await fixture.service.start()
+            await fixture.service.waitForIdle()
+
+            let state = await fixture.service.snapshot()
+            XCTAssertEqual(state.phase, .waitingForMainWallpaper, "\(condition)")
+            XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery], "\(condition)")
+            XCTAssertEqual(state.activeTransactionID, fixture.existingTransactionID)
+        }
+    }
+
+    func testMediaSwitchRestoresBeforeInstallingAndOnlyThenPersistsReplacement() async throws {
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .enabled(
+                aerialID: aerialID,
+                transactionID: LockScreenSyncFixture.existingTransactionID,
+                mediaID: LockScreenSyncFixture.firstMediaID
+            ),
+            recoveryResults: [.success([.candidate(
+                id: LockScreenSyncFixture.existingTransactionID,
+                phase: .committed,
+                aerialID: aerialID
+            )])]
+        )
+        defer { fixture.cleanup() }
+        let replacement = try fixture.makeAvailableMedia(id: fixture.secondMediaID, name: "Second")
+        await fixture.service.apply(input: fixture.input(media: replacement))
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(
+            fixture.client.calls,
+            [
+                .probe,
+                .inspectRecovery,
+                .restore(transactionID: fixture.existingTransactionID),
+                .install(mediaID: replacement.id, aerialID: aerialID),
+            ]
+        )
+        let configuration = try await fixture.reloadedConfiguration()
+        XCTAssertEqual(configuration.activeTransactionID, fixture.installedTransactionID)
+        XCTAssertEqual(configuration.lastSyncedMediaID, replacement.id)
+    }
+
+    func testFailedInstallRetainsEnabledIntentAndPublishesRetryableError() async throws {
+        let fixture = try await LockScreenSyncFixture.make(
+            installResults: [.failure(.expected)]
+        )
+        defer { fixture.cleanup() }
+        let media = try fixture.makeAvailableMedia(id: fixture.firstMediaID, name: "First")
+        await fixture.service.apply(input: fixture.input(media: media))
+        await fixture.service.start()
+        await fixture.service.selectAerialSlot(aerialID)
+
+        await fixture.service.confirmEnable()
+        await fixture.service.waitForIdle()
+
+        let configuration = try await fixture.reloadedConfiguration()
+        XCTAssertTrue(configuration.isEnabled)
+        XCTAssertEqual(configuration.selectedAerialID, aerialID)
+        XCTAssertNil(configuration.activeTransactionID)
+        XCTAssertEqual(configuration.lastResult, .failed)
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .needsRepair)
+        XCTAssertNotNil(state.lastError)
+        XCTAssertTrue(state.capabilities.canRetry)
+    }
+
+    func testConfiguredCommittedTransactionIsRetainedDuringStartupAlignment() async throws {
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .enabled(
+                aerialID: aerialID,
+                transactionID: LockScreenSyncFixture.existingTransactionID,
+                mediaID: LockScreenSyncFixture.firstMediaID
+            ),
+            recoveryResults: [.success([.candidate(
+                id: LockScreenSyncFixture.existingTransactionID,
+                phase: .committed,
+                aerialID: aerialID
+            )])]
+        )
+        defer { fixture.cleanup() }
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.activeTransactionID, fixture.existingTransactionID)
+    }
+
+    func testConfiguredIncompleteTransactionsRestoreBeforeReevaluation() async throws {
+        for phase in [TransactionPhase.prepared, .writing, .restoring] {
+            let fixture = try await LockScreenSyncFixture.make(
+                configuration: .enabled(
+                    aerialID: aerialID,
+                    transactionID: LockScreenSyncFixture.existingTransactionID,
+                    mediaID: LockScreenSyncFixture.firstMediaID
+                ),
+                recoveryResults: [.success([.candidate(
+                    id: LockScreenSyncFixture.existingTransactionID,
+                    phase: phase,
+                    aerialID: aerialID
+                )])]
+            )
+            defer { fixture.cleanup() }
+            let replacement = try fixture.makeAvailableMedia(id: fixture.secondMediaID, name: "Second")
+            await fixture.service.apply(input: fixture.input(media: replacement))
+
+            await fixture.service.start()
+            await fixture.service.waitForIdle()
+
+            XCTAssertEqual(
+                fixture.client.calls,
+                [
+                    .probe,
+                    .inspectRecovery,
+                    .restore(transactionID: fixture.existingTransactionID),
+                    .install(mediaID: replacement.id, aerialID: aerialID),
+                ],
+                "\(phase)"
+            )
+        }
+    }
+
+    func testConfiguredConflictBlocksWrites() async throws {
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .enabled(
+                aerialID: aerialID,
+                transactionID: LockScreenSyncFixture.existingTransactionID,
+                mediaID: LockScreenSyncFixture.firstMediaID
+            ),
+            recoveryResults: [.success([.candidate(
+                id: LockScreenSyncFixture.existingTransactionID,
+                phase: .conflicted,
+                aerialID: aerialID
+            )])]
+        )
+        defer { fixture.cleanup() }
+        let media = try fixture.makeAvailableMedia(id: fixture.secondMediaID, name: "Second")
+        await fixture.service.apply(input: fixture.input(media: media))
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .needsRepair)
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+    }
+
+    func testMultipleRecoveryCandidatesBlockAllWrites() async throws {
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .enabled(aerialID: aerialID),
+            recoveryResults: [.success([
+                .candidate(id: fixtureID(1), phase: .committed, aerialID: aerialID),
+                .candidate(id: fixtureID(2), phase: .prepared, aerialID: aerialID),
+            ])]
+        )
+        defer { fixture.cleanup() }
+        let media = try fixture.makeAvailableMedia(id: fixture.firstMediaID, name: "First")
+        await fixture.service.apply(input: fixture.input(media: media))
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .needsRepair)
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+    }
+
+    func testAmbiguousRecoveryAlsoBlocksDisableFromClearingEnabledIntent() async throws {
+        let original = LockScreenConfiguration.enabled(aerialID: aerialID)
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: original,
+            recoveryResults: [.success([
+                .candidate(id: fixtureID(20), phase: .committed, aerialID: aerialID),
+                .candidate(id: fixtureID(21), phase: .committed, aerialID: aerialID),
+            ])]
+        )
+        defer { fixture.cleanup() }
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        await fixture.service.disableAndRestore()
+        await fixture.service.waitForIdle()
+
+        let persisted = try await fixture.reloadedConfiguration()
+        XCTAssertEqual(persisted, original)
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .needsRepair)
+    }
+
+    func testUniqueMatchingCommittedOrphanRestoresBeforeResync() async throws {
+        let orphanID = fixtureID(3)
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .enabled(aerialID: aerialID),
+            recoveryResults: [.success([.candidate(id: orphanID, phase: .committed, aerialID: aerialID)])]
+        )
+        defer { fixture.cleanup() }
+        let media = try fixture.makeAvailableMedia(id: fixture.firstMediaID, name: "First")
+        await fixture.service.apply(input: fixture.input(media: media))
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(
+            fixture.client.calls,
+            [
+                .probe,
+                .inspectRecovery,
+                .restore(transactionID: orphanID),
+                .install(mediaID: media.id, aerialID: aerialID),
+            ]
+        )
+    }
+
+    func testOtherUniqueOrphansRequireRepairWithoutWrites() async throws {
+        let cases: [(TransactionPhase, String)] = [
+            (.committed, "a-different-slot"),
+            (.prepared, aerialID),
+            (.writing, aerialID),
+            (.restoring, aerialID),
+            (.conflicted, aerialID),
+        ]
+        for (phase, candidateAerialID) in cases {
+            let fixture = try await LockScreenSyncFixture.make(
+                configuration: .enabled(aerialID: aerialID),
+                recoveryResults: [.success([.candidate(
+                    id: fixtureID(4), phase: phase, aerialID: candidateAerialID
+                )])]
+            )
+            defer { fixture.cleanup() }
+            let media = try fixture.makeAvailableMedia(id: fixture.firstMediaID, name: "First")
+            await fixture.service.apply(input: fixture.input(media: media))
+
+            await fixture.service.start()
+            await fixture.service.waitForIdle()
+
+            let state = await fixture.service.snapshot()
+            XCTAssertEqual(state.phase, .needsRepair, "\(phase)")
+            XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery], "\(phase)")
+        }
+    }
+
+    func testConflictDuringMediaSwitchRetainsOldConfigurationAndBlocksInstall() async throws {
+        let report = RecoveryReport(
+            restored: [],
+            conflicts: [URL(string: "https://example.test/conflict")!],
+            retainedBackups: [URL(string: "https://example.test/backup")!]
+        )
+        let original = LockScreenConfiguration.enabled(
+            aerialID: aerialID,
+            transactionID: LockScreenSyncFixture.existingTransactionID,
+            mediaID: LockScreenSyncFixture.firstMediaID
+        )
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: original,
+            recoveryResults: [.success([.candidate(
+                id: LockScreenSyncFixture.existingTransactionID,
+                phase: .committed,
+                aerialID: aerialID
+            )])],
+            restoreResults: [.success(report)]
+        )
+        defer { fixture.cleanup() }
+        let replacement = try fixture.makeAvailableMedia(id: fixture.secondMediaID, name: "Second")
+        await fixture.service.apply(input: fixture.input(media: replacement))
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(
+            fixture.client.calls,
+            [.probe, .inspectRecovery, .restore(transactionID: fixture.existingTransactionID)]
+        )
+        let persisted = try await fixture.reloadedConfiguration()
+        XCTAssertEqual(persisted, original)
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .needsRepair)
+    }
+
+    func testDisableClearsConfigurationOnlyAfterConflictFreeRestore() async throws {
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .enabled(
+                aerialID: aerialID,
+                transactionID: LockScreenSyncFixture.existingTransactionID,
+                mediaID: LockScreenSyncFixture.firstMediaID
+            ),
+            recoveryResults: [.success([.candidate(
+                id: LockScreenSyncFixture.existingTransactionID,
+                phase: .committed,
+                aerialID: aerialID
+            )])]
+        )
+        defer { fixture.cleanup() }
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        await fixture.service.disableAndRestore()
+        await fixture.service.waitForIdle()
+
+        let persisted = try await fixture.reloadedConfiguration()
+        XCTAssertEqual(persisted, .disabled)
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .readyToConfigure)
+        XCTAssertEqual(fixture.client.calls.last, .restore(transactionID: fixture.existingTransactionID))
+    }
+
+    func testDisableConflictRetainsEnabledIntentAndActiveTransaction() async throws {
+        let conflict = RecoveryReport(
+            restored: [],
+            conflicts: [URL(string: "https://example.test/conflict")!],
+            retainedBackups: [URL(string: "https://example.test/backup")!]
+        )
+        let original = LockScreenConfiguration.enabled(
+            aerialID: aerialID,
+            transactionID: LockScreenSyncFixture.existingTransactionID,
+            mediaID: LockScreenSyncFixture.firstMediaID
+        )
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: original,
+            recoveryResults: [.success([.candidate(
+                id: LockScreenSyncFixture.existingTransactionID,
+                phase: .committed,
+                aerialID: aerialID
+            )])],
+            restoreResults: [.success(conflict)]
+        )
+        defer { fixture.cleanup() }
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        await fixture.service.disableAndRestore()
+        await fixture.service.waitForIdle()
+
+        let persisted = try await fixture.reloadedConfiguration()
+        XCTAssertEqual(persisted, original)
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .needsRepair)
+        XCTAssertEqual(state.activeTransactionID, fixture.existingTransactionID)
+    }
+
+    func testRetryRepeatsProbeAndRecoveryBeforeRetryingFailedInstall() async throws {
+        let fixture = try await LockScreenSyncFixture.make(
+            installResults: [
+                .failure(.expected),
+                .success(makeManifest(id: LockScreenSyncFixture.installedTransactionID)),
+            ],
+            recoveryResults: [.success([]), .success([])]
+        )
+        defer { fixture.cleanup() }
+        let media = try fixture.makeAvailableMedia(id: fixture.firstMediaID, name: "First")
+        await fixture.service.apply(input: fixture.input(media: media))
+        await fixture.service.start()
+        await fixture.service.selectAerialSlot(aerialID)
+        await fixture.service.confirmEnable()
+        await fixture.service.waitForIdle()
+        let failedState = await fixture.service.snapshot()
+        XCTAssertEqual(failedState.phase, .needsRepair)
+
+        await fixture.service.retry()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(
+            fixture.client.calls,
+            [
+                .probe,
+                .inspectRecovery,
+                .install(mediaID: media.id, aerialID: aerialID),
+                .probe,
+                .inspectRecovery,
+                .install(mediaID: media.id, aerialID: aerialID),
+            ]
+        )
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .synced)
+    }
+
+    func testInputsAreAcceptedAndCoalescedToLatestWhileInstallIsInFlight() async throws {
+        let gate = BlockingClientGate()
+        let firstTransactionID = fixtureID(10)
+        let fixture = try await LockScreenSyncFixture.make(
+            installResults: [
+                .success(makeManifest(id: firstTransactionID)),
+                .success(makeManifest(id: LockScreenSyncFixture.installedTransactionID)),
+            ],
+            installGate: gate
+        )
+        defer { fixture.cleanup() }
+        let first = try fixture.makeAvailableMedia(id: fixture.firstMediaID, name: "First")
+        let intermediate = try fixture.makeAvailableMedia(id: fixtureID(11), name: "Intermediate")
+        let latest = try fixture.makeAvailableMedia(id: fixture.secondMediaID, name: "Latest")
+        let intermediateInput = fixture.input(media: intermediate)
+        let latestInput = fixture.input(media: latest)
+        let service = fixture.service
+        await fixture.service.apply(input: fixture.input(media: first))
+        await fixture.service.start()
+        await fixture.service.selectAerialSlot(aerialID)
+        await fixture.service.confirmEnable()
+        XCTAssertTrue(gate.waitUntilEntered(timeout: 2))
+
+        let intermediateAccepted = expectation(description: "intermediate input accepted during install")
+        Task {
+            await service.apply(input: intermediateInput)
+            intermediateAccepted.fulfill()
+        }
+        await fulfillment(of: [intermediateAccepted], timeout: 1)
+        let latestAccepted = expectation(description: "latest input accepted during install")
+        Task {
+            await service.apply(input: latestInput)
+            latestAccepted.fulfill()
+        }
+        await fulfillment(of: [latestAccepted], timeout: 1)
+        gate.release()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(
+            fixture.client.calls,
+            [
+                .probe,
+                .inspectRecovery,
+                .install(mediaID: first.id, aerialID: aerialID),
+                .restore(transactionID: firstTransactionID),
+                .install(mediaID: latest.id, aerialID: aerialID),
+            ]
+        )
+    }
+
+    func testInputChangeDuringRestoreInstallsOnlyLatestMediaAtSafeEndpoint() async throws {
+        let gate = BlockingClientGate()
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .enabled(
+                aerialID: aerialID,
+                transactionID: LockScreenSyncFixture.existingTransactionID,
+                mediaID: LockScreenSyncFixture.firstMediaID
+            ),
+            recoveryResults: [.success([.candidate(
+                id: LockScreenSyncFixture.existingTransactionID,
+                phase: .committed,
+                aerialID: aerialID
+            )])],
+            restoreGate: gate
+        )
+        defer { fixture.cleanup() }
+        let intermediate = try fixture.makeAvailableMedia(id: fixtureID(30), name: "Intermediate")
+        let latest = try fixture.makeAvailableMedia(id: fixture.secondMediaID, name: "Latest")
+        await fixture.service.apply(input: fixture.input(media: intermediate))
+        await fixture.service.start()
+        XCTAssertTrue(gate.waitUntilEntered(timeout: 2))
+
+        let accepted = expectation(description: "latest input accepted during restore")
+        let service = fixture.service
+        let latestInput = fixture.input(media: latest)
+        Task {
+            await service.apply(input: latestInput)
+            accepted.fulfill()
+        }
+        await fulfillment(of: [accepted], timeout: 1)
+        gate.release()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(
+            fixture.client.calls,
+            [
+                .probe,
+                .inspectRecovery,
+                .restore(transactionID: fixture.existingTransactionID),
+                .install(mediaID: latest.id, aerialID: aerialID),
+            ]
+        )
+    }
+
+    func testStopDrainsQueuedWorkAndRejectsLaterCommands() async throws {
+        let fixture = try await LockScreenSyncFixture.make()
+        defer { fixture.cleanup() }
+        await fixture.service.start()
+        await fixture.service.stopAcceptingNewCommandsAndWait()
+        let callsAtStop = fixture.client.calls
+
+        await fixture.service.refreshProbe()
+        await fixture.service.retry()
+        await fixture.service.apply(input: .empty)
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(fixture.client.calls, callsAtStop)
+    }
+
+    func testUnsupportedProbeStillInspectsRecoveryButBlocksInstall() async throws {
+        let probe = LockScreenSyncFixture.probe(writesPermitted: false)
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .enabled(aerialID: aerialID),
+            probeResult: .success(probe)
+        )
+        defer { fixture.cleanup() }
+        let media = try fixture.makeAvailableMedia(id: fixture.firstMediaID, name: "First")
+        await fixture.service.apply(input: fixture.input(media: media))
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .unsupported)
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+    }
+
     func testFakeSystemClientRecordsCallsWithoutFilesystemPathsOrProcessExecution() throws {
         let probe = LockScreenProbeReport(
             generation: .sequoia,
@@ -156,11 +751,19 @@ private final class FakeLockScreenSystemClient: LockScreenSystemClient, @uncheck
         case restore(transactionID: UUID)
     }
 
-    private let probeResult: Result<LockScreenProbeReport, FakeClientError>
-    private let installResult: Result<LockScreenTransactionManifest, FakeClientError>
-    private let recoveryResult: Result<[RecoveryCandidate], FakeClientError>
-    private let restoreResult: Result<RecoveryReport, FakeClientError>
-    private(set) var calls: [Call] = []
+    private var probeResults: [Result<LockScreenProbeReport, FakeClientError>]
+    private var installResults: [Result<LockScreenTransactionManifest, FakeClientError>]
+    private var recoveryResults: [Result<[RecoveryCandidate], FakeClientError>]
+    private var restoreResults: [Result<RecoveryReport, FakeClientError>]
+    private let lock = NSLock()
+    private let installGate: BlockingClientGate?
+    private let restoreGate: BlockingClientGate?
+    private var recordedCalls: [Call] = []
+    var calls: [Call] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedCalls
+    }
 
     init(
         probeResult: Result<LockScreenProbeReport, FakeClientError>,
@@ -168,30 +771,298 @@ private final class FakeLockScreenSystemClient: LockScreenSystemClient, @uncheck
         recoveryResult: Result<[RecoveryCandidate], FakeClientError>,
         restoreResult: Result<RecoveryReport, FakeClientError>
     ) {
-        self.probeResult = probeResult
-        self.installResult = installResult
-        self.recoveryResult = recoveryResult
-        self.restoreResult = restoreResult
+        probeResults = [probeResult]
+        installResults = [installResult]
+        recoveryResults = [recoveryResult]
+        restoreResults = [restoreResult]
+        installGate = nil
+        restoreGate = nil
+    }
+
+    init(
+        probeResults: [Result<LockScreenProbeReport, FakeClientError>],
+        installResults: [Result<LockScreenTransactionManifest, FakeClientError>],
+        recoveryResults: [Result<[RecoveryCandidate], FakeClientError>],
+        restoreResults: [Result<RecoveryReport, FakeClientError>],
+        installGate: BlockingClientGate? = nil,
+        restoreGate: BlockingClientGate? = nil
+    ) {
+        self.probeResults = probeResults
+        self.installResults = installResults
+        self.recoveryResults = recoveryResults
+        self.restoreResults = restoreResults
+        self.installGate = installGate
+        self.restoreGate = restoreGate
     }
 
     func probe() throws -> LockScreenProbeReport {
-        calls.append(.probe)
-        return try probeResult.get()
+        lock.lock()
+        recordedCalls.append(.probe)
+        let result = next(&probeResults)
+        lock.unlock()
+        return try result.get()
     }
 
     func install(media: MediaItem, aerialID: String) throws -> LockScreenTransactionManifest {
-        calls.append(.install(mediaID: media.id, aerialID: aerialID))
-        return try installResult.get()
+        lock.lock()
+        recordedCalls.append(.install(mediaID: media.id, aerialID: aerialID))
+        lock.unlock()
+        installGate?.enterAndWaitOnce()
+        lock.lock()
+        let result = next(&installResults)
+        lock.unlock()
+        return try result.get()
     }
 
     func inspectRecovery() throws -> [RecoveryCandidate] {
-        calls.append(.inspectRecovery)
-        return try recoveryResult.get()
+        lock.lock()
+        recordedCalls.append(.inspectRecovery)
+        let result = next(&recoveryResults)
+        lock.unlock()
+        return try result.get()
     }
 
     func restore(transactionID: UUID) throws -> RecoveryReport {
-        calls.append(.restore(transactionID: transactionID))
-        return try restoreResult.get()
+        lock.lock()
+        recordedCalls.append(.restore(transactionID: transactionID))
+        lock.unlock()
+        restoreGate?.enterAndWaitOnce()
+        lock.lock()
+        let result = next(&restoreResults)
+        lock.unlock()
+        return try result.get()
+    }
+
+    private func next<T>(_ results: inout [Result<T, FakeClientError>]) -> Result<T, FakeClientError> {
+        precondition(!results.isEmpty, "Missing fake result")
+        if results.count == 1 { return results[0] }
+        return results.removeFirst()
+    }
+}
+
+private final class BlockingClientGate: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var entered = false
+    private var released = false
+    private var hasBlocked = false
+
+    func enterAndWaitOnce() {
+        condition.lock()
+        defer { condition.unlock() }
+        guard !hasBlocked else { return }
+        hasBlocked = true
+        entered = true
+        condition.broadcast()
+        while !released { condition.wait() }
+    }
+
+    func waitUntilEntered(timeout: TimeInterval) -> Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        let deadline = Date().addingTimeInterval(timeout)
+        while !entered, condition.wait(until: deadline) {}
+        return entered
+    }
+
+    func release() {
+        condition.lock()
+        released = true
+        condition.broadcast()
+        condition.unlock()
+    }
+}
+
+private final class LockScreenSyncFixture {
+    static let existingTransactionID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+    static let installedTransactionID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+    static let firstMediaID = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
+    static let secondMediaID = UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
+
+    enum WaitingCondition: CaseIterable {
+        case noMainAssignment
+        case offlineMainDisplay
+        case missingLibraryItem
+        case missingVariant
+        case missingCover
+    }
+
+    let root: URL
+    let configurationURL: URL
+    let files: LocalFileStore
+    let client: FakeLockScreenSystemClient
+    let service: LockScreenSyncService
+    var existingTransactionID: UUID { Self.existingTransactionID }
+    var installedTransactionID: UUID { Self.installedTransactionID }
+    var firstMediaID: UUID { Self.firstMediaID }
+    var secondMediaID: UUID { Self.secondMediaID }
+
+    private init(
+        root: URL,
+        configurationURL: URL,
+        files: LocalFileStore,
+        client: FakeLockScreenSystemClient,
+        service: LockScreenSyncService
+    ) {
+        self.root = root
+        self.configurationURL = configurationURL
+        self.files = files
+        self.client = client
+        self.service = service
+    }
+
+    static func make(
+        configuration: LockScreenConfiguration = .disabled,
+        probeResult: Result<LockScreenProbeReport, FakeClientError> = .success(probe()),
+        installResults: [Result<LockScreenTransactionManifest, FakeClientError>] = [
+            .success(makeManifest(id: installedTransactionID))
+        ],
+        recoveryResults: [Result<[RecoveryCandidate], FakeClientError>] = [.success([])],
+        restoreResults: [Result<RecoveryReport, FakeClientError>] = [.success(.conflictFree)],
+        installGate: BlockingClientGate? = nil,
+        restoreGate: BlockingClientGate? = nil
+    ) async throws -> LockScreenSyncFixture {
+        let temporaryPath = FileManager.default.temporaryDirectory.path
+        let canonicalTemporaryPath = temporaryPath.hasPrefix("/var/")
+            ? "/private" + temporaryPath : temporaryPath
+        let root = URL(fileURLWithPath: canonicalTemporaryPath, isDirectory: true)
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let configurationURL = root.appending(path: "lock-screen-configuration.json")
+        let files = LocalFileStore()
+        if configuration != .disabled {
+            let writer = LockScreenConfigurationStore(
+                url: configurationURL,
+                files: files,
+                jsonStore: AtomicJSONStore(files: files)
+            )
+            _ = try await writer.load()
+            try await writer.update(configuration)
+        }
+        let store = LockScreenConfigurationStore(
+            url: configurationURL,
+            files: files,
+            jsonStore: AtomicJSONStore(files: files)
+        )
+        let client = FakeLockScreenSystemClient(
+            probeResults: [probeResult],
+            installResults: installResults,
+            recoveryResults: recoveryResults,
+            restoreResults: restoreResults,
+            installGate: installGate,
+            restoreGate: restoreGate
+        )
+        return LockScreenSyncFixture(
+            root: root,
+            configurationURL: configurationURL,
+            files: files,
+            client: client,
+            service: LockScreenSyncService(
+                configurationStore: store,
+                systemClient: client,
+                files: files,
+                now: { Date(timeIntervalSince1970: 1_800_000_000) }
+            )
+        )
+    }
+
+    static func probe(writesPermitted: Bool = true) -> LockScreenProbeReport {
+        LockScreenProbeReport(
+            generation: writesPermitted ? .sequoia : .unsupported(99),
+            writesPermitted: writesPermitted,
+            manifestExists: true,
+            indexExists: true,
+            availableSlots: [AerialSlot(
+                id: "com.apple.aerials.sea",
+                displayName: "Sea",
+                videoURL: URL(string: "https://example.test/aerial.mov")!
+            )],
+            foreignBackupNames: []
+        )
+    }
+
+    func makeAvailableMedia(id: UUID, name: String) throws -> MediaItem {
+        let mediaDirectory = root.appending(path: id.uuidString, directoryHint: .isDirectory)
+        let variant = mediaDirectory.appending(path: "variant.mov")
+        let cover = mediaDirectory.appending(path: "cover.jpg")
+        try files.writeAtomically(Data("variant".utf8), to: variant)
+        try files.writeAtomically(Data("cover".utf8), to: cover)
+        return makeMedia(id: id, name: name, variantURL: variant, coverURL: cover)
+    }
+
+    func input(media: MediaItem) -> LockScreenSyncInput {
+        let screen = Self.mainScreen(id: DisplayID("main"))
+        let record = Self.record(displayID: screen.id, mediaID: media.id)
+        return LockScreenSyncInput(
+            assignments: DisplayAssignmentSnapshot(records: [record], userPaused: false),
+            screens: [screen],
+            mediaByID: [media.id: media]
+        )
+    }
+
+    func waitingInput(_ condition: WaitingCondition) throws -> LockScreenSyncInput {
+        let main = Self.mainScreen(id: DisplayID("main"))
+        switch condition {
+        case .noMainAssignment:
+            return LockScreenSyncInput(assignments: .empty, screens: [main], mediaByID: [:])
+        case .offlineMainDisplay:
+            let offlineRecord = Self.record(displayID: DisplayID("offline"), mediaID: firstMediaID)
+            return LockScreenSyncInput(
+                assignments: DisplayAssignmentSnapshot(records: [offlineRecord], userPaused: false),
+                screens: [main],
+                mediaByID: [:]
+            )
+        case .missingLibraryItem:
+            let record = Self.record(displayID: main.id, mediaID: firstMediaID)
+            return LockScreenSyncInput(
+                assignments: DisplayAssignmentSnapshot(records: [record], userPaused: false),
+                screens: [main],
+                mediaByID: [:]
+            )
+        case .missingVariant:
+            let media = try makeAvailableMedia(id: firstMediaID, name: "Missing variant")
+            try files.remove(media.variantURL)
+            return input(media: media)
+        case .missingCover:
+            let media = try makeAvailableMedia(id: firstMediaID, name: "Missing cover")
+            try files.remove(media.coverURL)
+            return input(media: media)
+        }
+    }
+
+    func reloadedConfiguration() async throws -> LockScreenConfiguration {
+        let store = LockScreenConfigurationStore(
+            url: configurationURL,
+            files: files,
+            jsonStore: AtomicJSONStore(files: files)
+        )
+        return try await store.load()
+    }
+
+    func cleanup() { try? FileManager.default.removeItem(at: root) }
+
+    private static func mainScreen(id: DisplayID) -> DesktopScreen {
+        DesktopScreen(
+            id: id,
+            frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+            name: "Main",
+            pixelWidth: 1920,
+            pixelHeight: 1080,
+            isMain: true,
+            identityPersistence: .persistent
+        )
+    }
+
+    private static func record(displayID: DisplayID, mediaID: UUID) -> PersistedDisplayRecord {
+        PersistedDisplayRecord(
+            displayID: displayID,
+            displayName: "Main",
+            pixelWidth: 1920,
+            pixelHeight: 1080,
+            wasMain: true,
+            identityPersistence: .persistent,
+            mediaID: mediaID,
+            presentationMode: .fill
+        )
     }
 }
 
@@ -233,14 +1104,36 @@ private func makeMedia() -> MediaItem {
     )
 }
 
-private func makeManifest() -> LockScreenTransactionManifest {
+private func makeMedia(id: UUID, name: String, variantURL: URL, coverURL: URL) -> MediaItem {
+    MediaItem(
+        id: id,
+        sourceHash: "source-\(id.uuidString)",
+        sourceURL: variantURL,
+        displayName: name,
+        sourceByteCount: 1,
+        pixelWidth: 1920,
+        pixelHeight: 1080,
+        frameRate: 30,
+        durationSeconds: 1,
+        codec: "hevc",
+        variantURL: variantURL,
+        thumbnailURL: coverURL,
+        coverURL: coverURL,
+        createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+}
+
+private func makeManifest(
+    id: UUID = UUID(uuidString: "22F12AB3-7C94-44B7-91CD-62B1ED4A4E51")!,
+    aerialID: String = "com.apple.aerials.sea"
+) -> LockScreenTransactionManifest {
     LockScreenTransactionManifest(
         schemaVersion: 2,
-        id: UUID(uuidString: "22F12AB3-7C94-44B7-91CD-62B1ED4A4E51")!,
+        id: id,
         phase: .committed,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000),
         osMajorVersion: 15,
-        aerialID: "com.apple.aerials.sea",
+        aerialID: aerialID,
         video: FileReplacementRecord(
             target: URL(string: "https://example.test/video")!,
             originalHash: "original-video",
@@ -258,4 +1151,44 @@ private func makeManifest() -> LockScreenTransactionManifest {
         primaryBackup: URL(string: "https://example.test/primary.backup")!,
         recoveryBackup: URL(string: "https://example.test/recovery.backup")!
     )
+}
+
+private func fixtureID(_ suffix: Int) -> UUID {
+    UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", suffix))!
+}
+
+private extension LockScreenConfiguration {
+    static func enabled(
+        aerialID: String,
+        transactionID: UUID? = nil,
+        mediaID: UUID? = nil
+    ) -> LockScreenConfiguration {
+        LockScreenConfiguration(
+            isEnabled: true,
+            selectedAerialID: aerialID,
+            activeTransactionID: transactionID,
+            lastSyncedMediaID: mediaID,
+            lastSyncedAt: mediaID.map { _ in Date(timeIntervalSince1970: 1_700_000_000) },
+            lastResult: mediaID == nil ? nil : .synced
+        )
+    }
+}
+
+private extension RecoveryCandidate {
+    static func candidate(
+        id: UUID,
+        phase: TransactionPhase,
+        aerialID: String
+    ) -> RecoveryCandidate {
+        RecoveryCandidate(
+            id: id,
+            phase: phase,
+            aerialID: aerialID,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+    }
+}
+
+private extension RecoveryReport {
+    static let conflictFree = RecoveryReport(restored: [], conflicts: [], retainedBackups: [])
 }
