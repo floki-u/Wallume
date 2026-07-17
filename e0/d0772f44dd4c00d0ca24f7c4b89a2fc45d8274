@@ -1,0 +1,73 @@
+docs/progress-status.md
+  8696c979740de9f4 16
+docs/lock-screen-safety.md
+  8696c979740de9f4 36-37
+.superpowers/sdd/final-review-fixes-report.md
+  8696c979740de9f4 19,22,34-38
+Sources/WallumeAppSupport/LockScreen/LockScreenConfigurationStore.swift
+  8696c979740de9f4 77-99
+docs/superpowers/specs/2026-07-17-lock-screen-application-sync-design.md
+  8696c979740de9f4 42,44
+Sources/WallumeAppSupport/LockScreen/LockScreenSyncService.swift
+  8696c979740de9f4 412,430-437
+Tests/WallumeAppSupportTests/LockScreenSyncServiceTests.swift
+  8696c979740de9f4 644-670,1501-1507
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "e0d0772f44dd4c00d0ca24f7c4b89a2fc45d8274",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 80,
+      "total_deletions": 7,
+      "accepted_lines": 89,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/LockScreen/LockScreenConfigurationStore.swift": {
+          "additions": 23,
+          "accepted_lines": 23
+        },
+        "Tests/WallumeAppSupportTests/LockScreenSyncServiceTests.swift": {
+          "additions": 36,
+          "deletions": 2,
+          "accepted_lines": 34
+        },
+        "docs/superpowers/specs/2026-07-17-lock-screen-application-sync-design.md": {
+          "additions": 2,
+          "deletions": 1,
+          "accepted_lines": 2
+        },
+        "docs/lock-screen-safety.md": {
+          "additions": 2,
+          "accepted_lines": 2
+        },
+        ".superpowers/sdd/final-review-fixes-report.md": {
+          "additions": 7,
+          "deletions": 2,
+          "accepted_lines": 7
+        },
+        ".superpowers/sdd/task-6-report.md": {
+          "accepted_lines": 11
+        },
+        "Sources/WallumeAppSupport/LockScreen/LockScreenSyncService.swift": {
+          "additions": 9,
+          "deletions": 1,
+          "accepted_lines": 9
+        },
+        "docs/progress-status.md": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        }
+      }
+    }
+  }
+}
