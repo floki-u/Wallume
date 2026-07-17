@@ -52,6 +52,19 @@ final class DisplayFeatureStoreTests: XCTestCase {
         store.update(catalog: [], assignments: .empty, media: [], runtime: nil)
         XCTAssertEqual(store.pageError, "配置损坏")
     }
+
+    @MainActor
+    func testUpdatePublishesDesktopSurfaceFailureOnAffectedDisplay() {
+        let online = DisplayRecord(screen: screen("online", name: "Built-in"), connection: .connected)
+        let store = DisplayFeatureStore(commands: .noop)
+
+        store.update(
+            catalog: [online], assignments: .empty, media: [], runtime: nil,
+            surfaceFailures: [.init(displayID: online.id, message: "无法创建桌面窗口")]
+        )
+
+        XCTAssertEqual(store.cards.first?.runtimeError, "无法创建桌面窗口")
+    }
 }
 
 private enum CommandError: Error { case failed }

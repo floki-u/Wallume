@@ -211,7 +211,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             catalog: catalog,
             assignments: latestAssignments,
             media: media,
-            runtime: latestRuntime.runtime
+            runtime: latestRuntime.runtime,
+            surfaceFailures: latestRuntime.surfaceFailures
         )
     }
 

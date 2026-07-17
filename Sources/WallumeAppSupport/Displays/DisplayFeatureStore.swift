@@ -53,18 +53,23 @@ public final class DisplayFeatureStore {
         catalog: [DisplayRecord],
         assignments: DisplayAssignmentSnapshot,
         media: [MediaItem],
-        runtime: RuntimeSnapshot?
+        runtime: RuntimeSnapshot?,
+        surfaceFailures: [DesktopSurfaceFailure] = []
     ) {
         let records = Dictionary(uniqueKeysWithValues: assignments.records.map { ($0.displayID, $0) })
         let mediaByID = Dictionary(uniqueKeysWithValues: media.map { ($0.id, $0) })
-        let failures = Dictionary((runtime?.failures ?? []).map { ($0.displayID, $0.message) }, uniquingKeysWith: { first, _ in first })
+        let runtimeFailures = Dictionary((runtime?.failures ?? []).map { ($0.displayID, $0.message) }, uniquingKeysWith: { first, _ in first })
+        let windowFailures = Dictionary(surfaceFailures.map { ($0.displayID, $0.message) }, uniquingKeysWith: { first, _ in first })
         cards = catalog.map { display in
             let record = records[display.id]
             return DisplayCardState(
                 display: display,
                 media: record?.mediaID.flatMap { mediaByID[$0] },
                 presentationMode: record?.presentationMode ?? .fill,
-                runtimeError: failures[display.id]
+                runtimeError: [runtimeFailures[display.id], windowFailures[display.id]]
+                    .compactMap { $0 }
+                    .joined(separator: "；")
+                    .nilIfEmpty
             )
         }
         assignmentTargets = catalog.filter { $0.connection == .connected }
@@ -85,4 +90,8 @@ public final class DisplayFeatureStore {
         do { try await operation(); pageError = nil }
         catch { pageError = error.localizedDescription }
     }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
