@@ -213,35 +213,35 @@
 - Modify: `docs/progress-status.md`
 - Modify: `docs/superpowers/plans/2026-07-17-lock-screen-application-sync.md` (check completed boxes only)
 
-- [ ] **Step 1: Execute focused suites once more.**
+- [x] **Step 1: Execute focused suites once more.**
 
   Run: `swift test --filter LockScreenConfigurationStoreTests && swift test --filter LockScreenSyncServiceTests && swift test --filter LockScreenFeatureStoreTests && swift test --filter LockScreenViewTests`
 
   Expected: PASS.
 
-- [ ] **Step 2: Execute the full automated regression suite.**
+- [x] **Step 2: Execute the full automated regression suite.**
 
   Run: `swift test`
 
   Expected: PASS with no skipped/failing new lock-screen tests.
 
-- [ ] **Step 3: Build all release products.**
+- [x] **Step 3: Build all release products.**
 
   Run: `swift build -c release --product WallumeApp && swift build -c release --product wallume-runtime && swift build -c release --product wallume-media && swift build -c release --product wallume-restore`
 
   Expected: all four products build successfully.
 
-- [ ] **Step 4: Perform static safety checks.**
+- [x] **Step 4: Perform static safety checks.**
 
   Run: `git diff --check && rg -n '(/Library/Application Support/com\\.apple\\.wallpaper|/Library/Caches/Desktop Pictures)' Tests/WallumeAppSupportTests`
 
   Expected: `git diff --check` has no output; test sources contain no production system paths.
 
-- [ ] **Step 5: Review the diff against the approved safety matrix.** Verify: selection/confirmation precede install; startup reconciliation precedes automatic writes; transitions restore before reinstall; disable only clears on conflict-free restore; configuration failures never overwrite the source; and runtime errors remain isolated. Record real-machine lock-screen testing, if unavailable, as pending manual acceptance—not as a fabricated result.
+- [x] **Step 5: Review the diff against the approved safety matrix.** Verify: selection/confirmation precede install; startup reconciliation precedes automatic writes; transitions restore before reinstall; disable only clears on conflict-free restore; configuration failures never overwrite the source; and runtime errors remain isolated. Record real-machine lock-screen testing, if unavailable, as pending manual acceptance—not as a fabricated result.
 
-- [ ] **Step 6: Update status documents and plan checkboxes.** Record that Phase 4 batch 3 Lock Screen engineering and automated verification are complete, while real-device/system-wallpaper acceptance remains separately labeled if not performed. Preserve the no-push rule.
+- [x] **Step 6: Update status documents and plan checkboxes.** Record that Phase 4 batch 3 Lock Screen engineering and automated verification are complete, while real-device/system-wallpaper acceptance remains separately labeled if not performed. Preserve the no-push rule.
 
-- [ ] **Step 7: Commit verification/status changes.**
+- [x] **Step 7: Commit verification/status changes.**
 
   ```bash
   git add docs/phase-four-status.md docs/progress-status.md docs/superpowers/plans/2026-07-17-lock-screen-application-sync.md
@@ -250,10 +250,10 @@
 
 ## Final Acceptance Checklist
 
-- [ ] New Lock Screen page is reachable and Performance/Settings remain unavailable.
-- [ ] First use is read-only until an Aerial slot is selected and the user confirms the risk.
-- [ ] The main-display wallpaper drives sync; missing input produces waiting without writing/restoring.
-- [ ] Same media is idempotent; changed media restores before a fresh install.
-- [ ] Startup and disable paths preserve recoverability, fail closed on conflict, and never damage desktop wallpaper playback.
-- [ ] Full tests and all four release builds pass; no production wallpaper directories occur in app-support tests.
-- [ ] Changes remain local; `.vscode/` remains untouched and untracked.
+- [x] New Lock Screen page is reachable and Performance/Settings remain unavailable.
+- [x] First use is read-only until an Aerial slot is selected and the user confirms the risk.
+- [x] The main-display wallpaper drives sync; missing input produces waiting without writing/restoring.
+- [x] Same media is idempotent; changed media restores before a fresh install.
+- [x] Startup and disable paths preserve recoverability, fail closed on conflict, and never damage desktop wallpaper playback.
+- [x] Full tests and all four release builds pass; no production wallpaper directories occur in app-support tests.
+- [x] Changes remain local; `.vscode/` remains untouched and untracked.
