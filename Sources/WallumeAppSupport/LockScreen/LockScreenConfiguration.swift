@@ -2,7 +2,7 @@ import Foundation
 
 /// The durable, user-controlled intent for lock-screen synchronization.
 ///
-/// This document deliberately contains only identifiers and a concise result message. Transaction
+/// This document deliberately contains only identifiers and a concise result code. Transaction
 /// manifests remain the authority for recovery material, so target hashes, backup locations, and
 /// media file paths must never be persisted here.
 public struct LockScreenConfiguration: Codable, Equatable, Sendable {
@@ -38,9 +38,12 @@ public struct LockScreenConfiguration: Codable, Equatable, Sendable {
 }
 
 /// A concise, non-sensitive outcome suitable for durable UI status.
-public enum LockScreenConfigurationResult: Codable, Equatable, Sendable {
+///
+/// User-facing text is derived outside of the persisted configuration so file paths, hashes, and
+/// other operational details cannot enter this document.
+public enum LockScreenConfigurationResult: String, Codable, Equatable, Sendable {
     case synced
-    case waiting(message: String)
-    case failed(message: String)
-    case needsRepair(message: String)
+    case waiting
+    case failed
+    case needsRepair
 }

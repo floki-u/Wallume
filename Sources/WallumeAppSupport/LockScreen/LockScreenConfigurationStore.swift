@@ -88,8 +88,8 @@ public actor LockScreenConfigurationStore {
             throw LockScreenConfigurationStoreError.disabledConfigurationContainsSyncState
         }
 
-        if configuration.lastSyncedAt != nil, configuration.lastSyncedMediaID == nil {
-            throw LockScreenConfigurationStoreError.syncDateWithoutMedia
+        if (configuration.lastSyncedMediaID == nil) != (configuration.lastSyncedAt == nil) {
+            throw LockScreenConfigurationStoreError.incompleteSyncMetadata
         }
     }
 
@@ -106,7 +106,7 @@ public enum LockScreenConfigurationStoreError: Error, Equatable {
     case unsupportedSchema(Int)
     case enabledConfigurationMissingAerialID
     case disabledConfigurationContainsSyncState
-    case syncDateWithoutMedia
+    case incompleteSyncMetadata
     case unavailableBeforeLoad
     case unavailableAfterLoadFailure
 }
@@ -117,7 +117,7 @@ extension LockScreenConfigurationStoreError: LocalizedError {
         case let .unsupportedSchema(version): "不支持的锁屏配置版本：\(version)"
         case .enabledConfigurationMissingAerialID: "启用锁屏同步前必须选择 Aerial 槽"
         case .disabledConfigurationContainsSyncState: "已停用的锁屏配置不能保留同步状态"
-        case .syncDateWithoutMedia: "锁屏同步时间必须关联已同步媒体"
+        case .incompleteSyncMetadata: "锁屏同步媒体和时间必须同时存在"
         case .unavailableBeforeLoad: "锁屏配置仍在加载，请稍后重试"
         case .unavailableAfterLoadFailure: "锁屏配置读取失败；为保护原文件，本次启动不允许修改"
         }

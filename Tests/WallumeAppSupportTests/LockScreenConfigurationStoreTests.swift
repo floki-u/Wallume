@@ -73,6 +73,43 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
         XCTAssertEqual(fixture.files.writeCount, writesBeforeLoad)
     }
 
+    func testPersistedResultMessageWithAPathFailsClosedWithoutOverwrite() async throws {
+        let fixture = try LockScreenConfigurationFixture()
+        defer { fixture.cleanup() }
+        let path = "/Library/Application Support/com.apple.wallpaper/Store/Index.plist"
+        let data = Data("""
+        {"schemaVersion":1,"isEnabled":true,"selectedAerialID":"com.apple.aerials.sea","lastResult":{"waiting":{"message":"\(path)"}}}
+        """.utf8)
+        try fixture.files.writeAtomically(data, to: fixture.url)
+        let writesBeforeLoad = fixture.files.writeCount
+
+        do {
+            _ = try await fixture.store.load()
+            XCTFail("Expected unbounded result message to be rejected")
+        } catch {}
+
+        XCTAssertEqual(try fixture.files.read(fixture.url), data)
+        XCTAssertEqual(fixture.files.writeCount, writesBeforeLoad)
+    }
+
+    func testPersistedMediaWithoutSyncDateFailsClosedWithoutOverwrite() async throws {
+        let fixture = try LockScreenConfigurationFixture()
+        defer { fixture.cleanup() }
+        let data = Data("""
+        {"schemaVersion":1,"isEnabled":true,"selectedAerialID":"com.apple.aerials.sea","lastSyncedMediaID":"\(UUID().uuidString)"}
+        """.utf8)
+        try fixture.files.writeAtomically(data, to: fixture.url)
+        let writesBeforeLoad = fixture.files.writeCount
+
+        do {
+            _ = try await fixture.store.load()
+            XCTFail("Expected incomplete sync metadata to be rejected")
+        } catch {}
+
+        XCTAssertEqual(try fixture.files.read(fixture.url), data)
+        XCTAssertEqual(fixture.files.writeCount, writesBeforeLoad)
+    }
+
     func testMutationBeforeLoadDoesNotAttemptWrite() async throws {
         let fixture = try LockScreenConfigurationFixture()
         defer { fixture.cleanup() }
