@@ -135,6 +135,52 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
         XCTAssertEqual(fixture.files.writeCount, writesBeforeLoad)
     }
 
+    func testSwapDuringLoadCannotMakeUnvalidatedDocumentMutable() async throws {
+        let fixture = try LockScreenConfigurationFixture()
+        defer { fixture.cleanup() }
+        let validatedData = Data(#"{"schemaVersion":1,"isEnabled":false}"#.utf8)
+        let swappedData = Data(#"{"schemaVersion":1,"isEnabled":false,"backupPath":"/temporary/recovery"}"#.utf8)
+        try fixture.files.writeAtomically(validatedData, to: fixture.url)
+        fixture.files.swapAfterNextRead(with: swappedData, at: fixture.url)
+        let writesBeforeLoad = fixture.files.writeCount
+
+        do {
+            _ = try await fixture.store.load()
+            XCTFail("Expected swapped document to fail closed")
+        } catch {}
+
+        do {
+            try await fixture.store.update(.disabled)
+            XCTFail("Expected swapped document to gate mutations")
+        } catch let error as LockScreenConfigurationStoreError {
+            XCTAssertEqual(error, .unavailableAfterLoadFailure)
+        }
+
+        XCTAssertEqual(try fixture.files.read(fixture.url), swappedData)
+        XCTAssertEqual(fixture.files.writeCount, writesBeforeLoad)
+    }
+
+    func testExternalReplacementAfterLoadCannotBeOverwritten() async throws {
+        let fixture = try LockScreenConfigurationFixture()
+        defer { fixture.cleanup() }
+        let enabled = LockScreenConfiguration(isEnabled: true, selectedAerialID: "com.apple.aerials.sea")
+        _ = try await fixture.store.load()
+        try await fixture.store.update(enabled)
+        let externallyReplaced = Data(#"{"schemaVersion":1,"isEnabled":false,"targetHash":"external"}"#.utf8)
+        fixture.files.replaceExternally(externallyReplaced, at: fixture.url)
+        let writesBeforeUpdate = fixture.files.writeCount
+
+        do {
+            try await fixture.store.update(.disabled)
+            XCTFail("Expected external replacement to reject mutation")
+        } catch {}
+
+        let snapshot = await fixture.store.snapshot()
+        XCTAssertEqual(snapshot, .disabled)
+        XCTAssertEqual(try fixture.files.read(fixture.url), externallyReplaced)
+        XCTAssertEqual(fixture.files.writeCount, writesBeforeUpdate)
+    }
+
     func testFailedReloadPublishesDisabledSnapshotToExistingSubscribers() async throws {
         let fixture = try LockScreenConfigurationFixture()
         defer { fixture.cleanup() }
@@ -142,16 +188,9 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
         _ = try await fixture.store.load()
         try await fixture.store.update(enabled)
         let stream = await fixture.store.events()
-        let publishedSafeSnapshot = expectation(description: "published disabled snapshot")
-
-        Task {
-            var iterator = stream.makeAsyncIterator()
-            let initial = await iterator.next()
-            XCTAssertEqual(initial, enabled)
-            let safe = await iterator.next()
-            XCTAssertEqual(safe, .disabled)
-            publishedSafeSnapshot.fulfill()
-        }
+        var iterator = stream.makeAsyncIterator()
+        let initial = await iterator.next()
+        XCTAssertEqual(initial, enabled)
 
         let invalidData = Data("not json".utf8)
         try fixture.files.writeAtomically(invalidData, to: fixture.url)
@@ -160,7 +199,8 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
             XCTFail("Expected malformed reload")
         } catch {}
 
-        await fulfillment(of: [publishedSafeSnapshot], timeout: 0.2)
+        let safe = await iterator.next()
+        XCTAssertEqual(safe, .disabled)
     }
 
     func testMutationBeforeLoadDoesNotAttemptWrite() async throws {
@@ -209,7 +249,10 @@ private final class LockScreenConfigurationFixture {
     lazy var store = makeStore()
 
     init() throws {
-        root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        let temporaryPath = FileManager.default.temporaryDirectory.path
+        let canonicalTemporaryPath = temporaryPath.hasPrefix("/var/")
+            ? "/private" + temporaryPath : temporaryPath
+        root = URL(fileURLWithPath: canonicalTemporaryPath).appending(path: UUID().uuidString)
         url = root.appending(path: "lock-screen-configuration.json")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
@@ -226,9 +269,17 @@ private final class LockScreenConfigurationFixture {
 private final class CountingFileStore: FileStore, @unchecked Sendable {
     private let local = LocalFileStore()
     private(set) var writeCount = 0
+    private var pendingSwap: (url: URL, data: Data)?
 
     func exists(_ url: URL) -> Bool { local.exists(url) }
-    func read(_ url: URL) throws -> Data { try local.read(url) }
+    func read(_ url: URL) throws -> Data {
+        let data = try local.read(url)
+        if let pendingSwap, pendingSwap.url == url {
+            self.pendingSwap = nil
+            try local.writeAtomically(pendingSwap.data, to: url)
+        }
+        return data
+    }
     func contents(_ directory: URL) throws -> [URL] { try local.contents(directory) }
     func createDirectory(_ url: URL) throws { try local.createDirectory(url) }
     func createPrivateDirectory(_ url: URL) throws { try local.createPrivateDirectory(url) }
@@ -248,4 +299,12 @@ private final class CountingFileStore: FileStore, @unchecked Sendable {
     func exchange(_ target: URL, with preparedFile: URL) throws { try local.exchange(target, with: preparedFile) }
     func installExclusively(_ target: URL, from preparedFile: URL) throws { try local.installExclusively(target, from: preparedFile) }
     func remove(_ url: URL) throws { try local.remove(url) }
+
+    func swapAfterNextRead(with data: Data, at url: URL) {
+        pendingSwap = (url, data)
+    }
+
+    func replaceExternally(_ data: Data, at url: URL) {
+        try? local.writeAtomically(data, to: url)
+    }
 }
