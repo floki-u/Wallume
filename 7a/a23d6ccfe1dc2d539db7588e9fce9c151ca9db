@@ -1,0 +1,81 @@
+docs/phase-four-status.md
+  8696c979740de9f4 56
+Sources/WallumeAppSupport/LockScreen/LockScreenSyncService.swift
+  8696c979740de9f4 232,243,310,362,388,406,418,423-424,549
+Tests/WallumeAppSupportTests/LockScreenConfigurationStoreTests.swift
+  8696c979740de9f4 214,222,224-226,317-333
+Sources/WallumeAppSupport/LockScreen/LockScreenConfigurationStore.swift
+  8696c979740de9f4 45-47
+.superpowers/sdd/final-review-fixes-report.md
+  8696c979740de9f4 12,18-19,22,28-33
+docs/superpowers/specs/2026-07-17-lock-screen-application-sync-design.md
+  8696c979740de9f4 43
+docs/progress-status.md
+  8696c979740de9f4 16
+Tests/WallumeAppSupportTests/LockScreenSyncServiceTests.swift
+  8696c979740de9f4 222-253,625-643,1280,1300-1301,1303,1305-1316,1318-1334,1336,1338,1400-1475,1653,1673,1681,1689,1699,1818,1849
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "7aa23d6ccfe1dc2d539db7588e9fce9c151ca9db",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 225,
+      "total_deletions": 57,
+      "accepted_lines": 231,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeAppSupportTests/LockScreenSyncServiceTests.swift": {
+          "additions": 174,
+          "deletions": 10,
+          "accepted_lines": 172
+        },
+        "Tests/WallumeAppSupportTests/LockScreenConfigurationStoreTests.swift": {
+          "additions": 25,
+          "deletions": 15,
+          "accepted_lines": 22
+        },
+        ".superpowers/sdd/final-review-fixes-report.md": {
+          "additions": 10,
+          "deletions": 4,
+          "accepted_lines": 10
+        },
+        "docs/phase-four-status.md": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        ".superpowers/sdd/task-6-report.md": {
+          "accepted_lines": 11
+        },
+        "docs/progress-status.md": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        "docs/superpowers/specs/2026-07-17-lock-screen-application-sync-design.md": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        "Sources/WallumeAppSupport/LockScreen/LockScreenConfigurationStore.swift": {
+          "additions": 3,
+          "accepted_lines": 3
+        },
+        "Sources/WallumeAppSupport/LockScreen/LockScreenSyncService.swift": {
+          "additions": 10,
+          "deletions": 25,
+          "accepted_lines": 10
+        }
+      }
+    }
+  }
+}
