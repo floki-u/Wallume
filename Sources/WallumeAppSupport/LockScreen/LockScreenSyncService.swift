@@ -433,13 +433,41 @@ public actor LockScreenSyncService {
             return
         }
         guard writesTrusted else {
-            publishRepair(.ambiguousRecovery)
+            await explicitlyRecoverAndDisable(current)
             return
         }
         if let transactionID = current.activeTransactionID {
             publish(phase: .restoring)
             guard await restoreWithoutConflict(transactionID) else { return }
         }
+        guard await persist(.disabled) else { return }
+        selectedAerialID = nil
+        publish(phase: probeReport?.writesPermitted == false ? .unsupported : .readyToConfigure)
+    }
+
+    private func explicitlyRecoverAndDisable(_ current: LockScreenConfiguration) async {
+        guard let transactionID = current.activeTransactionID,
+              let aerialID = current.selectedAerialID else {
+            publishRepair(.ambiguousRecovery)
+            return
+        }
+        let candidates: [RecoveryCandidate]
+        do {
+            let client = systemClient
+            candidates = try await Task.detached { try client.inspectRecovery() }.value
+        } catch {
+            publishRepair(.recoveryInspectionFailed)
+            return
+        }
+        guard candidates.count == 1,
+              let candidate = candidates.first,
+              candidate.id == transactionID,
+              candidate.aerialID == aerialID else {
+            publishRepair(.ambiguousRecovery)
+            return
+        }
+        publish(phase: .restoring)
+        guard await restoreWithoutConflict(transactionID) else { return }
         guard await persist(.disabled) else { return }
         selectedAerialID = nil
         publish(phase: probeReport?.writesPermitted == false ? .unsupported : .readyToConfigure)
