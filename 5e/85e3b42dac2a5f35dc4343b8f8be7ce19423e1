@@ -1,0 +1,115 @@
+Sources/WallumeAppSupport/LockScreen/LockScreenConfigurationStore.swift
+  8696c979740de9f4 45-47,148-154,241,256
+Tests/WallumeAppSupportTests/LockScreenFeatureStoreTests.swift
+  8696c979740de9f4 19-20,34,37-63
+Tests/WallumeAppSupportTests/LockScreenSyncServiceTests.swift
+  8696c979740de9f4 250,273-281,283,286,565-592,661,679-682,687-756,1199-1260,1275-1318
+docs/progress-status.md
+  8696c979740de9f4 16
+docs/superpowers/specs/2026-07-17-lock-screen-application-sync-design.md
+  8696c979740de9f4 13,43
+docs/phase-four-status.md
+  8696c979740de9f4 56
+Sources/WallumeAppSupport/LockScreen/LockScreenConfiguration.swift
+  8696c979740de9f4 47
+Tests/WallumeAppSupportTests/LockScreenViewTests.swift
+  8696c979740de9f4 53-54
+Sources/WallumeAppSupport/LockScreen/LockScreenFeatureStore.swift
+  8696c979740de9f4 3,13,20-21,28,37-38,98-111,154-206
+Tests/WallumeAppSupportTests/LockScreenConfigurationStoreTests.swift
+  8696c979740de9f4 273-323
+Sources/WallumeAppSupport/UI/LockScreenView.swift
+  8696c979740de9f4 2,31-32,51-53,105-106,139-148,243-256,314-326
+docs/superpowers/plans/2026-07-17-lock-screen-application-sync.md
+  8696c979740de9f4 236,238,258
+Sources/WallumeAppSupport/LockScreen/LockScreenSyncService.swift
+  8696c979740de9f4 129-133,153,247-248,276,298-300,350-365,400-402,409-424
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "5e85e3b42dac2a5f35dc4343b8f8be7ce19423e1",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 517,
+      "total_deletions": 40,
+      "accepted_lines": 499,
+      "overriden_lines": 11,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/UI/LockScreenView.swift": {
+          "additions": 50,
+          "deletions": 2,
+          "accepted_lines": 48
+        },
+        "docs/phase-four-status.md": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 1
+        },
+        "Tests/WallumeAppSupportTests/LockScreenConfigurationStoreTests.swift": {
+          "additions": 52,
+          "deletions": 1,
+          "accepted_lines": 51
+        },
+        "docs/superpowers/specs/2026-07-17-lock-screen-application-sync-design.md": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 2
+        },
+        "docs/superpowers/plans/2026-07-17-lock-screen-application-sync.md": {
+          "additions": 3,
+          "deletions": 3,
+          "accepted_lines": 3
+        },
+        "Tests/WallumeAppSupportTests/LockScreenSyncServiceTests.swift": {
+          "additions": 228,
+          "deletions": 11,
+          "accepted_lines": 223
+        },
+        "Tests/WallumeAppSupportTests/LockScreenFeatureStoreTests.swift": {
+          "additions": 30,
+          "deletions": 2,
+          "accepted_lines": 30
+        },
+        "Sources/WallumeAppSupport/LockScreen/LockScreenSyncService.swift": {
+          "additions": 47,
+          "deletions": 5,
+          "accepted_lines": 47
+        },
+        "Tests/WallumeAppSupportTests/LockScreenViewTests.swift": {
+          "additions": 2,
+          "accepted_lines": 2
+        },
+        "Sources/WallumeAppSupport/LockScreen/LockScreenConfigurationStore.swift": {
+          "additions": 21,
+          "deletions": 9,
+          "accepted_lines": 12
+        },
+        "Sources/WallumeAppSupport/LockScreen/LockScreenConfiguration.swift": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        "docs/progress-status.md": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        "Sources/WallumeAppSupport/LockScreen/LockScreenFeatureStore.swift": {
+          "additions": 78,
+          "deletions": 2,
+          "accepted_lines": 78
+        },
+        ".superpowers/sdd/task-6-report.md": {
+          "overriden_lines": 11
+        }
+      }
+    }
+  }
+}
