@@ -42,9 +42,26 @@ Completion review: all findings were resolved with regression coverage; final re
 
 Deferred: true hardware performance certification cannot be completed on the currently available machine.
 
+## Batch 3: lock-screen synchronization
+
+Implementation status: engineering and automated verification complete; real-machine system-wallpaper acceptance remains pending.
+
+Delivered:
+
+- A Lock Screen page, enabled in navigation while Performance and Settings remain unavailable.
+- Explicit Aerial-slot selection and a separate risk-confirmation gate before any lock-screen installation.
+- Serial, main-display-driven synchronization with read-only startup reconciliation, idempotent same-media handling, restore-before-reinstall transitions, and conflict-safe disable/recovery behavior.
+- Fail-closed configuration persistence and a narrow production system-client boundary that leaves desktop wallpaper runtime construction isolated from lock-screen failures.
+
+Automated verification: focused lock-screen suites passed 86 tests with zero failures; `swift test` passed 336 tests with zero failures; Release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed; and the app-support test scan found no construction of production system-wallpaper file URLs. Inert fixture text used to prove unsafe persisted data is rejected is not a filesystem access.
+
+Safety review: the implemented and tested paths require selection and confirmation before install, reconcile recovery before automatic writes, restore before a changed-media install, retain enabled configuration on restore conflict, and stop configuration mutations after a failed/changed source-file check.
+
+Manual acceptance pending: no real-device/system-wallpaper installation, lock/unlock, or restoration exercise was performed in this verification. This remains a separate acceptance requirement and is not represented as an automated result.
+
 ## Remaining phase-four work
 
-1. Lock-screen, performance, and settings pages.
+1. Performance and settings pages.
 2. Localization, state restoration, UI acceptance, and phase-four completion.
 
 Phase four as a whole is not yet complete.
