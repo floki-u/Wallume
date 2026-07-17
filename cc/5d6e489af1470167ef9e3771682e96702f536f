@@ -1,0 +1,186 @@
+Sources/WallumeCore/AppKitRuntime/DesktopWindowController.swift
+  32e54daf3a523c64 7,14-18,34,37,39-42,44-47,49-52,54-57,59-68,71,77,82-85
+Sources/WallumeApp/ApplicationController.swift
+  32e54daf3a523c64 27,165,168,196-199
+Sources/WallumeAppSupport/Application/ApplicationNavigation.swift
+  32e54daf3a523c64 2,7,16-23
+Sources/WallumeAppSupport/UI/DisplaysView.swift
+  32e54daf3a523c64 94-95,110-111
+Sources/WallumeAppSupport/Displays/DisplayAssignmentModels.swift
+  32e54daf3a523c64 95,97,100-114
+Tests/WallumeCoreTests/PlaybackPresentationTests.swift
+  32e54daf3a523c64 12,25
+Sources/WallumeCore/AppKitRuntime/DesktopSurfaceModels.swift
+  32e54daf3a523c64 87,111-120
+Sources/WallumeCore/AppKitRuntime/AppKitDesktopSurface.swift
+  32e54daf3a523c64 80-99,105,114,124
+Tests/WallumeAppSupportTests/DisplaySelectorViewTests.swift
+  32e54daf3a523c64 29-36,45-54
+Sources/WallumeAppSupport/Displays/DisplayFeatureStore.swift
+  32e54daf3a523c64 7,13-19,67,75
+Sources/WallumeAppSupport/Displays/DisplayAssignmentStore.swift
+  32e54daf3a523c64 10,27,32,40,47-49,52,57,124-148,171-181,193-194
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  32e54daf3a523c64 2,4-17,39-48,50,54-69,71
+Tests/WallumeCoreTests/AppKitDesktopSurfaceTests.swift
+  32e54daf3a523c64 24-25,40,42,44,48-54
+Sources/WallumeAppSupport/UI/DisplaySelectorView.swift
+  32e54daf3a523c64 25,34-35,41,44,76-80
+Sources/WallumeAppSupport/UI/GalleryView.swift
+  32e54daf3a523c64 9-10,16-20,64-68,80-86,90-93
+Tests/WallumeAppSupportTests/WallpaperRuntimeServiceTests.swift
+  32e54daf3a523c64 58-69,143-145,148-151
+Tests/WallumeAppSupportTests/DisplayFeatureStoreTests.swift
+  32e54daf3a523c64 68-98
+Sources/WallumeAppSupport/Runtime/WallpaperRuntimeService.swift
+  32e54daf3a523c64 22,185-186,191-193
+Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift
+  32e54daf3a523c64 3,16-37
+Tests/WallumeCoreTests/DesktopWindowControllerTests.swift
+  32e54daf3a523c64 44,69,85-122,144-148,151-153,165-167,169-171
+Sources/WallumeRuntime/main.swift
+  32e54daf3a523c64 71,75
+Tests/WallumeAppSupportTests/DisplayAssignmentStoreTests.swift
+  32e54daf3a523c64 30,49,89-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "cc5d6e489af1470167ef9e3771682e96702f536f",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 564,
+      "total_deletions": 70,
+      "accepted_lines": 559,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeAppSupportTests/DisplayAssignmentStoreTests.swift": {
+          "additions": 70,
+          "deletions": 3,
+          "accepted_lines": 67
+        },
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 45,
+          "deletions": 3,
+          "accepted_lines": 45
+        },
+        "docs/progress-status.md": {
+          "additions": 24,
+          "deletions": 1,
+          "accepted_lines": 23
+        },
+        "Sources/WallumeAppSupport/UI/DisplaysView.swift": {
+          "additions": 4,
+          "deletions": 4,
+          "accepted_lines": 4
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "additions": 7,
+          "accepted_lines": 7
+        },
+        "Sources/WallumeAppSupport/UI/GalleryView.swift": {
+          "additions": 23,
+          "deletions": 5,
+          "accepted_lines": 23
+        },
+        "Sources/WallumeAppSupport/Displays/DisplayAssignmentModels.swift": {
+          "additions": 17,
+          "accepted_lines": 17
+        },
+        "Tests/WallumeCoreTests/AppKitDesktopSurfaceTests.swift": {
+          "additions": 14,
+          "deletions": 5,
+          "accepted_lines": 14
+        },
+        "docs/application-shell-gallery.md": {
+          "additions": 15,
+          "deletions": 4,
+          "accepted_lines": 15
+        },
+        "Sources/WallumeCore/AppKitRuntime/AppKitDesktopSurface.swift": {
+          "additions": 23,
+          "deletions": 5,
+          "accepted_lines": 23
+        },
+        "Tests/WallumeAppSupportTests/DisplaySelectorViewTests.swift": {
+          "additions": 18,
+          "accepted_lines": 18
+        },
+        "Tests/WallumeAppSupportTests/WallpaperRuntimeServiceTests.swift": {
+          "additions": 19,
+          "deletions": 2,
+          "accepted_lines": 19
+        },
+        "Tests/WallumeCoreTests/DesktopWindowControllerTests.swift": {
+          "additions": 55,
+          "deletions": 5,
+          "accepted_lines": 55
+        },
+        "Sources/WallumeAppSupport/Runtime/WallpaperRuntimeService.swift": {
+          "additions": 7,
+          "deletions": 4,
+          "accepted_lines": 7
+        },
+        "Sources/WallumeAppSupport/Application/ApplicationNavigation.swift": {
+          "additions": 11,
+          "accepted_lines": 11
+        },
+        "Sources/WallumeCore/AppKitRuntime/DesktopWindowController.swift": {
+          "additions": 43,
+          "deletions": 9,
+          "accepted_lines": 43
+        },
+        "Sources/WallumeAppSupport/UI/DisplaySelectorView.swift": {
+          "additions": 11,
+          "deletions": 1,
+          "accepted_lines": 11
+        },
+        "Sources/WallumeRuntime/main.swift": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 2
+        },
+        "Sources/WallumeCore/AppKitRuntime/DesktopSurfaceModels.swift": {
+          "additions": 13,
+          "deletions": 1,
+          "accepted_lines": 13
+        },
+        "Tests/WallumeAppSupportTests/DisplayFeatureStoreTests.swift": {
+          "additions": 31,
+          "accepted_lines": 31
+        },
+        "Sources/WallumeAppSupport/Displays/DisplayFeatureStore.swift": {
+          "additions": 10,
+          "deletions": 1,
+          "accepted_lines": 10
+        },
+        "docs/phase-four-status.md": {
+          "additions": 30,
+          "deletions": 2,
+          "accepted_lines": 29
+        },
+        "Sources/WallumeAppSupport/Displays/DisplayAssignmentStore.swift": {
+          "additions": 47,
+          "deletions": 11,
+          "accepted_lines": 47
+        },
+        "Tests/WallumeCoreTests/PlaybackPresentationTests.swift": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 2
+        },
+        "Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift": {
+          "additions": 23,
+          "accepted_lines": 23
+        }
+      }
+    }
+  }
+}
