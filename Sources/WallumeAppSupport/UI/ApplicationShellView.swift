@@ -1,6 +1,79 @@
 import SwiftUI
 import WallumeCore
 
+public enum ApplicationShellRoute: Equatable, Sendable {
+    case gallery
+    case displays
+    case lockScreen
+    case unavailable
+
+    public static func resolve(
+        selection: WallumeFeatureID,
+        hasDisplayStore: Bool,
+        hasLockScreenStore: Bool
+    ) -> Self {
+        switch selection {
+        case .gallery:
+            .gallery
+        case .displays where hasDisplayStore:
+            .displays
+        case .lockScreen where hasLockScreenStore:
+            .lockScreen
+        case .displays, .lockScreen, .performance, .settings:
+            .unavailable
+        }
+    }
+}
+
+@MainActor
+public final class LockScreenApplicationComposition {
+    public let service: LockScreenSyncService
+    public let store: LockScreenFeatureStore
+
+    public init(
+        configurationURL: URL,
+        files: any FileStore,
+        makeSystemClient: () throws -> any LockScreenSystemClient
+    ) {
+        let client: any LockScreenSystemClient
+        do {
+            client = try makeSystemClient()
+        } catch {
+            client = UnavailableLockScreenSystemClient(message: error.localizedDescription)
+        }
+        service = LockScreenSyncService(
+            configurationStore: LockScreenConfigurationStore(
+                url: configurationURL,
+                files: files,
+                jsonStore: AtomicJSONStore(files: files)
+            ),
+            systemClient: client,
+            files: files
+        )
+        store = LockScreenFeatureStore(service: service)
+    }
+}
+
+private struct UnavailableLockScreenSystemClient: LockScreenSystemClient {
+    let message: String
+
+    func probe() throws -> LockScreenProbeReport { try unavailable() }
+    func install(media: MediaItem, aerialID: String) throws -> LockScreenTransactionManifest {
+        try unavailable()
+    }
+    func inspectRecovery() throws -> [RecoveryCandidate] { try unavailable() }
+    func restore(transactionID: UUID) throws -> RecoveryReport { try unavailable() }
+
+    private func unavailable<Value>() throws -> Value {
+        throw UnavailableLockScreenSystemClientError(message: message)
+    }
+}
+
+private struct UnavailableLockScreenSystemClientError: LocalizedError, Sendable {
+    let message: String
+    var errorDescription: String? { message }
+}
+
 public struct PlaybackToolbarState: Equatable, Sendable {
     public let userPaused: Bool
     public let pauseReasons: Set<RuntimePauseReason>
@@ -21,12 +94,14 @@ public struct ApplicationShellView: View {
     private let gallery: GalleryStore
     private let tasks: ImportTaskStore
     private let displays: DisplayFeatureStore?
+    private let lockScreen: LockScreenFeatureStore?
+    private let openSystemWallpaperSettings: () -> Void
     private let onImportFiles: () -> Void
     private let onImportFolder: () -> Void
     private let onDrop: ([URL]) -> Void
 
-    public init(gallery: GalleryStore, tasks: ImportTaskStore, displays: DisplayFeatureStore? = nil, navigation: ApplicationNavigation = ApplicationNavigation(), onImportFiles: @escaping () -> Void, onImportFolder: @escaping () -> Void, onDrop: @escaping ([URL]) -> Void) {
-        self.gallery = gallery; self.tasks = tasks; self.displays = displays; self.navigation = navigation; self.onImportFiles = onImportFiles; self.onImportFolder = onImportFolder; self.onDrop = onDrop
+    public init(gallery: GalleryStore, tasks: ImportTaskStore, displays: DisplayFeatureStore? = nil, lockScreen: LockScreenFeatureStore? = nil, navigation: ApplicationNavigation = ApplicationNavigation(), openSystemWallpaperSettings: @escaping () -> Void = {}, onImportFiles: @escaping () -> Void, onImportFolder: @escaping () -> Void, onDrop: @escaping ([URL]) -> Void) {
+        self.gallery = gallery; self.tasks = tasks; self.displays = displays; self.lockScreen = lockScreen; self.navigation = navigation; self.openSystemWallpaperSettings = openSystemWallpaperSettings; self.onImportFiles = onImportFiles; self.onImportFolder = onImportFolder; self.onDrop = onDrop
     }
 
     public var body: some View {
@@ -35,7 +110,12 @@ public struct ApplicationShellView: View {
                 Label(feature.title, systemImage: feature.systemImage).tag(feature.id)
             }.navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
-            if navigation.selection == .gallery {
+            switch ApplicationShellRoute.resolve(
+                selection: navigation.selection,
+                hasDisplayStore: displays != nil,
+                hasLockScreenStore: lockScreen != nil
+            ) {
+            case .gallery:
                 GalleryView(
                     gallery: gallery,
                     tasks: tasks,
@@ -46,9 +126,18 @@ public struct ApplicationShellView: View {
                     onImportFolder: onImportFolder,
                     onDrop: onDrop
                 )
-            } else if navigation.selection == .displays, let displays {
-                DisplaysView(store: displays) { navigation.openGalleryForWallpaper(displayID: $0) }
-            } else {
+            case .displays:
+                if let displays {
+                    DisplaysView(store: displays) { navigation.openGalleryForWallpaper(displayID: $0) }
+                }
+            case .lockScreen:
+                if let lockScreen {
+                    LockScreenView(
+                        store: lockScreen,
+                        openSystemWallpaperSettings: openSystemWallpaperSettings
+                    )
+                }
+            case .unavailable:
                 ContentUnavailableView("将在后续批次开放", systemImage: FeatureRegistry.features.first { $0.id == navigation.selection }?.systemImage ?? "hammer")
             }
         }

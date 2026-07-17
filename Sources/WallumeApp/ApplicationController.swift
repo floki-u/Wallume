@@ -14,6 +14,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private let displayStore: DisplayFeatureStore
     private let screens: AppKitScreenProvider
     private let runtimeService: WallpaperRuntimeService
+    private let lockScreenService: LockScreenSyncService
+    private let lockScreenStore: LockScreenFeatureStore
     private let navigation = ApplicationNavigation()
     private let panels = ImportPanelController()
     private let notifier: any CompletionNotifying
@@ -61,6 +63,20 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             windows: windows,
             catalog: library
         )
+        let lockScreenComposition = LockScreenApplicationComposition(
+            configurationURL: paths.displayAssignments
+                .deletingLastPathComponent()
+                .appending(path: "lock-screen-sync.json"),
+            files: files,
+            makeSystemClient: {
+                let generatedUID = try ProcessGeneratedUIDProvider().generatedUID(for: home)
+                return ProcessLockScreenSystemClient(
+                    homeDirectory: home,
+                    generatedUIDProvider: ResolvedGeneratedUIDProvider(value: generatedUID),
+                    systemVersion: ProcessInfo.processInfo.operatingSystemVersion
+                )
+            }
+        )
         let displayStore = DisplayFeatureStore(commands: DisplayFeatureCommands(
             assign: { mediaID, displayIDs in
                 let targets = await MainActor.run {
@@ -85,6 +101,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         self.displayStore = displayStore
         self.screens = screens
         self.runtimeService = runtimeService
+        lockScreenService = lockScreenComposition.service
+        lockScreenStore = lockScreenComposition.store
         gallery = GalleryStore(
             library: library,
             usage: PersistedMediaUsageChecker(url: paths.displayAssignments, files: files, store: jsonStore)
@@ -92,12 +110,20 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         notifier = UserCompletionNotifier()
         super.init()
 
-        window = MainWindowController { [gallery, taskStore, displayStore, navigation, panels, queue] in
+        window = MainWindowController { [gallery, taskStore, displayStore, lockScreenStore, navigation, panels, queue] in
             AnyView(ApplicationShellView(
                 gallery: gallery,
                 tasks: taskStore,
                 displays: displayStore,
+                lockScreen: lockScreenStore,
                 navigation: navigation,
+                openSystemWallpaperSettings: {
+                    guard let url = URL(string: "x-apple.systempreferences:com.apple.Wallpaper-Settings.extension"),
+                          NSWorkspace.shared.open(url) else {
+                        lockScreenStore.reportPageError("无法打开系统壁纸设置，请在系统设置中手动打开“壁纸”。")
+                        return
+                    }
+                },
                 onImportFiles: { let urls = panels.chooseFiles(); Task { await queue.enqueue(urls) } },
                 onImportFolder: { let urls = panels.chooseFolders(); Task { await queue.enqueue(urls) } },
                 onDrop: { urls in Task { await queue.enqueue(urls) } }
@@ -132,7 +158,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        Task { [queue, runtimeService] in
+        Task { [queue, lockScreenService, runtimeService] in
             if await TerminationPolicy.decision(queue: queue) == .requestConfirmation {
                 let alert = NSAlert()
                 alert.messageText = "导入仍在进行"
@@ -145,6 +171,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 }
                 await queue.cancelAllAndWait()
             }
+            await lockScreenService.stopAcceptingNewCommandsAndWait()
             await runtimeService.stop()
             NSApplication.shared.reply(toApplicationShouldTerminate: true)
         }
@@ -169,7 +196,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 displayStore.reportPageError("显示器配置无法读取：\(error.localizedDescription)")
             }
             runtimeService.start(assignments: latestAssignments)
-            refreshDisplayState()
+            await refreshDisplayAndLockScreenState()
+            await lockScreenService.start()
             observeAssignments()
             observeRuntime()
         }
@@ -183,7 +211,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 latestAssignments = snapshot
                 runtimeService.apply(assignments: snapshot)
                 gallery.reload()
-                refreshDisplayState()
+                await refreshDisplayAndLockScreenState()
             }
         }
     }
@@ -194,7 +222,10 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             for await snapshot in stream {
                 guard let self else { return }
                 if assignmentConfigurationLoaded {
-                    do { try await assignmentStore.refreshMetadata(from: screens.screens) }
+                    do {
+                        try await assignmentStore.refreshMetadata(from: screens.screens)
+                        latestAssignments = await assignmentStore.snapshot()
+                    }
                     catch { displayStore.reportPageError(error.localizedDescription) }
                 }
                 latestRuntime = snapshot
@@ -203,14 +234,15 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                     pauseReasons: snapshot.runtime.pauseReasons,
                     userPaused: latestAssignments.userPaused
                 )
-                refreshDisplayState()
+                await refreshDisplayAndLockScreenState()
             }
         }
     }
 
-    private func refreshDisplayState() {
+    private func refreshDisplayAndLockScreenState() async {
+        let currentScreens = screens.screens
         let catalog = DisplayCatalog.merge(
-            connected: screens.screens,
+            connected: currentScreens,
             remembered: latestAssignments.records
         )
         let media = (try? library.list()) ?? []
@@ -221,6 +253,11 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             runtime: latestRuntime.runtime,
             surfaceFailures: latestRuntime.surfaceFailures
         )
+        await lockScreenService.apply(input: LockScreenSyncInput(
+            assignments: latestAssignments,
+            screens: currentScreens,
+            media: media
+        ))
     }
 
     private func observeQueue() {
@@ -233,11 +270,11 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 status.update(snapshot)
                 if snapshot.summary.processed > processed {
                     gallery.reload()
-                    refreshDisplayState()
+                    await refreshDisplayAndLockScreenState()
                 }
                 if wasActive && !snapshot.isActive {
                     gallery.reload()
-                    refreshDisplayState()
+                    await refreshDisplayAndLockScreenState()
                     if ApplicationState.shouldNotifyOnCompletion(
                         windowVisible: window.isVisible,
                         applicationActive: NSApplication.shared.isActive
@@ -254,4 +291,9 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private static func summaryText(_ summary: ImportQueueSummary) -> String {
         "成功 \(summary.imported)，重复 \(summary.duplicate)，失败 \(summary.failed)，取消 \(summary.cancelled)"
     }
+}
+
+private struct ResolvedGeneratedUIDProvider: GeneratedUIDProviding {
+    let value: String
+    func generatedUID(for homeDirectory: URL) throws -> String { value }
 }

@@ -3,9 +3,30 @@ import XCTest
 import WallumeCore
 
 final class ApplicationShellViewTests: XCTestCase {
-    func testRegistryHasStableFeatureOrderAndDisplaysEnabled() {
+    func testRegistryHasStableFeatureOrderAndOnlyCompletedFeaturesEnabled() {
         XCTAssertEqual(FeatureRegistry.features.map(\.id), [.gallery, .displays, .lockScreen, .performance, .settings])
-        XCTAssertEqual(FeatureRegistry.features.filter(\.isEnabled).map(\.id), [.gallery, .displays])
+        XCTAssertEqual(FeatureRegistry.features.filter(\.isEnabled).map(\.id), [.gallery, .displays, .lockScreen])
+        XCTAssertFalse(FeatureRegistry.features.first { $0.id == .performance }?.isEnabled ?? true)
+        XCTAssertFalse(FeatureRegistry.features.first { $0.id == .settings }?.isEnabled ?? true)
+    }
+
+    func testLockScreenRouteRequiresFeatureStore() {
+        XCTAssertEqual(
+            ApplicationShellRoute.resolve(
+                selection: .lockScreen,
+                hasDisplayStore: true,
+                hasLockScreenStore: true
+            ),
+            .lockScreen
+        )
+        XCTAssertEqual(
+            ApplicationShellRoute.resolve(
+                selection: .lockScreen,
+                hasDisplayStore: true,
+                hasLockScreenStore: false
+            ),
+            .unavailable
+        )
     }
 
     func testNavigationCanOpenDisplaysFromStatusMenu() {
