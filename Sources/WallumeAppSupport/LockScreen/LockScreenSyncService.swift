@@ -47,6 +47,7 @@ public actor LockScreenSyncService {
     private var started = false
     private var acceptingCommands = true
     private var writesTrusted = false
+    private var explicitRecoveryEligibleTransactionID: UUID?
 
     public init(
         configurationStore: LockScreenConfigurationStore,
@@ -163,6 +164,7 @@ public actor LockScreenSyncService {
 
     private func reconcileStartup() async {
         writesTrusted = false
+        explicitRecoveryEligibleTransactionID = nil
         publish(phase: .probing)
         let loaded: LockScreenConfiguration
         do {
@@ -215,16 +217,19 @@ public actor LockScreenSyncService {
             let client = systemClient
             probed = try await Task.detached { try client.probe() }.value
         } catch {
+            explicitRecoveryEligibleTransactionID = nil
             publishRepair(.probeFailed)
             return
         }
         probeReport = probed
         guard probed.foreignBackupNames.isEmpty else {
+            explicitRecoveryEligibleTransactionID = nil
             publishRepair(.foreignBackup)
             return
         }
         guard probed.writesPermitted else {
             writesTrusted = false
+            explicitRecoveryEligibleTransactionID = nil
             publish(phase: .unsupported)
             return
         }
@@ -259,6 +264,7 @@ public actor LockScreenSyncService {
             case .prepared, .writing, .restoring:
                 return await restoreConfiguredTransaction(transactionID)
             case .conflicted:
+                explicitRecoveryEligibleTransactionID = transactionID
                 publishRepair(.conflictedTransaction)
                 return false
             case .restored:
@@ -447,27 +453,29 @@ public actor LockScreenSyncService {
 
     private func explicitlyRecoverAndDisable(_ current: LockScreenConfiguration) async {
         guard let transactionID = current.activeTransactionID,
-              let aerialID = current.selectedAerialID else {
-            publishRepair(.ambiguousRecovery)
-            return
-        }
+              transactionID == explicitRecoveryEligibleTransactionID,
+              let aerialID = current.selectedAerialID else { return }
         let candidates: [RecoveryCandidate]
         do {
             let client = systemClient
             candidates = try await Task.detached { try client.inspectRecovery() }.value
         } catch {
+            explicitRecoveryEligibleTransactionID = nil
             publishRepair(.recoveryInspectionFailed)
             return
         }
         guard candidates.count == 1,
               let candidate = candidates.first,
               candidate.id == transactionID,
-              candidate.aerialID == aerialID else {
+              candidate.aerialID == aerialID,
+              candidate.phase == .conflicted else {
+            explicitRecoveryEligibleTransactionID = nil
             publishRepair(.ambiguousRecovery)
             return
         }
         publish(phase: .restoring)
         guard await restoreWithoutConflict(transactionID) else { return }
+        explicitRecoveryEligibleTransactionID = nil
         guard await persist(.disabled) else { return }
         selectedAerialID = nil
         publish(phase: probeReport?.writesPermitted == false ? .unsupported : .readyToConfigure)
@@ -543,6 +551,10 @@ public actor LockScreenSyncService {
             && selectedAerialID != nil
             && current?.isEnabled != true
         let isBusy = phase == .probing || phase == .syncing || phase == .restoring
+        let canExplicitlyRecover = phase == .needsRepair
+            && explicitRecoveryEligibleTransactionID.map {
+                current?.activeTransactionID == $0
+            } == true
         latestState = LockScreenSyncState(
             phase: phase,
             selectedAerialID: selectedAerialID,
@@ -555,7 +567,9 @@ public actor LockScreenSyncService {
                 canRefreshProbe: started && !isBusy,
                 canSelectAerialSlot: canSelect,
                 canConfirmEnable: canConfirm,
-                canDisableAndRestore: current?.isEnabled == true && writesTrusted && !isBusy,
+                canDisableAndRestore: current?.isEnabled == true
+                    && (writesTrusted || canExplicitlyRecover)
+                    && !isBusy,
                 canRetry: phase == .needsRepair || phase == .unsupported
             )
         )

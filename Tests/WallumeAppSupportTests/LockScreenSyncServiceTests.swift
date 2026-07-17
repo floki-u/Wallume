@@ -240,7 +240,102 @@ final class LockScreenSyncServiceTests: XCTestCase {
 
         let state = await fixture.service.snapshot()
         XCTAssertEqual(state.phase, .needsRepair)
+        XCTAssertTrue(state.capabilities.canDisableAndRestore)
+        XCTAssertFalse(state.capabilities.canSelectAerialSlot)
+        XCTAssertFalse(state.capabilities.canConfirmEnable)
         XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+    }
+
+    func testUnsupportedConfiguredConflictCannotExplicitlyRecover() async throws {
+        let original = LockScreenConfiguration.enabled(
+            aerialID: aerialID,
+            transactionID: LockScreenSyncFixture.existingTransactionID,
+            mediaID: LockScreenSyncFixture.firstMediaID
+        )
+        let candidate = RecoveryCandidate.candidate(
+            id: LockScreenSyncFixture.existingTransactionID,
+            phase: .conflicted,
+            aerialID: aerialID
+        )
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: original,
+            probeResult: .success(LockScreenSyncFixture.probe(writesPermitted: false)),
+            recoveryResults: [.success([candidate])]
+        )
+        defer { fixture.cleanup() }
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        await fixture.service.disableAndRestore()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+        let persisted = try await fixture.reloadedConfiguration()
+        XCTAssertEqual(persisted, original)
+        let state = await fixture.service.snapshot()
+        XCTAssertFalse(state.capabilities.canDisableAndRestore)
+    }
+
+    func testForeignBackupConfiguredConflictCannotExplicitlyRecover() async throws {
+        let original = LockScreenConfiguration.enabled(
+            aerialID: aerialID,
+            transactionID: LockScreenSyncFixture.existingTransactionID,
+            mediaID: LockScreenSyncFixture.firstMediaID
+        )
+        let candidate = RecoveryCandidate.candidate(
+            id: LockScreenSyncFixture.existingTransactionID,
+            phase: .conflicted,
+            aerialID: aerialID
+        )
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: original,
+            probeResult: .success(LockScreenSyncFixture.probe(
+                foreignBackupNames: ["foreign.backup"]
+            )),
+            recoveryResults: [.success([candidate])]
+        )
+        defer { fixture.cleanup() }
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        await fixture.service.disableAndRestore()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+        let persisted = try await fixture.reloadedConfiguration()
+        XCTAssertEqual(persisted, original)
+        let state = await fixture.service.snapshot()
+        XCTAssertFalse(state.capabilities.canDisableAndRestore)
+    }
+
+    func testProbeFailureConfiguredTransactionCannotExplicitlyRecover() async throws {
+        let original = LockScreenConfiguration.enabled(
+            aerialID: aerialID,
+            transactionID: LockScreenSyncFixture.existingTransactionID,
+            mediaID: LockScreenSyncFixture.firstMediaID
+        )
+        let candidate = RecoveryCandidate.candidate(
+            id: LockScreenSyncFixture.existingTransactionID,
+            phase: .conflicted,
+            aerialID: aerialID
+        )
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: original,
+            probeResult: .failure(.expected),
+            recoveryResults: [.success([candidate])]
+        )
+        defer { fixture.cleanup() }
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        await fixture.service.disableAndRestore()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(fixture.client.calls, [.probe])
+        let persisted = try await fixture.reloadedConfiguration()
+        XCTAssertEqual(persisted, original)
+        let state = await fixture.service.snapshot()
+        XCTAssertFalse(state.capabilities.canDisableAndRestore)
     }
 
     func testConflictedExplicitDisableFreshlyInspectsAndRetainsRepairWhenConflictPersists() async throws {
@@ -319,6 +414,76 @@ final class LockScreenSyncServiceTests: XCTestCase {
         )
         let persisted = try await fixture.reloadedConfiguration()
         XCTAssertEqual(persisted, .disabled)
+    }
+
+    func testConflictedExplicitDisableRejectsFreshIncompleteCandidate() async throws {
+        let original = LockScreenConfiguration.enabled(
+            aerialID: aerialID,
+            transactionID: LockScreenSyncFixture.existingTransactionID,
+            mediaID: LockScreenSyncFixture.firstMediaID
+        )
+        let initial = RecoveryCandidate.candidate(
+            id: LockScreenSyncFixture.existingTransactionID,
+            phase: .conflicted,
+            aerialID: aerialID
+        )
+        let incomplete = RecoveryCandidate.candidate(
+            id: LockScreenSyncFixture.existingTransactionID,
+            phase: .writing,
+            aerialID: aerialID
+        )
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: original,
+            recoveryResults: [.success([initial]), .success([incomplete])]
+        )
+        defer { fixture.cleanup() }
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        await fixture.service.disableAndRestore()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery, .inspectRecovery])
+        let persisted = try await fixture.reloadedConfiguration()
+        XCTAssertEqual(persisted, original)
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .needsRepair)
+        XCTAssertFalse(state.capabilities.canDisableAndRestore)
+    }
+
+    func testConflictedExplicitDisableRejectsFreshOrphanCandidate() async throws {
+        let original = LockScreenConfiguration.enabled(
+            aerialID: aerialID,
+            transactionID: LockScreenSyncFixture.existingTransactionID,
+            mediaID: LockScreenSyncFixture.firstMediaID
+        )
+        let initial = RecoveryCandidate.candidate(
+            id: LockScreenSyncFixture.existingTransactionID,
+            phase: .conflicted,
+            aerialID: aerialID
+        )
+        let orphan = RecoveryCandidate.candidate(
+            id: fixtureID(44),
+            phase: .conflicted,
+            aerialID: aerialID
+        )
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: original,
+            recoveryResults: [.success([initial]), .success([orphan])]
+        )
+        defer { fixture.cleanup() }
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        await fixture.service.disableAndRestore()
+        await fixture.service.waitForIdle()
+
+        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery, .inspectRecovery])
+        let persisted = try await fixture.reloadedConfiguration()
+        XCTAssertEqual(persisted, original)
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .needsRepair)
+        XCTAssertFalse(state.capabilities.canDisableAndRestore)
     }
 
     func testConflictedAlignmentBlocksAutomaticInstallUntilExplicitRecoverySucceeds() async throws {
@@ -428,6 +593,7 @@ final class LockScreenSyncServiceTests: XCTestCase {
         XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
         let state = await fixture.service.snapshot()
         XCTAssertEqual(state.phase, .needsRepair)
+        XCTAssertFalse(state.capabilities.canDisableAndRestore)
     }
 
     func testUniqueMatchingCommittedOrphanRestoresBeforeResync() async throws {
