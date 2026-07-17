@@ -13,6 +13,15 @@ public enum LockScreenSyncPhase: Equatable, Sendable {
     case unsupported
 }
 
+/// Identifies a user-initiated service command that has reached a terminal outcome.
+public enum LockScreenSyncCommand: Equatable, Sendable {
+    case refreshProbe
+    case selectAerialSlot
+    case confirmEnable
+    case disableAndRestore
+    case retry
+}
+
 public struct LockScreenSyncedMediaSummary: Equatable, Sendable {
     public let id: UUID
     public let displayName: String?
@@ -63,6 +72,9 @@ public struct LockScreenSyncState: Equatable, Sendable {
     public let lastResult: LockScreenConfigurationResult?
     public let lastError: String?
     public let capabilities: LockScreenSyncCapabilities
+    public let completedCommandGeneration: UInt64
+    public let lastCompletedCommand: LockScreenSyncCommand?
+    public let lastCompletedCommandSucceeded: Bool?
 
     public init(
         phase: LockScreenSyncPhase,
@@ -73,7 +85,10 @@ public struct LockScreenSyncState: Equatable, Sendable {
         lastSyncedAt: Date? = nil,
         lastResult: LockScreenConfigurationResult? = nil,
         lastError: String? = nil,
-        capabilities: LockScreenSyncCapabilities = .unavailable
+        capabilities: LockScreenSyncCapabilities = .unavailable,
+        completedCommandGeneration: UInt64 = 0,
+        lastCompletedCommand: LockScreenSyncCommand? = nil,
+        lastCompletedCommandSucceeded: Bool? = nil
     ) {
         self.phase = phase
         self.selectedAerialID = selectedAerialID
@@ -84,6 +99,9 @@ public struct LockScreenSyncState: Equatable, Sendable {
         self.lastResult = lastResult
         self.lastError = lastError
         self.capabilities = capabilities
+        self.completedCommandGeneration = completedCommandGeneration
+        self.lastCompletedCommand = lastCompletedCommand
+        self.lastCompletedCommandSucceeded = lastCompletedCommandSucceeded
     }
 
     public static let unconfigured = LockScreenSyncState(phase: .unconfigured)

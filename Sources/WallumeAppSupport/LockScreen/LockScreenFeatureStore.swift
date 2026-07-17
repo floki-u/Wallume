@@ -46,7 +46,7 @@ public final class LockScreenFeatureStore {
     public private(set) var pageError: String?
 
     private enum PageErrorSource {
-        case command(successPhases: [LockScreenSyncPhase])
+        case command(LockScreenSyncCommand, baselineGeneration: UInt64)
         case service
         case reported
     }
@@ -67,25 +67,25 @@ public final class LockScreenFeatureStore {
     deinit { observation.cancel() }
 
     public func refreshProbe() async {
-        await perform(clearingOn: [.readyToConfigure, .waitingForMainWallpaper, .synced, .unsupported]) {
+        await perform(command: .refreshProbe) {
             try await commands.refreshProbe()
         }
     }
 
     public func selectAerialSlot(_ aerialID: String) async {
-        await perform(clearingOn: [.readyToConfigure]) { try await commands.selectAerialSlot(aerialID) }
+        await perform(command: .selectAerialSlot) { try await commands.selectAerialSlot(aerialID) }
     }
 
     public func confirmEnable() async {
-        await perform(clearingOn: [.waitingForMainWallpaper, .synced]) { try await commands.confirmEnable() }
+        await perform(command: .confirmEnable) { try await commands.confirmEnable() }
     }
 
     public func disableAndRestore() async {
-        await perform(clearingOn: [.readyToConfigure, .unsupported]) { try await commands.disableAndRestore() }
+        await perform(command: .disableAndRestore) { try await commands.disableAndRestore() }
     }
 
     public func retry() async {
-        await perform(clearingOn: [.readyToConfigure, .waitingForMainWallpaper, .synced, .unsupported]) {
+        await perform(command: .retry) {
             try await commands.retry()
         }
     }
@@ -108,22 +108,24 @@ public final class LockScreenFeatureStore {
         } else if case .service? = pageErrorSource {
             pageError = nil
             pageErrorSource = nil
-        } else if case let .command(successPhases) = pageErrorSource,
-                  successPhases.contains(snapshot.phase) {
+        } else if case let .command(command, baselineGeneration) = pageErrorSource,
+                  snapshot.completedCommandGeneration > baselineGeneration,
+                  snapshot.lastCompletedCommand == command,
+                  snapshot.lastCompletedCommandSucceeded == true {
             pageError = nil
             pageErrorSource = nil
         }
     }
 
     private func perform(
-        clearingOn successPhases: [LockScreenSyncPhase],
+        command: LockScreenSyncCommand,
         _ operation: () async throws -> Void
     ) async {
         do {
             try await operation()
         } catch {
             pageError = error.localizedDescription
-            pageErrorSource = .command(successPhases: successPhases)
+            pageErrorSource = .command(command, baselineGeneration: state.completedCommandGeneration)
         }
     }
 }

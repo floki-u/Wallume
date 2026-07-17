@@ -36,7 +36,7 @@ final class LockScreenFeatureStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testCommandErrorSurvivesTransientSnapshotThenClearsOnSuccessfulRefreshCompletion() async throws {
+    func testCommandErrorSurvivesTransientSnapshotAndUnrelatedStartupCompletion() async throws {
         let gate = ProbeGate()
         let fixture = try LockScreenFeatureStoreFixture(probeGate: gate)
         defer { fixture.cleanup() }
@@ -60,6 +60,44 @@ final class LockScreenFeatureStoreTests: XCTestCase {
         gate.release()
         await fixture.service.waitForIdle()
         await eventually { store.state.phase == .readyToConfigure }
+        XCTAssertEqual(store.pageError, "操作失败")
+    }
+
+    @MainActor
+    func testFailedSelectionClearsOnlyAfterLaterSuccessfulSelectionCompletion() async throws {
+        let fixture = try LockScreenFeatureStoreFixture()
+        defer { fixture.cleanup() }
+        let service = fixture.service
+        let driver = SelectionCommandDriver(service: service)
+        let store = LockScreenFeatureStore(
+            service: fixture.service,
+            commands: .init(
+                refreshProbe: { await service.refreshProbe() },
+                selectAerialSlot: { try await driver.select($0) },
+                confirmEnable: {},
+                disableAndRestore: {},
+                retry: {}
+            )
+        )
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+        await eventually { store.state.phase == .readyToConfigure }
+
+        await store.selectAerialSlot(fixture.aerialID)
+        XCTAssertEqual(store.pageError, "操作失败")
+        let failedGeneration = store.state.completedCommandGeneration
+
+        await fixture.service.refreshProbe()
+        await fixture.service.waitForIdle()
+        await eventually { store.state.completedCommandGeneration > failedGeneration }
+        XCTAssertEqual(store.state.lastCompletedCommand, .refreshProbe)
+        XCTAssertEqual(store.pageError, "操作失败")
+
+        await driver.allowSuccess()
+        await store.selectAerialSlot(fixture.aerialID)
+        await fixture.service.waitForIdle()
+        await eventually { store.state.lastCompletedCommand == .selectAerialSlot && store.state.completedCommandGeneration > failedGeneration }
         XCTAssertNil(store.pageError)
     }
 
@@ -92,6 +130,20 @@ private enum FeatureCommandError: LocalizedError {
 private actor FeatureCommandRecorder {
     private(set) var commands = [String]()
     func append(_ command: String) { commands.append(command) }
+}
+
+private actor SelectionCommandDriver {
+    private let service: LockScreenSyncService
+    private var shouldFail = true
+
+    init(service: LockScreenSyncService) { self.service = service }
+
+    func select(_ aerialID: String) async throws {
+        if shouldFail { throw FeatureCommandError.failed }
+        await service.selectAerialSlot(aerialID)
+    }
+
+    func allowSuccess() { shouldFail = false }
 }
 
 @MainActor

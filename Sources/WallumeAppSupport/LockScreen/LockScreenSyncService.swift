@@ -10,6 +10,17 @@ public actor LockScreenSyncService {
         case confirmEnable
         case disableAndRestore
         case retry
+
+        var completedCommand: LockScreenSyncCommand? {
+            switch self {
+            case .start, .evaluate: nil
+            case .refresh: .refreshProbe
+            case .selectAerialSlot: .selectAerialSlot
+            case .confirmEnable: .confirmEnable
+            case .disableAndRestore: .disableAndRestore
+            case .retry: .retry
+            }
+        }
     }
 
     private enum FailureReason: String {
@@ -48,6 +59,9 @@ public actor LockScreenSyncService {
     private var acceptingCommands = true
     private var writesTrusted = false
     private var explicitRecoveryEligibleTransactionID: UUID?
+    private var completedCommandGeneration: UInt64 = 0
+    private var lastCompletedCommand: LockScreenSyncCommand?
+    private var lastCompletedCommandSucceeded: Bool?
 
     public init(
         configurationStore: LockScreenConfigurationStore,
@@ -159,6 +173,9 @@ public actor LockScreenSyncService {
             await enableAndEvaluate()
         case .disableAndRestore:
             await disable()
+        }
+        if let completedCommand = command.completedCommand {
+            publishCompletion(of: completedCommand)
         }
     }
 
@@ -538,6 +555,13 @@ public actor LockScreenSyncService {
         publish(phase: .needsRepair, error: reason.rawValue)
     }
 
+    private func publishCompletion(of command: LockScreenSyncCommand) {
+        completedCommandGeneration &+= 1
+        lastCompletedCommand = command
+        lastCompletedCommandSucceeded = latestState.lastError == nil
+        publish(phase: latestState.phase, error: latestState.lastError)
+    }
+
     private func publish(phase: LockScreenSyncPhase, error: String? = nil) {
         let current = configuration
         let syncedMedia = current?.lastSyncedMediaID.map { id in
@@ -572,7 +596,10 @@ public actor LockScreenSyncService {
                     && (writesTrusted || canExplicitlyRecover)
                     && !isBusy,
                 canRetry: phase == .needsRepair || phase == .unsupported
-            )
+            ),
+            completedCommandGeneration: completedCommandGeneration,
+            lastCompletedCommand: lastCompletedCommand,
+            lastCompletedCommandSucceeded: lastCompletedCommandSucceeded
         )
         continuations.values.forEach { $0.yield(latestState) }
     }
