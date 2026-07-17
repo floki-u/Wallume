@@ -1,0 +1,101 @@
+Sources/WallumeAppSupport/AppKit/StatusItemController.swift
+  32e54daf3a523c64 2,4-27,35-37,39,41,47-60,62,75-81,98-104,113-114
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  32e54daf3a523c64 4,12-13,18,22,24-25,27
+Sources/WallumeAppSupport/UI/DisplaysView.swift
+  32e54daf3a523c64 53,55
+Tests/WallumeAppSupportTests/DisplayAssignmentStoreTests.swift
+  32e54daf3a523c64 76-82
+Sources/WallumeAppSupport/Application/ApplicationNavigation.swift
+  32e54daf3a523c64 1-14
+Sources/WallumeAppSupport/Displays/DisplayAssignmentModels.swift
+  32e54daf3a523c64 96
+Sources/WallumeApp/ApplicationController.swift
+  32e54daf3a523c64 12-17,22-26,33,35-90,93-94,98-99,106,108-115,124,134-144,147-148,153-215,219,225-229,231-237
+Tests/WallumeAppSupportTests/DisplayFeatureStoreTests.swift
+  32e54daf3a523c64 38-54
+Sources/WallumeAppSupport/Displays/DisplayAssignmentStore.swift
+  32e54daf3a523c64 10,27,32-60,69,88,98,108,118,145-148
+Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift
+  32e54daf3a523c64 9-14
+Tests/WallumeAppSupportTests/AppKitShellTests.swift
+  32e54daf3a523c64 25-34
+Sources/WallumeAppSupport/Displays/DisplayFeatureStore.swift
+  32e54daf3a523c64 81-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "1f02f81bd3e2f986abe8ec3ebd2af3a101627586",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 346,
+      "total_deletions": 68,
+      "accepted_lines": 346,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/UI/DisplaysView.swift": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 2
+        },
+        "Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift": {
+          "additions": 6,
+          "accepted_lines": 6
+        },
+        "Sources/WallumeAppSupport/Displays/DisplayAssignmentStore.swift": {
+          "additions": 42,
+          "deletions": 26,
+          "accepted_lines": 42
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "additions": 173,
+          "deletions": 28,
+          "accepted_lines": 173
+        },
+        "Sources/WallumeAppSupport/AppKit/StatusItemController.swift": {
+          "additions": 64,
+          "deletions": 3,
+          "accepted_lines": 64
+        },
+        "Tests/WallumeAppSupportTests/DisplayFeatureStoreTests.swift": {
+          "additions": 17,
+          "accepted_lines": 17
+        },
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 8,
+          "deletions": 8,
+          "accepted_lines": 8
+        },
+        "Tests/WallumeAppSupportTests/AppKitShellTests.swift": {
+          "additions": 10,
+          "accepted_lines": 10
+        },
+        "Sources/WallumeAppSupport/Displays/DisplayAssignmentModels.swift": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        "Sources/WallumeAppSupport/Application/ApplicationNavigation.swift": {
+          "additions": 14,
+          "accepted_lines": 14
+        },
+        "Tests/WallumeAppSupportTests/DisplayAssignmentStoreTests.swift": {
+          "additions": 7,
+          "accepted_lines": 7
+        },
+        "Sources/WallumeAppSupport/Displays/DisplayFeatureStore.swift": {
+          "additions": 2,
+          "deletions": 1,
+          "accepted_lines": 2
+        }
+      }
+    }
+  }
+}
