@@ -2,6 +2,11 @@ import Foundation
 import WallumeCore
 
 /// Serializes lock-screen configuration reads and writes, preserving an unreadable file in place.
+///
+/// The advisory lock coordinates Wallume processes, while pre/post identity and byte checks detect
+/// ordinary external modifications. macOS provides no atomic inode-compare-and-replace operation,
+/// so this boundary does not claim protection against a precisely timed same-UID non-cooperating
+/// adversary between validation and atomic replacement.
 public actor LockScreenConfigurationStore {
     private static let documentKeys: Set<String> = [
         "schemaVersion",
@@ -80,7 +85,12 @@ public actor LockScreenConfigurationStore {
             throw error
         }
 
-        try jsonStore.write(configuration, to: url)
+        do {
+            try jsonStore.write(configuration, to: url)
+        } catch {
+            transitionToFailed()
+            throw error
+        }
         do {
             let reloaded = try readValidatedFile()
             guard reloaded.configuration == configuration else {

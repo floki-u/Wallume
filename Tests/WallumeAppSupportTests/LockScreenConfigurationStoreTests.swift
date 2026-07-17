@@ -181,6 +181,35 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
         XCTAssertEqual(fixture.files.writeCount, writesBeforeUpdate)
     }
 
+    func testPostWriteFailurePublishesDisabledStateAndBlocksFutureUpdates() async throws {
+        let fixture = try LockScreenConfigurationFixture()
+        defer { fixture.cleanup() }
+        let enabled = LockScreenConfiguration(isEnabled: true, selectedAerialID: "com.apple.aerials.sea")
+        _ = try await fixture.store.load()
+        let stream = await fixture.store.events()
+        var iterator = stream.makeAsyncIterator()
+        let initial = await iterator.next()
+        XCTAssertEqual(initial, .disabled)
+        fixture.files.failAfterNextWrite = true
+
+        do {
+            try await fixture.store.update(enabled)
+            XCTFail("Expected post-write failure")
+        } catch {}
+
+        do {
+            try await fixture.store.update(enabled)
+            XCTFail("Expected failed store to block retry")
+        } catch let error as LockScreenConfigurationStoreError {
+            XCTAssertEqual(error, .unavailableAfterLoadFailure)
+        }
+
+        let safe = await iterator.next()
+        XCTAssertEqual(safe, .disabled)
+        XCTAssertEqual(fixture.files.writeCount, 1)
+        XCTAssertEqual(fixture.advisoryLock.acquireCount, 2)
+    }
+
     func testFailedReloadPublishesDisabledSnapshotToExistingSubscribers() async throws {
         let fixture = try LockScreenConfigurationFixture()
         defer { fixture.cleanup() }
@@ -246,6 +275,7 @@ private final class LockScreenConfigurationFixture {
     let root: URL
     let url: URL
     let files = CountingFileStore()
+    let advisoryLock = RecordingAdvisoryLock()
     lazy var store = makeStore()
 
     init() throws {
@@ -260,7 +290,12 @@ private final class LockScreenConfigurationFixture {
     func reloadedStore() -> LockScreenConfigurationStore { makeStore() }
 
     private func makeStore() -> LockScreenConfigurationStore {
-        LockScreenConfigurationStore(url: url, files: files, jsonStore: AtomicJSONStore(files: files))
+        LockScreenConfigurationStore(
+            url: url,
+            files: files,
+            jsonStore: AtomicJSONStore(files: files),
+            advisoryLock: advisoryLock
+        )
     }
 
     func cleanup() { try? FileManager.default.removeItem(at: root) }
@@ -270,6 +305,7 @@ private final class CountingFileStore: FileStore, @unchecked Sendable {
     private let local = LocalFileStore()
     private(set) var writeCount = 0
     private var pendingSwap: (url: URL, data: Data)?
+    var failAfterNextWrite = false
 
     func exists(_ url: URL) -> Bool { local.exists(url) }
     func read(_ url: URL) throws -> Data {
@@ -291,6 +327,10 @@ private final class CountingFileStore: FileStore, @unchecked Sendable {
     func writeAtomically(_ data: Data, to target: URL) throws {
         writeCount += 1
         try local.writeAtomically(data, to: target)
+        if failAfterNextWrite {
+            failAfterNextWrite = false
+            throw TestFileStoreError.postWriteFailure
+        }
     }
     func writeExclusively(_ data: Data, to target: URL) throws { try local.writeExclusively(data, to: target) }
     func copy(_ source: URL, to destination: URL) throws { try local.copy(source, to: destination) }
@@ -308,3 +348,16 @@ private final class CountingFileStore: FileStore, @unchecked Sendable {
         try? local.writeAtomically(data, to: url)
     }
 }
+
+private enum TestFileStoreError: Error { case postWriteFailure }
+
+private final class RecordingAdvisoryLock: AdvisoryLocking, @unchecked Sendable {
+    private(set) var acquireCount = 0
+
+    func acquire() throws -> any AdvisoryLockToken {
+        acquireCount += 1
+        return TestAdvisoryLockToken()
+    }
+}
+
+private final class TestAdvisoryLockToken: AdvisoryLockToken, @unchecked Sendable {}
