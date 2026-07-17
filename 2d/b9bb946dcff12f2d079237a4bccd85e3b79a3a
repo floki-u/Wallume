@@ -1,0 +1,56 @@
+Tests/WallumeAppSupportTests/DisplaysViewTests.swift
+  32e54daf3a523c64 1-30
+Sources/WallumeAppSupport/UI/FeatureRegistry.swift
+  32e54daf3a523c64 17
+Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift
+  32e54daf3a523c64 5,7
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  32e54daf3a523c64 7,12-13,24-25
+Sources/WallumeAppSupport/UI/DisplaysView.swift
+  32e54daf3a523c64 1-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "2db9bb946dcff12f2d079237a4bccd85e3b79a3a",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 176,
+      "total_deletions": 5,
+      "accepted_lines": 176,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/UI/FeatureRegistry.swift": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 5,
+          "deletions": 2,
+          "accepted_lines": 5
+        },
+        "Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 2
+        },
+        "Tests/WallumeAppSupportTests/DisplaysViewTests.swift": {
+          "additions": 30,
+          "accepted_lines": 30
+        },
+        "Sources/WallumeAppSupport/UI/DisplaysView.swift": {
+          "additions": 138,
+          "accepted_lines": 138
+        }
+      }
+    }
+  }
+}
