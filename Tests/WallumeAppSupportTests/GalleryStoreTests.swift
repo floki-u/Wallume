@@ -50,8 +50,12 @@ final class GalleryStoreTests: XCTestCase {
         let url = root.appending(path: "assignments.json")
         let files = LocalFileStore(); let store = AtomicJSONStore(files: files)
         let id = UUID()
-        try store.write(DisplayAssignmentsDocument(assignments: [
-            .init(displayID: "1", displayName: "Studio Display", mediaID: id),
+        try store.write(DisplayAssignmentsDocument(displays: [
+            .init(
+                displayID: DisplayID("1"), displayName: "Studio Display",
+                pixelWidth: 1920, pixelHeight: 1080, wasMain: false,
+                identityPersistence: .persistent, mediaID: id, presentationMode: .fill
+            ),
         ]), to: url)
         let checker = PersistedMediaUsageChecker(url: url, files: files, store: store)
         XCTAssertEqual(checker.references(to: id).map(\.name), ["Studio Display"])

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct DisplayID: Hashable, Sendable, Comparable {
+public struct DisplayID: Hashable, Sendable, Comparable, Codable {
     public let rawValue: String
 
     public init(_ rawValue: String) {
@@ -9,6 +9,15 @@ public struct DisplayID: Hashable, Sendable, Comparable {
 
     public static func < (lhs: Self, rhs: Self) -> Bool {
         lhs.rawValue < rhs.rawValue
+    }
+
+    public init(from decoder: any Decoder) throws {
+        self.init(try decoder.singleValueContainer().decode(String.self))
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 
