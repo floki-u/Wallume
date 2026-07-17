@@ -2,17 +2,17 @@ Sources/WallumeAppSupport/UI/ApplicationShellView.swift
   8696c979740de9f4 4-76,97-98,103-104,113-118,129-140
 Sources/WallumeAppSupport/UI/FeatureRegistry.swift
   8696c979740de9f4 18
+Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift
+  8696c979740de9f4 6,8-29
 Sources/WallumeApp/ApplicationController.swift
   8696c979740de9f4 17-18,66-79,104-105,113,118,120-126,161,174,199-200,214,225-228,237,242-243,245,256-260,273,277,295-298
 Tests/WallumeAppSupportTests/ApplicationCompositionTests.swift
-  8696c979740de9f4 19-103
-Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift
-  8696c979740de9f4 6,8-29
+  8696c979740de9f4 19-115
 ---
 {
   "schema_version": "authorship/3.0.0",
   "git_ai_version": "1.2.8-ntes.9",
-  "base_commit_sha": "60eaa17ad9119f23066318e12175cd594cae434b",
+  "base_commit_sha": "d563c64f24d768197c61cd503667d904c24363e9",
   "prompts": {
     "32e54daf3a523c64": {
       "agent_id": {
@@ -41,35 +41,35 @@ Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift
       },
       "human_author": "floki-u",
       "messages": [],
-      "total_additions": 269,
-      "total_deletions": 32,
-      "accepted_lines": 255,
+      "total_additions": 282,
+      "total_deletions": 33,
+      "accepted_lines": 267,
       "overriden_lines": 0,
       "per_file_stats": {
-        "Tests/WallumeAppSupportTests/ApplicationCompositionTests.swift": {
-          "additions": 86,
+        "Sources/WallumeAppSupport/UI/FeatureRegistry.swift": {
+          "additions": 1,
           "deletions": 1,
-          "accepted_lines": 85
+          "accepted_lines": 1
         },
         "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
           "additions": 101,
           "deletions": 12,
           "accepted_lines": 101
         },
-        "Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift": {
-          "additions": 23,
+        "Tests/WallumeAppSupportTests/ApplicationCompositionTests.swift": {
+          "additions": 99,
           "deletions": 2,
-          "accepted_lines": 23
+          "accepted_lines": 98
         },
         "Sources/WallumeApp/ApplicationController.swift": {
           "additions": 58,
           "deletions": 16,
           "accepted_lines": 58
         },
-        "Sources/WallumeAppSupport/UI/FeatureRegistry.swift": {
-          "additions": 1,
-          "deletions": 1,
-          "accepted_lines": 1
+        "Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift": {
+          "additions": 23,
+          "deletions": 2,
+          "accepted_lines": 23
         }
       }
     }
