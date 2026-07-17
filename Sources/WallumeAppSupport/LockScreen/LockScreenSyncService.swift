@@ -64,6 +64,8 @@ public actor LockScreenSyncService {
     private var lastCompletedCommandTicket: LockScreenCommandTicket?
     private var lastCompletedCommandSucceeded: Bool?
     private var nextCommandTicket: UInt64 = 0
+    private var executingTicket: LockScreenCommandTicket?
+    private var lastErrorOriginTicket: LockScreenCommandTicket?
 
     public init(
         configurationStore: LockScreenConfigurationStore,
@@ -169,6 +171,8 @@ public actor LockScreenSyncService {
     }
 
     private func execute(_ command: Command) async {
+        executingTicket = command.completion?.ticket
+        defer { executingTicket = nil }
         switch command {
         case .start:
             guard !started else { return }
@@ -581,6 +585,7 @@ public actor LockScreenSyncService {
     }
 
     private func publish(phase: LockScreenSyncPhase, error: String? = nil) {
+        if error != nil { lastErrorOriginTicket = executingTicket }
         let current = configuration
         let syncedMedia = current?.lastSyncedMediaID.map { id in
             LockScreenSyncedMediaSummary(id: id, displayName: latestInput.mediaByID[id]?.displayName)
@@ -606,6 +611,7 @@ public actor LockScreenSyncService {
             lastSyncedAt: current?.lastSyncedAt,
             lastResult: current?.lastResult,
             lastError: error,
+            errorOriginTicket: error == nil ? nil : lastErrorOriginTicket,
             capabilities: LockScreenSyncCapabilities(
                 canRefreshProbe: started && !isBusy,
                 canSelectAerialSlot: canSelect,

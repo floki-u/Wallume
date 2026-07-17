@@ -77,6 +77,7 @@ public struct LockScreenSyncState: Equatable, Sendable {
     public let lastSyncedAt: Date?
     public let lastResult: LockScreenConfigurationResult?
     public let lastError: String?
+    public let errorOriginTicket: LockScreenCommandTicket?
     public let capabilities: LockScreenSyncCapabilities
     public let completedCommandGeneration: UInt64
     public let lastCompletedCommand: LockScreenSyncCommand?
@@ -92,6 +93,7 @@ public struct LockScreenSyncState: Equatable, Sendable {
         lastSyncedAt: Date? = nil,
         lastResult: LockScreenConfigurationResult? = nil,
         lastError: String? = nil,
+        errorOriginTicket: LockScreenCommandTicket? = nil,
         capabilities: LockScreenSyncCapabilities = .unavailable,
         completedCommandGeneration: UInt64 = 0,
         lastCompletedCommand: LockScreenSyncCommand? = nil,
@@ -106,6 +108,7 @@ public struct LockScreenSyncState: Equatable, Sendable {
         self.lastSyncedAt = lastSyncedAt
         self.lastResult = lastResult
         self.lastError = lastError
+        self.errorOriginTicket = errorOriginTicket
         self.capabilities = capabilities
         self.completedCommandGeneration = completedCommandGeneration
         self.lastCompletedCommand = lastCompletedCommand

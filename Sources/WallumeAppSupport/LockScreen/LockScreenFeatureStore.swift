@@ -104,7 +104,7 @@ public final class LockScreenFeatureStore {
         state = snapshot
         if let error = snapshot.lastError {
             pageError = error
-            pageErrorSource = snapshot.lastCompletedCommandTicket.map { .command(ticket: $0) } ?? .service
+            pageErrorSource = snapshot.errorOriginTicket.map { .command(ticket: $0) } ?? .service
         } else if case .service? = pageErrorSource {
             pageError = nil
             pageErrorSource = nil
