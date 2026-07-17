@@ -12,11 +12,11 @@ final class LockScreenFeatureStoreTests: XCTestCase {
         let store = LockScreenFeatureStore(
             service: fixture.service,
             commands: .init(
-                refreshProbe: { await recorder.append("refresh") },
-                selectAerialSlot: { await recorder.append("select:\($0)") },
-                confirmEnable: { await recorder.append("confirm") },
-                disableAndRestore: { await recorder.append("restore") },
-                retry: { await recorder.append("retry") }
+                refreshProbe: { await recorder.append("refresh"); return nil },
+                selectAerialSlot: { await recorder.append("select:\($0)"); return nil },
+                confirmEnable: { await recorder.append("confirm"); return nil },
+                disableAndRestore: { await recorder.append("restore"); return nil },
+                retry: { await recorder.append("retry"); return nil }
             )
         )
 
@@ -42,10 +42,10 @@ final class LockScreenFeatureStoreTests: XCTestCase {
         defer { fixture.cleanup() }
         let commands = LockScreenFeatureCommands(
             refreshProbe: { throw FeatureCommandError.failed },
-            selectAerialSlot: { _ in },
-            confirmEnable: {},
-            disableAndRestore: {},
-            retry: {}
+            selectAerialSlot: { _ in nil },
+            confirmEnable: { nil },
+            disableAndRestore: { nil },
+            retry: { nil }
         )
         let store = LockScreenFeatureStore(service: fixture.service, commands: commands)
 
@@ -74,9 +74,9 @@ final class LockScreenFeatureStoreTests: XCTestCase {
             commands: .init(
                 refreshProbe: { await service.refreshProbe() },
                 selectAerialSlot: { try await driver.select($0) },
-                confirmEnable: {},
-                disableAndRestore: {},
-                retry: {}
+                confirmEnable: { nil },
+                disableAndRestore: { nil },
+                retry: { nil }
             )
         )
 
@@ -138,9 +138,9 @@ private actor SelectionCommandDriver {
 
     init(service: LockScreenSyncService) { self.service = service }
 
-    func select(_ aerialID: String) async throws {
+    func select(_ aerialID: String) async throws -> LockScreenCommandTicket? {
         if shouldFail { throw FeatureCommandError.failed }
-        await service.selectAerialSlot(aerialID)
+        return await service.selectAerialSlot(aerialID)
     }
 
     func allowSuccess() { shouldFail = false }

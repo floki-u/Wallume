@@ -4,18 +4,18 @@ import Observation
 /// Injectable page commands. The production values forward to the synchronization service;
 /// keeping this boundary here lets the presentation layer publish command failures consistently.
 public struct LockScreenFeatureCommands: Sendable {
-    public var refreshProbe: @Sendable () async throws -> Void
-    public var selectAerialSlot: @Sendable (String) async throws -> Void
-    public var confirmEnable: @Sendable () async throws -> Void
-    public var disableAndRestore: @Sendable () async throws -> Void
-    public var retry: @Sendable () async throws -> Void
+    public var refreshProbe: @Sendable () async throws -> LockScreenCommandTicket?
+    public var selectAerialSlot: @Sendable (String) async throws -> LockScreenCommandTicket?
+    public var confirmEnable: @Sendable () async throws -> LockScreenCommandTicket?
+    public var disableAndRestore: @Sendable () async throws -> LockScreenCommandTicket?
+    public var retry: @Sendable () async throws -> LockScreenCommandTicket?
 
     public init(
-        refreshProbe: @escaping @Sendable () async throws -> Void,
-        selectAerialSlot: @escaping @Sendable (String) async throws -> Void,
-        confirmEnable: @escaping @Sendable () async throws -> Void,
-        disableAndRestore: @escaping @Sendable () async throws -> Void,
-        retry: @escaping @Sendable () async throws -> Void
+        refreshProbe: @escaping @Sendable () async throws -> LockScreenCommandTicket?,
+        selectAerialSlot: @escaping @Sendable (String) async throws -> LockScreenCommandTicket?,
+        confirmEnable: @escaping @Sendable () async throws -> LockScreenCommandTicket?,
+        disableAndRestore: @escaping @Sendable () async throws -> LockScreenCommandTicket?,
+        retry: @escaping @Sendable () async throws -> LockScreenCommandTicket?
     ) {
         self.refreshProbe = refreshProbe
         self.selectAerialSlot = selectAerialSlot
@@ -46,7 +46,7 @@ public final class LockScreenFeatureStore {
     public private(set) var pageError: String?
 
     private enum PageErrorSource {
-        case command(LockScreenSyncCommand, baselineGeneration: UInt64)
+        case command(ticket: LockScreenCommandTicket?)
         case service
         case reported
     }
@@ -104,13 +104,12 @@ public final class LockScreenFeatureStore {
         state = snapshot
         if let error = snapshot.lastError {
             pageError = error
-            pageErrorSource = .service
+            pageErrorSource = snapshot.lastCompletedCommandTicket.map { .command(ticket: $0) } ?? .service
         } else if case .service? = pageErrorSource {
             pageError = nil
             pageErrorSource = nil
-        } else if case let .command(command, baselineGeneration) = pageErrorSource,
-                  snapshot.completedCommandGeneration > baselineGeneration,
-                  snapshot.lastCompletedCommand == command,
+        } else if case let .command(ticket) = pageErrorSource,
+                  snapshot.lastCompletedCommandTicket == ticket,
                   snapshot.lastCompletedCommandSucceeded == true {
             pageError = nil
             pageErrorSource = nil
@@ -119,13 +118,14 @@ public final class LockScreenFeatureStore {
 
     private func perform(
         command: LockScreenSyncCommand,
-        _ operation: () async throws -> Void
+        _ operation: () async throws -> LockScreenCommandTicket?
     ) async {
         do {
-            try await operation()
+            let ticket = try await operation()
+            if pageError != nil, ticket != nil { pageErrorSource = .command(ticket: ticket) }
         } catch {
             pageError = error.localizedDescription
-            pageErrorSource = .command(command, baselineGeneration: state.completedCommandGeneration)
+            pageErrorSource = .command(ticket: nil)
         }
     }
 }

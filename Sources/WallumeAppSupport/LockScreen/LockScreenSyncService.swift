@@ -5,20 +5,20 @@ public actor LockScreenSyncService {
     private enum Command: Equatable {
         case start
         case evaluate
-        case refresh
-        case selectAerialSlot(String)
-        case confirmEnable
-        case disableAndRestore
-        case retry
+        case refresh(LockScreenCommandTicket)
+        case selectAerialSlot(String, LockScreenCommandTicket)
+        case confirmEnable(LockScreenCommandTicket)
+        case disableAndRestore(LockScreenCommandTicket)
+        case retry(LockScreenCommandTicket)
 
-        var completedCommand: LockScreenSyncCommand? {
+        var completion: (command: LockScreenSyncCommand, ticket: LockScreenCommandTicket)? {
             switch self {
             case .start, .evaluate: nil
-            case .refresh: .refreshProbe
-            case .selectAerialSlot: .selectAerialSlot
-            case .confirmEnable: .confirmEnable
-            case .disableAndRestore: .disableAndRestore
-            case .retry: .retry
+            case let .refresh(ticket): (.refreshProbe, ticket)
+            case let .selectAerialSlot(_, ticket): (.selectAerialSlot, ticket)
+            case let .confirmEnable(ticket): (.confirmEnable, ticket)
+            case let .disableAndRestore(ticket): (.disableAndRestore, ticket)
+            case let .retry(ticket): (.retry, ticket)
             }
         }
     }
@@ -61,7 +61,9 @@ public actor LockScreenSyncService {
     private var explicitRecoveryEligibleTransactionID: UUID?
     private var completedCommandGeneration: UInt64 = 0
     private var lastCompletedCommand: LockScreenSyncCommand?
+    private var lastCompletedCommandTicket: LockScreenCommandTicket?
     private var lastCompletedCommandSucceeded: Bool?
+    private var nextCommandTicket: UInt64 = 0
 
     public init(
         configurationStore: LockScreenConfigurationStore,
@@ -87,29 +89,39 @@ public actor LockScreenSyncService {
         if started || commands.contains(.start) { enqueue(.evaluate, coalescingEvaluation: true) }
     }
 
-    public func refreshProbe() {
-        guard acceptingCommands else { return }
-        enqueue(.refresh)
+    @discardableResult public func refreshProbe() -> LockScreenCommandTicket? {
+        guard acceptingCommands else { return nil }
+        let ticket = issueTicket()
+        enqueue(.refresh(ticket))
+        return ticket
     }
 
-    public func selectAerialSlot(_ aerialID: String) {
-        guard acceptingCommands else { return }
-        enqueue(.selectAerialSlot(aerialID))
+    @discardableResult public func selectAerialSlot(_ aerialID: String) -> LockScreenCommandTicket? {
+        guard acceptingCommands else { return nil }
+        let ticket = issueTicket()
+        enqueue(.selectAerialSlot(aerialID, ticket))
+        return ticket
     }
 
-    public func confirmEnable() {
-        guard acceptingCommands else { return }
-        enqueue(.confirmEnable)
+    @discardableResult public func confirmEnable() -> LockScreenCommandTicket? {
+        guard acceptingCommands else { return nil }
+        let ticket = issueTicket()
+        enqueue(.confirmEnable(ticket))
+        return ticket
     }
 
-    public func disableAndRestore() {
-        guard acceptingCommands else { return }
-        enqueue(.disableAndRestore)
+    @discardableResult public func disableAndRestore() -> LockScreenCommandTicket? {
+        guard acceptingCommands else { return nil }
+        let ticket = issueTicket()
+        enqueue(.disableAndRestore(ticket))
+        return ticket
     }
 
-    public func retry() {
-        guard acceptingCommands else { return }
-        enqueue(.retry)
+    @discardableResult public func retry() -> LockScreenCommandTicket? {
+        guard acceptingCommands else { return nil }
+        let ticket = issueTicket()
+        enqueue(.retry(ticket))
+        return ticket
     }
 
     public func events() -> AsyncStream<LockScreenSyncState> {
@@ -143,6 +155,11 @@ public actor LockScreenSyncService {
         workerTask = Task { [weak self] in await self?.drainCommands() }
     }
 
+    private func issueTicket() -> LockScreenCommandTicket {
+        nextCommandTicket &+= 1
+        return LockScreenCommandTicket(rawValue: nextCommandTicket)
+    }
+
     private func drainCommands() async {
         while !commands.isEmpty {
             let command = commands.removeFirst()
@@ -162,20 +179,20 @@ public actor LockScreenSyncService {
             await evaluateLatestInput()
         case .refresh, .retry:
             guard started else { return }
-            if command == .refresh {
+            if case .refresh = command {
                 await refreshProbeOnly()
             } else {
                 await reconcileStartup()
             }
-        case let .selectAerialSlot(aerialID):
+        case let .selectAerialSlot(aerialID, _):
             select(aerialID)
         case .confirmEnable:
             await enableAndEvaluate()
         case .disableAndRestore:
             await disable()
         }
-        if let completedCommand = command.completedCommand {
-            publishCompletion(of: completedCommand)
+        if let completion = command.completion {
+            publishCompletion(of: completion.command, ticket: completion.ticket)
         }
     }
 
@@ -555,9 +572,10 @@ public actor LockScreenSyncService {
         publish(phase: .needsRepair, error: reason.rawValue)
     }
 
-    private func publishCompletion(of command: LockScreenSyncCommand) {
+    private func publishCompletion(of command: LockScreenSyncCommand, ticket: LockScreenCommandTicket) {
         completedCommandGeneration &+= 1
         lastCompletedCommand = command
+        lastCompletedCommandTicket = ticket
         lastCompletedCommandSucceeded = latestState.lastError == nil
         publish(phase: latestState.phase, error: latestState.lastError)
     }
@@ -599,6 +617,7 @@ public actor LockScreenSyncService {
             ),
             completedCommandGeneration: completedCommandGeneration,
             lastCompletedCommand: lastCompletedCommand,
+            lastCompletedCommandTicket: lastCompletedCommandTicket,
             lastCompletedCommandSucceeded: lastCompletedCommandSucceeded
         )
         continuations.values.forEach { $0.yield(latestState) }

@@ -22,6 +22,12 @@ public enum LockScreenSyncCommand: Equatable, Sendable {
     case retry
 }
 
+/// Monotonic identity assigned when the service accepts a user command.
+public struct LockScreenCommandTicket: Equatable, Sendable {
+    public let rawValue: UInt64
+    public init(rawValue: UInt64) { self.rawValue = rawValue }
+}
+
 public struct LockScreenSyncedMediaSummary: Equatable, Sendable {
     public let id: UUID
     public let displayName: String?
@@ -74,6 +80,7 @@ public struct LockScreenSyncState: Equatable, Sendable {
     public let capabilities: LockScreenSyncCapabilities
     public let completedCommandGeneration: UInt64
     public let lastCompletedCommand: LockScreenSyncCommand?
+    public let lastCompletedCommandTicket: LockScreenCommandTicket?
     public let lastCompletedCommandSucceeded: Bool?
 
     public init(
@@ -88,6 +95,7 @@ public struct LockScreenSyncState: Equatable, Sendable {
         capabilities: LockScreenSyncCapabilities = .unavailable,
         completedCommandGeneration: UInt64 = 0,
         lastCompletedCommand: LockScreenSyncCommand? = nil,
+        lastCompletedCommandTicket: LockScreenCommandTicket? = nil,
         lastCompletedCommandSucceeded: Bool? = nil
     ) {
         self.phase = phase
@@ -101,6 +109,7 @@ public struct LockScreenSyncState: Equatable, Sendable {
         self.capabilities = capabilities
         self.completedCommandGeneration = completedCommandGeneration
         self.lastCompletedCommand = lastCompletedCommand
+        self.lastCompletedCommandTicket = lastCompletedCommandTicket
         self.lastCompletedCommandSucceeded = lastCompletedCommandSucceeded
     }
 
