@@ -1,0 +1,77 @@
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  8696c979740de9f4 4-76,97-98,103-104,113-118,129-140
+Sources/WallumeAppSupport/UI/FeatureRegistry.swift
+  8696c979740de9f4 18
+Sources/WallumeApp/ApplicationController.swift
+  8696c979740de9f4 17-18,66-79,104-105,113,118,120-126,161,174,199-200,214,225-228,237,242-243,245,256-260,273,277,295-298
+Tests/WallumeAppSupportTests/ApplicationCompositionTests.swift
+  8696c979740de9f4 19-103
+Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift
+  8696c979740de9f4 6,8-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "60eaa17ad9119f23066318e12175cd594cae434b",
+  "prompts": {
+    "32e54daf3a523c64": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f65ed-39e5-7d21-aa51-f8923e80e5d3",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 259,
+      "total_deletions": 0,
+      "accepted_lines": 396,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/superpowers/plans/2026-07-17-lock-screen-application-sync.md": {
+          "additions": 259,
+          "accepted_lines": 259
+        }
+      }
+    },
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 269,
+      "total_deletions": 32,
+      "accepted_lines": 255,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeAppSupportTests/ApplicationCompositionTests.swift": {
+          "additions": 86,
+          "deletions": 1,
+          "accepted_lines": 85
+        },
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 101,
+          "deletions": 12,
+          "accepted_lines": 101
+        },
+        "Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift": {
+          "additions": 23,
+          "deletions": 2,
+          "accepted_lines": 23
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "additions": 58,
+          "deletions": 16,
+          "accepted_lines": 58
+        },
+        "Sources/WallumeAppSupport/UI/FeatureRegistry.swift": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        }
+      }
+    }
+  }
+}
