@@ -64,7 +64,7 @@ final class LockScreenFeatureStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testFailedSelectionClearsOnlyAfterLaterSuccessfulSelectionCompletion() async throws {
+    func testLocallyFailedSelectionRequiresDismissalRatherThanLaterServiceCompletion() async throws {
         let fixture = try LockScreenFeatureStoreFixture()
         defer { fixture.cleanup() }
         let service = fixture.service
@@ -98,7 +98,30 @@ final class LockScreenFeatureStoreTests: XCTestCase {
         await store.selectAerialSlot(fixture.aerialID)
         await fixture.service.waitForIdle()
         await eventually { store.state.lastCompletedCommand == .selectAerialSlot && store.state.completedCommandGeneration > failedGeneration }
-        XCTAssertNil(store.pageError)
+        XCTAssertEqual(store.pageError, "操作失败")
+    }
+
+    @MainActor
+    func testLaterAcceptedCommandDoesNotRebindExistingCommandError() async throws {
+        let fixture = try LockScreenFeatureStoreFixture()
+        defer { fixture.cleanup() }
+        let service = fixture.service
+        let store = LockScreenFeatureStore(
+            service: service,
+            commands: .init(
+                refreshProbe: { await service.refreshProbe() },
+                selectAerialSlot: { _ in throw FeatureCommandError.failed },
+                confirmEnable: { nil }, disableAndRestore: { nil }, retry: { nil }
+            )
+        )
+        await service.start(); await service.waitForIdle()
+        await eventually { store.state.phase == .readyToConfigure }
+        await store.selectAerialSlot(fixture.aerialID)
+        XCTAssertEqual(store.pageError, "操作失败")
+        await store.refreshProbe()
+        await service.waitForIdle()
+        await eventually { store.state.lastCompletedCommandTicket != nil }
+        XCTAssertEqual(store.pageError, "操作失败")
     }
 
     @MainActor

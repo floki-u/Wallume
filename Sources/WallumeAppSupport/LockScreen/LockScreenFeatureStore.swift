@@ -121,8 +121,7 @@ public final class LockScreenFeatureStore {
         _ operation: () async throws -> LockScreenCommandTicket?
     ) async {
         do {
-            let ticket = try await operation()
-            if pageError != nil, ticket != nil { pageErrorSource = .command(ticket: ticket) }
+            _ = try await operation()
         } catch {
             pageError = error.localizedDescription
             pageErrorSource = .command(ticket: nil)
