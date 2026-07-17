@@ -6,11 +6,12 @@ public struct MediaDetailView: View {
     let item: MediaItem
     let onReveal: () -> Bool
     let onDelete: () -> Void
+    let onSetWallpaper: (() -> Void)?
     @State private var preview = MediaPreviewController()
     @State private var revealError: String?
 
-    public init(item: MediaItem, onReveal: @escaping () -> Bool, onDelete: @escaping () -> Void) {
-        self.item = item; self.onReveal = onReveal; self.onDelete = onDelete
+    public init(item: MediaItem, onReveal: @escaping () -> Bool, onDelete: @escaping () -> Void, onSetWallpaper: (() -> Void)? = nil) {
+        self.item = item; self.onReveal = onReveal; self.onDelete = onDelete; self.onSetWallpaper = onSetWallpaper
     }
 
     public var body: some View {
@@ -30,6 +31,7 @@ public struct MediaDetailView: View {
                 GridRow { Text("源文件"); Text(item.sourceURL.path).lineLimit(2) }
             }
             HStack {
+                if let onSetWallpaper { Button("设为壁纸", systemImage: "display", action: onSetWallpaper) }
                 Button("播放预览") { preview.play(item.variantURL) }
                 Button("在 Finder 中显示") { if !onReveal() { revealError = "无法在 Finder 中显示源文件" } }
                 Spacer()

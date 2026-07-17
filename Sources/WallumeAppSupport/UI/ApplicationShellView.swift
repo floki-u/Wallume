@@ -20,7 +20,7 @@ public struct ApplicationShellView: View {
             }.navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
             if selection == .gallery {
-                GalleryView(gallery: gallery, tasks: tasks, onImportFiles: onImportFiles, onImportFolder: onImportFolder, onDrop: onDrop)
+                GalleryView(gallery: gallery, tasks: tasks, displays: displays, onImportFiles: onImportFiles, onImportFolder: onImportFolder, onDrop: onDrop)
             } else if selection == .displays, let displays {
                 DisplaysView(store: displays) { _ in selection = .gallery }
             } else {

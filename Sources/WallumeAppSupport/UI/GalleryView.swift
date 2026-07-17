@@ -1,15 +1,18 @@
 import AppKit
 import SwiftUI
+import WallumeCore
 
 public struct GalleryView: View {
     @Bindable private var gallery: GalleryStore
     private let tasks: ImportTaskStore
+    private let displays: DisplayFeatureStore?
     private let onImportFiles: () -> Void
     private let onImportFolder: () -> Void
     private let onDrop: ([URL]) -> Void
+    @State private var assignmentItem: MediaItem?
 
-    public init(gallery: GalleryStore, tasks: ImportTaskStore, onImportFiles: @escaping () -> Void, onImportFolder: @escaping () -> Void, onDrop: @escaping ([URL]) -> Void) {
-        self.gallery = gallery; self.tasks = tasks; self.onImportFiles = onImportFiles; self.onImportFolder = onImportFolder; self.onDrop = onDrop
+    public init(gallery: GalleryStore, tasks: ImportTaskStore, displays: DisplayFeatureStore? = nil, onImportFiles: @escaping () -> Void, onImportFolder: @escaping () -> Void, onDrop: @escaping ([URL]) -> Void) {
+        self.gallery = gallery; self.tasks = tasks; self.displays = displays; self.onImportFiles = onImportFiles; self.onImportFolder = onImportFolder; self.onDrop = onDrop
     }
 
     private let columns = [GridItem(.adaptive(minimum: 180), spacing: 16)]
@@ -51,8 +54,29 @@ public struct GalleryView: View {
                 onDelete: {
                     gallery.requestDelete(item)
                     if gallery.deletionBlock == nil { _ = gallery.confirmDelete(item) }
+                },
+                onSetWallpaper: displays.map { _ in
+                    { gallery.selectedItem = nil; assignmentItem = item }
                 }
             )
+        }
+        .sheet(item: $assignmentItem) { item in
+            if let displays {
+                DisplaySelectorView(
+                    mediaName: item.displayName,
+                    targets: displays.assignmentTargets,
+                    currentAssignments: Dictionary(uniqueKeysWithValues: displays.cards.compactMap { card in
+                        card.media.map { (card.id, $0.displayName) }
+                    }),
+                    onCancel: { assignmentItem = nil },
+                    onConfirm: { ids in
+                        Task {
+                            await displays.assign(mediaID: item.id, displayIDs: ids)
+                            if displays.pageError == nil { assignmentItem = nil }
+                        }
+                    }
+                )
+            }
         }
         .alert("媒体正在使用中", isPresented: Binding(
             get: { gallery.deletionBlock != nil },
