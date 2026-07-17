@@ -1,0 +1,43 @@
+Sources/WallumeAppSupport/LockScreen/LockScreenConfiguration.swift
+  8696c979740de9f4 5,41-44,46-48
+Tests/WallumeAppSupportTests/LockScreenConfigurationStoreTests.swift
+  8696c979740de9f4 76-112
+Sources/WallumeAppSupport/LockScreen/LockScreenConfigurationStore.swift
+  8696c979740de9f4 91-92,109,120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "7b53a411e106c68b9fedffd710e17eb9b71f78fa",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 49,
+      "total_deletions": 9,
+      "accepted_lines": 49,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/LockScreen/LockScreenConfiguration.swift": {
+          "additions": 8,
+          "deletions": 5,
+          "accepted_lines": 8
+        },
+        "Tests/WallumeAppSupportTests/LockScreenConfigurationStoreTests.swift": {
+          "additions": 37,
+          "accepted_lines": 37
+        },
+        "Sources/WallumeAppSupport/LockScreen/LockScreenConfigurationStore.swift": {
+          "additions": 4,
+          "deletions": 4,
+          "accepted_lines": 4
+        }
+      }
+    }
+  }
+}
