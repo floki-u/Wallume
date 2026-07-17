@@ -44,16 +44,18 @@ public actor LockScreenConfigurationStore {
     public func load() throws -> LockScreenConfiguration {
         loadState = .failed
         do {
-            let token = try advisoryLock.acquire()
-            defer { withExtendedLifetime(token) {} }
-            if files.exists(url) {
-                let loaded = try readValidatedFile()
-                value = loaded.configuration
-                persistedFile = loaded.file
-            } else {
+            guard files.exists(url) else {
                 value = .disabled
                 persistedFile = .missing
+                loadState = .loaded
+                publish()
+                return value
             }
+            let token = try advisoryLock.acquire()
+            defer { withExtendedLifetime(token) {} }
+            let loaded = try readValidatedFile()
+            value = loaded.configuration
+            persistedFile = loaded.file
             loadState = .loaded
         } catch {
             transitionToFailed()
@@ -182,7 +184,7 @@ public actor LockScreenConfigurationStore {
         }
         switch persistedFile {
         case .missing:
-            guard !files.exists(url) else {
+            guard try files.hasNoSymlinkComponents(url), !files.exists(url) else {
                 throw LockScreenConfigurationStoreError.configurationChangedExternally
             }
         case let .existing(identity, data):

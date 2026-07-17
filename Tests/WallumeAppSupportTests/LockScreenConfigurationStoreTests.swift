@@ -17,6 +17,7 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
         XCTAssertNil(configuration.lastSyncedMediaID)
         XCTAssertNil(configuration.lastSyncedAt)
         XCTAssertEqual(fixture.files.writeCount, 0)
+        XCTAssertEqual(fixture.advisoryLock.acquireCount, 0)
     }
 
     func testUpdateAtomicallyPersistsAndReloadsConfiguration() async throws {
@@ -207,7 +208,7 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
         let safe = await iterator.next()
         XCTAssertEqual(safe, .disabled)
         XCTAssertEqual(fixture.files.writeCount, 1)
-        XCTAssertEqual(fixture.advisoryLock.acquireCount, 2)
+        XCTAssertEqual(fixture.advisoryLock.acquireCount, 1)
     }
 
     func testFailedReloadPublishesDisabledSnapshotToExistingSubscribers() async throws {

@@ -28,6 +28,7 @@ public actor LockScreenSyncService {
         case restoreConflict = "恢复遇到外部修改，已保留恢复材料"
         case installFailed = "锁屏同步失败；启用意图已保留，可重试"
         case invalidInstallResult = "锁屏事务未到达已验证的提交状态，需要修复"
+        case retryRequired = "锁屏写入已停止；请重试并重新检查恢复状态"
     }
 
     private let configurationStore: LockScreenConfigurationStore
@@ -45,7 +46,7 @@ public actor LockScreenSyncService {
     private var workerTask: Task<Void, Never>?
     private var started = false
     private var acceptingCommands = true
-    private var canDisableAfterAlignment = false
+    private var writesTrusted = false
 
     public init(
         configurationStore: LockScreenConfigurationStore,
@@ -146,7 +147,11 @@ public actor LockScreenSyncService {
             await evaluateLatestInput()
         case .refresh, .retry:
             guard started else { return }
-            await reconcileStartup()
+            if command == .refresh {
+                await refreshProbeOnly()
+            } else {
+                await reconcileStartup()
+            }
         case let .selectAerialSlot(aerialID):
             select(aerialID)
         case .confirmEnable:
@@ -157,7 +162,7 @@ public actor LockScreenSyncService {
     }
 
     private func reconcileStartup() async {
-        canDisableAfterAlignment = false
+        writesTrusted = false
         publish(phase: .probing)
         let loaded: LockScreenConfiguration
         do {
@@ -189,13 +194,42 @@ public actor LockScreenSyncService {
             return
         }
 
-        guard await align(configuration: loaded, candidates: candidates) else { return }
         guard probed.foreignBackupNames.isEmpty else {
             publishRepair(.foreignBackup)
             return
         }
         guard probed.writesPermitted else {
             publish(phase: .unsupported)
+            return
+        }
+        guard await align(configuration: loaded, candidates: candidates) else { return }
+        writesTrusted = true
+        await evaluateLatestInput()
+    }
+
+    private func refreshProbeOnly() async {
+        let wasTrusted = writesTrusted
+        publish(phase: .probing)
+        let probed: LockScreenProbeReport
+        do {
+            let client = systemClient
+            probed = try await Task.detached { try client.probe() }.value
+        } catch {
+            publishRepair(.probeFailed)
+            return
+        }
+        probeReport = probed
+        guard probed.foreignBackupNames.isEmpty else {
+            publishRepair(.foreignBackup)
+            return
+        }
+        guard probed.writesPermitted else {
+            writesTrusted = false
+            publish(phase: .unsupported)
+            return
+        }
+        guard wasTrusted else {
+            publishRepair(.retryRequired)
             return
         }
         await evaluateLatestInput()
@@ -221,12 +255,10 @@ public actor LockScreenSyncService {
             }
             switch candidate.phase {
             case .committed:
-                canDisableAfterAlignment = true
                 return true
             case .prepared, .writing, .restoring:
                 return await restoreConfiguredTransaction(transactionID)
             case .conflicted:
-                canDisableAfterAlignment = true
                 publishRepair(.conflictedTransaction)
                 return false
             case .restored:
@@ -236,7 +268,6 @@ public actor LockScreenSyncService {
         }
 
         guard let orphan = candidates.first else {
-            canDisableAfterAlignment = true
             return true
         }
         guard loaded.isEnabled,
@@ -260,9 +291,7 @@ public actor LockScreenSyncService {
             selectedAerialID: current.selectedAerialID,
             lastResult: .waiting
         )
-        let persisted = await persist(cleared)
-        if persisted { canDisableAfterAlignment = true }
-        return persisted
+        return await persist(cleared)
     }
 
     private func restoreOrphan(_ transactionID: UUID) async -> Bool {
@@ -277,12 +306,11 @@ public actor LockScreenSyncService {
             selectedAerialID: current.selectedAerialID,
             lastResult: .waiting
         )
-        let persisted = await persist(cleared)
-        if persisted { canDisableAfterAlignment = true }
-        return persisted
+        return await persist(cleared)
     }
 
     private func evaluateLatestInput() async {
+        guard writesTrusted else { return }
         guard let current = configuration else {
             publishRepair(.configurationUnavailable)
             return
@@ -337,12 +365,10 @@ public actor LockScreenSyncService {
                 try client.install(media: media, aerialID: aerialID)
             }.value
         } catch {
-            canDisableAfterAlignment = false
             await recordInstallFailure(current)
             return
         }
         guard manifest.phase == .committed, manifest.aerialID == aerialID else {
-            canDisableAfterAlignment = false
             await recordInstallFailure(current, reason: .invalidInstallResult)
             return
         }
@@ -355,7 +381,6 @@ public actor LockScreenSyncService {
             lastResult: .synced
         )
         guard await persist(installed) else { return }
-        canDisableAfterAlignment = true
         publish(phase: .synced)
     }
 
@@ -376,9 +401,10 @@ public actor LockScreenSyncService {
     }
 
     private func select(_ aerialID: String) {
+        guard writesTrusted else { return }
         guard configuration?.isEnabled != true,
               probeReport?.availableSlots.contains(where: { $0.id == aerialID }) == true else {
-            publishRepair(.invalidSelection)
+            publishRepair(.invalidSelection, invalidatesTrust: false)
             return
         }
         selectedAerialID = aerialID
@@ -386,13 +412,14 @@ public actor LockScreenSyncService {
     }
 
     private func enableAndEvaluate() async {
+        if configuration?.isEnabled == true { return }
         guard started,
-              configuration?.isEnabled != true,
+              writesTrusted,
               probeReport?.writesPermitted == true,
               probeReport?.foreignBackupNames.isEmpty == true,
               let aerialID = selectedAerialID,
               probeReport?.availableSlots.contains(where: { $0.id == aerialID }) == true else {
-            publishRepair(.confirmationUnavailable)
+            publishRepair(.confirmationUnavailable, invalidatesTrust: false)
             return
         }
         let enabled = LockScreenConfiguration(isEnabled: true, selectedAerialID: aerialID)
@@ -405,7 +432,7 @@ public actor LockScreenSyncService {
             publishRepair(.configurationUnavailable)
             return
         }
-        guard canDisableAfterAlignment else {
+        guard writesTrusted else {
             publishRepair(.ambiguousRecovery)
             return
         }
@@ -429,7 +456,7 @@ public actor LockScreenSyncService {
             publishRepair(.restoreFailed)
             return false
         }
-        guard report.conflicts.isEmpty else {
+        guard report.conflicts.isEmpty, report.retainedBackups.isEmpty else {
             publishRepair(.restoreConflict)
             return false
         }
@@ -444,7 +471,6 @@ public actor LockScreenSyncService {
             return true
         } catch {
             configuration = nil
-            canDisableAfterAlignment = false
             publishRepair(.configurationUnavailable)
             return false
         }
@@ -471,7 +497,8 @@ public actor LockScreenSyncService {
         }
     }
 
-    private func publishRepair(_ reason: FailureReason) {
+    private func publishRepair(_ reason: FailureReason, invalidatesTrust: Bool = true) {
+        if invalidatesTrust { writesTrusted = false }
         publish(phase: .needsRepair, error: reason.rawValue)
     }
 
@@ -480,8 +507,11 @@ public actor LockScreenSyncService {
         let syncedMedia = current?.lastSyncedMediaID.map { id in
             LockScreenSyncedMediaSummary(id: id, displayName: latestInput.mediaByID[id]?.displayName)
         }
-        let canSelect = phase == .readyToConfigure && !(probeReport?.availableSlots.isEmpty ?? true)
+        let canSelect = writesTrusted
+            && phase == .readyToConfigure
+            && !(probeReport?.availableSlots.isEmpty ?? true)
         let canConfirm = phase == .readyToConfigure
+            && writesTrusted
             && selectedAerialID != nil
             && current?.isEnabled != true
         let isBusy = phase == .probing || phase == .syncing || phase == .restoring
@@ -497,7 +527,7 @@ public actor LockScreenSyncService {
                 canRefreshProbe: started && !isBusy,
                 canSelectAerialSlot: canSelect,
                 canConfirmEnable: canConfirm,
-                canDisableAndRestore: current?.isEnabled == true && canDisableAfterAlignment && !isBusy,
+                canDisableAndRestore: current?.isEnabled == true && writesTrusted && !isBusy,
                 canRetry: phase == .needsRepair || phase == .unsupported
             )
         )
