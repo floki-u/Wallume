@@ -20,6 +20,8 @@ public struct LockScreenPageViewState: Equatable, Sendable {
     public let syncedAt: Date?
     public let syncTimeText: String?
     public let errorText: String?
+    public let isAwaitingDetection: Bool
+    public let showsSystemWallpaperSettings: Bool
     public let canRefresh: Bool
     public let canChooseSlot: Bool
     public let canRequestEnable: Bool
@@ -36,6 +38,8 @@ public struct LockScreenPageViewState: Equatable, Sendable {
         syncedAt = state.lastSyncedAt
         syncTimeText = state.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened)
         errorText = state.lastError
+        isAwaitingDetection = state.probe == nil
+        showsSystemWallpaperSettings = state.probe != nil && slots.isEmpty
         canRefresh = state.capabilities.canRefreshProbe || state.phase == .unconfigured
         canChooseSlot = state.capabilities.canSelectAerialSlot
         canRequestEnable = state.capabilities.canConfirmEnable
@@ -175,7 +179,10 @@ public struct LockScreenView: View {
                 Text("已选择：\(selected)")
             }
             let slots = store.state.probe?.availableSlots ?? []
-            if slots.isEmpty {
+            if page.isAwaitingDetection {
+                Text("等待检测完成后再显示可用的 Aerial 槽。")
+                    .foregroundStyle(.secondary)
+            } else if page.showsSystemWallpaperSettings {
                 Button("打开系统壁纸设置") { openSystemWallpaperSettings() }
             } else {
                 ForEach(slots, id: \.id) { slot in

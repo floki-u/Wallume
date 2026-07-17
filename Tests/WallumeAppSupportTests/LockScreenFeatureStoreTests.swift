@@ -36,8 +36,9 @@ final class LockScreenFeatureStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testCommandErrorSurvivesUnrelatedNonErrorServiceSnapshots() async throws {
-        let fixture = try LockScreenFeatureStoreFixture()
+    func testCommandErrorSurvivesTransientSnapshotThenClearsOnSuccessfulRefreshCompletion() async throws {
+        let gate = ProbeGate()
+        let fixture = try LockScreenFeatureStoreFixture(probeGate: gate)
         defer { fixture.cleanup() }
         let commands = LockScreenFeatureCommands(
             refreshProbe: { throw FeatureCommandError.failed },
@@ -52,9 +53,14 @@ final class LockScreenFeatureStoreTests: XCTestCase {
         XCTAssertEqual(store.pageError, "操作失败")
 
         await fixture.service.start()
+        XCTAssertTrue(gate.waitUntilProbeStarts())
+        await eventually { store.state.phase == .probing }
+        XCTAssertEqual(store.pageError, "操作失败")
+
+        gate.release()
         await fixture.service.waitForIdle()
         await eventually { store.state.phase == .readyToConfigure }
-        XCTAssertEqual(store.pageError, "操作失败")
+        XCTAssertNil(store.pageError)
     }
 
     @MainActor
@@ -106,11 +112,11 @@ final class LockScreenFeatureStoreFixture {
     let service: LockScreenSyncService
     let client: FeatureStoreSystemClient
 
-    init() throws {
+    init(probeGate: ProbeGate? = nil) throws {
         root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        client = FeatureStoreSystemClient(aerialID: aerialID)
+        client = FeatureStoreSystemClient(aerialID: aerialID, probeGate: probeGate)
         let files = LocalFileStore()
         let configurationURL = root.appendingPathComponent("lock-screen.json")
         let configurationStore = LockScreenConfigurationStore(
@@ -131,14 +137,19 @@ final class LockScreenFeatureStoreFixture {
 final class FeatureStoreSystemClient: LockScreenSystemClient, @unchecked Sendable {
     private let lock = NSLock()
     private let aerialID: String
+    private let probeGate: ProbeGate?
     private var probeCalls = 0
 
-    init(aerialID: String) { self.aerialID = aerialID }
+    init(aerialID: String, probeGate: ProbeGate? = nil) {
+        self.aerialID = aerialID
+        self.probeGate = probeGate
+    }
 
     var probeCallCount: Int { lock.withLock { probeCalls } }
 
     func probe() throws -> LockScreenProbeReport {
         lock.withLock { probeCalls += 1 }
+        probeGate?.block()
         return .init(
             generation: .sequoia,
             writesPermitted: true,
@@ -155,4 +166,20 @@ final class FeatureStoreSystemClient: LockScreenSystemClient, @unchecked Sendabl
 
     func inspectRecovery() throws -> [RecoveryCandidate] { [] }
     func restore(transactionID: UUID) throws -> RecoveryReport { .init(restored: [], conflicts: [], retainedBackups: []) }
+}
+
+final class ProbeGate: @unchecked Sendable {
+    private let probeStarted = DispatchSemaphore(value: 0)
+    private let proceed = DispatchSemaphore(value: 0)
+
+    func block() {
+        probeStarted.signal()
+        proceed.wait()
+    }
+
+    func waitUntilProbeStarts() -> Bool {
+        probeStarted.wait(timeout: .now() + 1) == .success
+    }
+
+    func release() { proceed.signal() }
 }

@@ -9,12 +9,17 @@ final class LockScreenViewTests: XCTestCase {
         let model = LockScreenPageViewState(state: .unconfigured)
         XCTAssertEqual(model.nextAction, .refresh)
         XCTAssertTrue(model.canRefresh)
+        XCTAssertTrue(model.isAwaitingDetection)
+        XCTAssertFalse(model.showsSystemWallpaperSettings)
+        XCTAssertNil(model.slotGuidance)
         XCTAssertFalse(model.canRequestEnable)
     }
 
     func testReadyStateWithoutSlotsGuidesUserToSystemWallpaperSettings() {
         let model = LockScreenPageViewState(state: state(phase: .readyToConfigure, slots: []))
         XCTAssertEqual(model.nextAction, .openSystemWallpaperSettings)
+        XCTAssertFalse(model.isAwaitingDetection)
+        XCTAssertTrue(model.showsSystemWallpaperSettings)
         XCTAssertEqual(model.slotGuidance, "请先在系统壁纸设置中下载并选择动态壁纸，然后返回刷新检测。")
     }
 
