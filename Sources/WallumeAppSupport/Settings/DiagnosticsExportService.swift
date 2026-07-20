@@ -46,6 +46,12 @@ public struct DiagnosticsPerformanceSummary: Codable, Equatable, Sendable {
     }
 }
 
+public enum DiagnosticsCurrentErrorSummary: String, Codable, Equatable, Sendable {
+    case none
+    case present
+    case unavailable
+}
+
 public struct DiagnosticsBuildSystemInfo: Codable, Equatable, Sendable {
     public let productVersion: String
     public let buildNumber: String
@@ -97,6 +103,7 @@ public struct DiagnosticsExportDocument: Codable, Equatable, Sendable {
     public let settings: DiagnosticsSettingsSummary
     public let lockScreen: LockScreenDiagnosticsSummary
     public let recentTransactions: DiagnosticsRecentTransactionSummary
+    public let currentError: DiagnosticsCurrentErrorSummary
     public let performance: DiagnosticsPerformanceSummary
     public let buildSystem: DiagnosticsBuildSystemInfo
 
@@ -104,6 +111,7 @@ public struct DiagnosticsExportDocument: Codable, Equatable, Sendable {
         settings: DiagnosticsSettingsSummary,
         lockScreen: LockScreenDiagnosticsSummary,
         recentTransactions: DiagnosticsRecentTransactionSummary,
+        currentError: DiagnosticsCurrentErrorSummary,
         performance: DiagnosticsPerformanceSummary,
         buildSystem: DiagnosticsBuildSystemInfo
     ) {
@@ -111,6 +119,7 @@ public struct DiagnosticsExportDocument: Codable, Equatable, Sendable {
         self.settings = settings
         self.lockScreen = lockScreen
         self.recentTransactions = recentTransactions
+        self.currentError = currentError
         self.performance = performance
         self.buildSystem = buildSystem
     }
@@ -134,6 +143,7 @@ public struct DiagnosticsExportService: Sendable {
     private let settings: @Sendable () -> ApplicationSettings
     private let lockScreenSummary: @Sendable () throws -> LockScreenDiagnosticsSummary
     private let recentTransactionSummary: @Sendable () throws -> DiagnosticsRecentTransactionSummary
+    private let currentErrorSummary: @Sendable () throws -> DiagnosticsCurrentErrorSummary
     private let performanceReportStore: any PerformanceReportReading
     private let buildSystemInfo: DiagnosticsBuildSystemInfo
     private let jsonStore: AtomicJSONStore
@@ -142,6 +152,7 @@ public struct DiagnosticsExportService: Sendable {
         settings: @escaping @Sendable () -> ApplicationSettings,
         lockScreenSummary: @escaping @Sendable () throws -> LockScreenDiagnosticsSummary,
         recentTransactionSummary: @escaping @Sendable () throws -> DiagnosticsRecentTransactionSummary,
+        currentErrorSummary: @escaping @Sendable () throws -> DiagnosticsCurrentErrorSummary = { .unavailable },
         performanceReportStore: any PerformanceReportReading,
         buildSystemInfo: DiagnosticsBuildSystemInfo,
         files: any FileStore
@@ -149,6 +160,7 @@ public struct DiagnosticsExportService: Sendable {
         self.settings = settings
         self.lockScreenSummary = lockScreenSummary
         self.recentTransactionSummary = recentTransactionSummary
+        self.currentErrorSummary = currentErrorSummary
         self.performanceReportStore = performanceReportStore
         self.buildSystemInfo = buildSystemInfo
         jsonStore = AtomicJSONStore(files: files)
@@ -161,6 +173,7 @@ public struct DiagnosticsExportService: Sendable {
                 settings: DiagnosticsSettingsSummary(settings: settings()),
                 lockScreen: (try? lockScreenSummary()) ?? .unavailable,
                 recentTransactions: (try? recentTransactionSummary()) ?? .unavailable,
+                currentError: (try? currentErrorSummary()) ?? .unavailable,
                 performance: performanceSummary(),
                 buildSystem: buildSystemInfo
             )

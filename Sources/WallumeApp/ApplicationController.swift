@@ -31,6 +31,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private var queueObservationTask: Task<Void, Never>?
     private var assignmentObservationTask: Task<Void, Never>?
     private var runtimeObservationTask: Task<Void, Never>?
+    private var lockScreenObservationTask: Task<Void, Never>?
     private var latestAssignments = DisplayAssignmentSnapshot.empty
     private var latestRuntime = WallpaperRuntimeSnapshot.empty
     private var assignmentConfigurationLoaded = false
@@ -98,7 +99,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         let diagnosticsExportService = DiagnosticsExportService(
             settings: { settingsSnapshot.value },
             lockScreenSummary: { lockScreenDiagnosticsSnapshot.value },
-            recentTransactionSummary: { .unavailable },
+            recentTransactionSummary: { lockScreenDiagnosticsSnapshot.recentTransactions },
+            currentErrorSummary: { lockScreenDiagnosticsSnapshot.currentError },
             performanceReportStore: PerformanceReportStore(
                 homeDirectory: home,
                 files: files,
@@ -236,6 +238,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         queueObservationTask?.cancel()
         assignmentObservationTask?.cancel()
         runtimeObservationTask?.cancel()
+        lockScreenObservationTask?.cancel()
     }
 
     private func startDisplayRuntime() {
@@ -252,8 +255,19 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             runtimeService.start(assignments: latestAssignments)
             await refreshDisplayAndLockScreenState()
             await lockScreenService.start()
+            observeLockScreen()
             observeAssignments()
             observeRuntime()
+        }
+    }
+
+    private func observeLockScreen() {
+        lockScreenObservationTask = Task { [weak self, lockScreenService] in
+            let stream = await lockScreenService.events()
+            for await state in stream {
+                guard let self else { return }
+                self.lockScreenDiagnosticsSnapshot.update(state)
+            }
         }
     }
 
@@ -313,9 +327,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             screens: currentScreens,
             media: media
         ))
-        lockScreenDiagnosticsSnapshot.update(
-            LockScreenDiagnosticsSummary(state: await lockScreenService.snapshot())
-        )
+        lockScreenDiagnosticsSnapshot.update(await lockScreenService.snapshot())
     }
 
     private func observeQueue() {
@@ -404,9 +416,23 @@ private final class LockScreenDiagnosticsSnapshot: @unchecked Sendable {
     var value: LockScreenDiagnosticsSummary {
         lock.withLock { storage }
     }
+    var recentTransactions: DiagnosticsRecentTransactionSummary {
+        lock.withLock {
+            guard let succeeded = storage.lastTransactionSucceeded else { return .unavailable }
+            return .init(status: .available, completedCount: succeeded ? 1 : 0, failedCount: succeeded ? 0 : 1)
+        }
+    }
+    var currentError: DiagnosticsCurrentErrorSummary { lock.withLock { errorPresent ? .present : .none } }
+    private var errorPresent = false
 
     func update(_ value: LockScreenDiagnosticsSummary) {
         lock.withLock { storage = value }
+    }
+    func update(_ state: LockScreenSyncState) {
+        lock.withLock {
+            storage = LockScreenDiagnosticsSummary(state: state)
+            errorPresent = state.lastError != nil
+        }
     }
 }
 
