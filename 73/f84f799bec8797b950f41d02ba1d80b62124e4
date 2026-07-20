@@ -1,0 +1,42 @@
+Sources/WallumeAppSupport/Performance/PerformanceModels.swift
+  8696c979740de9f4 1-226
+Sources/WallumeAppSupport/Performance/PerformanceReportStore.swift
+  8696c979740de9f4 1-45
+Tests/WallumeAppSupportTests/PerformanceDiagnosticsServiceTests.swift
+  8696c979740de9f4 1-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "703c0603a07b765a72d0598c2b94fd6663753182",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 443,
+      "total_deletions": 1,
+      "accepted_lines": 442,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeAppSupportTests/PerformanceDiagnosticsServiceTests.swift": {
+          "additions": 172,
+          "deletions": 1,
+          "accepted_lines": 171
+        },
+        "Sources/WallumeAppSupport/Performance/PerformanceModels.swift": {
+          "additions": 226,
+          "accepted_lines": 226
+        },
+        "Sources/WallumeAppSupport/Performance/PerformanceReportStore.swift": {
+          "additions": 45,
+          "accepted_lines": 45
+        }
+      }
+    }
+  }
+}
