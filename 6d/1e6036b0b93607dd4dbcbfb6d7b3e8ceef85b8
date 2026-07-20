@@ -1,0 +1,63 @@
+docs/phase-four-status.md
+  8696c979740de9f4 51,71,86
+.superpowers/sdd/task-4-report.md
+  8696c979740de9f4 28-34
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  8696c979740de9f4 86,91,103
+Tests/WallumeAppSupportTests/ApplicationCompositionTests.swift
+  8696c979740de9f4 113-139,303-307
+docs/superpowers/plans/2026-07-20-performance-diagnostics.md
+  8696c979740de9f4 100
+docs/progress-status.md
+  8696c979740de9f4 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "6d1e6036b0b93607dd4dbcbfb6d7b3e8ceef85b8",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 50,
+      "total_deletions": 6,
+      "accepted_lines": 50,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 3,
+          "deletions": 1,
+          "accepted_lines": 3
+        },
+        "Tests/WallumeAppSupportTests/ApplicationCompositionTests.swift": {
+          "additions": 35,
+          "accepted_lines": 35
+        },
+        "docs/phase-four-status.md": {
+          "additions": 3,
+          "deletions": 3,
+          "accepted_lines": 3
+        },
+        ".superpowers/sdd/task-4-report.md": {
+          "additions": 7,
+          "accepted_lines": 7
+        },
+        "docs/progress-status.md": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        "docs/superpowers/plans/2026-07-20-performance-diagnostics.md": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        }
+      }
+    }
+  }
+}
