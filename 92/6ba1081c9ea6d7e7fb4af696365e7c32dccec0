@@ -1,0 +1,61 @@
+.superpowers/sdd/task-4-report.md
+  8696c979740de9f4 64-71
+Tests/WallumeAppSupportTests/DiagnosticsExportServiceTests.swift
+  8696c979740de9f4 128-148,384,399-401
+Tests/WallumeCoreTests/AtomicIOTests.swift
+  8696c979740de9f4 89-131
+Sources/WallumeCore/IO/FileStore.swift
+  8696c979740de9f4 7,38,44,50,54,208,229,326,331-333,358-365,405,407
+Sources/WallumeAppSupport/Settings/DiagnosticsExportService.swift
+  8696c979740de9f4 196,203-204,259-263
+Sources/WallumeCore/IO/AtomicJSONStore.swift
+  8696c979740de9f4 17-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "926ba1081c9ea6d7e7fb4af696365e7c32dccec0",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 130,
+      "total_deletions": 51,
+      "accepted_lines": 110,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        ".superpowers/sdd/task-4-report.md": {
+          "additions": 8,
+          "accepted_lines": 8
+        },
+        "Sources/WallumeAppSupport/Settings/DiagnosticsExportService.swift": {
+          "additions": 8,
+          "accepted_lines": 8
+        },
+        "Sources/WallumeCore/IO/FileStore.swift": {
+          "additions": 37,
+          "deletions": 46,
+          "accepted_lines": 21
+        },
+        "Tests/WallumeCoreTests/AtomicIOTests.swift": {
+          "additions": 48,
+          "deletions": 5,
+          "accepted_lines": 44
+        },
+        "Tests/WallumeAppSupportTests/DiagnosticsExportServiceTests.swift": {
+          "additions": 25,
+          "accepted_lines": 25
+        },
+        "Sources/WallumeCore/IO/AtomicJSONStore.swift": {
+          "additions": 4,
+          "accepted_lines": 4
+        }
+      }
+    }
+  }
+}
