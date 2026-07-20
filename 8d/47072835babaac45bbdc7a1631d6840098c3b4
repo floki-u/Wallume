@@ -1,0 +1,84 @@
+Sources/WallumeAppSupport/UI/FeatureRegistry.swift
+  8696c979740de9f4 20,22-27
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  8696c979740de9f4 9,16-17,28-29,144-150,156-191,196,204-205,233-243
+Sources/WallumeApp/ApplicationController.swift
+  8696c979740de9f4 16,22-24,44-52,75,96-107,131,137-139,147,154-160,196,308-310,344-401
+Sources/WallumeAppSupport/UI/SettingsView.swift
+  8696c979740de9f4 1-197
+Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift
+  8696c979740de9f4 8,10,53-72
+Sources/WallumeAppSupport/Settings/SettingsStore.swift
+  8696c979740de9f4 11-12,16-18,22-23,53,64,71-72,75-76
+Tests/WallumeAppSupportTests/ApplicationCompositionTests.swift
+  8696c979740de9f4 11-27,169-172
+Tests/WallumeAppSupportTests/SettingsViewTests.swift
+  8696c979740de9f4 1-63
+Tests/WallumeAppSupportTests/SettingsStoreTests.swift
+  8696c979740de9f4 90-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "8d47072835babaac45bbdc7a1631d6840098c3b4",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 511,
+      "total_deletions": 19,
+      "accepted_lines": 504,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/UI/FeatureRegistry.swift": {
+          "additions": 7,
+          "deletions": 1,
+          "accepted_lines": 7
+        },
+        "Tests/WallumeAppSupportTests/SettingsStoreTests.swift": {
+          "additions": 10,
+          "accepted_lines": 10
+        },
+        "Tests/WallumeAppSupportTests/SettingsViewTests.swift": {
+          "additions": 63,
+          "accepted_lines": 63
+        },
+        "Sources/WallumeAppSupport/UI/SettingsView.swift": {
+          "additions": 199,
+          "deletions": 2,
+          "accepted_lines": 197
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "additions": 102,
+          "deletions": 4,
+          "accepted_lines": 101
+        },
+        "Sources/WallumeAppSupport/Settings/SettingsStore.swift": {
+          "additions": 15,
+          "deletions": 1,
+          "accepted_lines": 15
+        },
+        "Tests/WallumeAppSupportTests/ApplicationCompositionTests.swift": {
+          "additions": 25,
+          "deletions": 2,
+          "accepted_lines": 23
+        },
+        "Tests/WallumeAppSupportTests/ApplicationShellViewTests.swift": {
+          "additions": 25,
+          "deletions": 2,
+          "accepted_lines": 25
+        },
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 65,
+          "deletions": 7,
+          "accepted_lines": 63
+        }
+      }
+    }
+  }
+}
