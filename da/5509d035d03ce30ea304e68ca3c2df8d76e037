@@ -1,0 +1,63 @@
+Tests/WallumeCoreTests/AtomicIOTests.swift
+  8696c979740de9f4 36-48,286-289,298-317,330-333
+Sources/WallumeCore/IO/FileStore.swift
+  8696c979740de9f4 195-201
+.superpowers/sdd/task-2-report.md
+  8696c979740de9f4 28-38
+Sources/WallumeAppSupport/Settings/DiagnosticsExportService.swift
+  8696c979740de9f4 137,145,152,178
+Tests/WallumeAppSupportTests/DiagnosticsExportServiceTests.swift
+  8696c979740de9f4 48,63,87,143,229-232,257,280-293
+Sources/WallumeAppSupport/Performance/PerformanceReportStore.swift
+  8696c979740de9f4 4-7,50-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "da5509d035d03ce30ea304e68ca3c2df8d76e037",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 97,
+      "total_deletions": 14,
+      "accepted_lines": 97,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeCoreTests/AtomicIOTests.swift": {
+          "additions": 43,
+          "deletions": 4,
+          "accepted_lines": 43
+        },
+        "Sources/WallumeAppSupport/Performance/PerformanceReportStore.swift": {
+          "additions": 6,
+          "accepted_lines": 6
+        },
+        "Sources/WallumeAppSupport/Settings/DiagnosticsExportService.swift": {
+          "additions": 4,
+          "deletions": 4,
+          "accepted_lines": 4
+        },
+        "Tests/WallumeAppSupportTests/DiagnosticsExportServiceTests.swift": {
+          "additions": 26,
+          "deletions": 4,
+          "accepted_lines": 26
+        },
+        ".superpowers/sdd/task-2-report.md": {
+          "additions": 11,
+          "accepted_lines": 11
+        },
+        "Sources/WallumeCore/IO/FileStore.swift": {
+          "additions": 7,
+          "deletions": 2,
+          "accepted_lines": 7
+        }
+      }
+    }
+  }
+}
