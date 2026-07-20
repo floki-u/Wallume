@@ -1,0 +1,60 @@
+Sources/WallumeAppSupport/Settings/ApplicationSettings.swift
+  8696c979740de9f4 1-17
+Sources/WallumeCore/AppKitRuntime/RuntimeEnvironmentMonitor.swift
+  8696c979740de9f4 42,97-102,167
+Sources/WallumeAppSupport/Settings/LoginItemController.swift
+  8696c979740de9f4 1-23
+Sources/WallumeAppSupport/Settings/SettingsStore.swift
+  8696c979740de9f4 1-72
+Tests/WallumeAppSupportTests/SettingsStoreTests.swift
+  8696c979740de9f4 1-129
+Tests/WallumeCoreTests/RuntimeEnvironmentMonitorTests.swift
+  8696c979740de9f4 51-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "d33fd4ee834767397121cc3d8b2904929e611d91",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 270,
+      "total_deletions": 1,
+      "accepted_lines": 270,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Tests/WallumeAppSupportTests/SettingsStoreTests.swift": {
+          "additions": 129,
+          "accepted_lines": 129
+        },
+        "Sources/WallumeCore/AppKitRuntime/RuntimeEnvironmentMonitor.swift": {
+          "additions": 8,
+          "deletions": 1,
+          "accepted_lines": 8
+        },
+        "Sources/WallumeAppSupport/Settings/LoginItemController.swift": {
+          "additions": 23,
+          "accepted_lines": 23
+        },
+        "Tests/WallumeCoreTests/RuntimeEnvironmentMonitorTests.swift": {
+          "additions": 21,
+          "accepted_lines": 21
+        },
+        "Sources/WallumeAppSupport/Settings/SettingsStore.swift": {
+          "additions": 72,
+          "accepted_lines": 72
+        },
+        "Sources/WallumeAppSupport/Settings/ApplicationSettings.swift": {
+          "additions": 17,
+          "accepted_lines": 17
+        }
+      }
+    }
+  }
+}
