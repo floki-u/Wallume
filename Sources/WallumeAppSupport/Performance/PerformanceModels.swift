@@ -83,19 +83,47 @@ public struct PerformanceSummary: Equatable, Sendable {
         currentResidentBytes = current.residentBytes
         averageCPUPercent = self.samples.map(\.cpuPercent).reduce(0, +) / Double(self.samples.count)
         peakCPUPercent = self.samples.map(\.cpuPercent).max() ?? 0
-        averageResidentBytes = self.samples.map(\.residentBytes).reduce(0, +) / UInt64(self.samples.count)
+        averageResidentBytes = Self.averageResidentBytes(self.samples)
         peakResidentBytes = self.samples.map(\.residentBytes).max() ?? 0
     }
 
     public func appending(_ sample: PerformanceSample) -> PerformanceSummary {
         PerformanceSummary(samples: samples + [sample])
     }
+
+    private static func averageResidentBytes(_ samples: [PerformanceSample]) -> UInt64 {
+        let count = UInt64(samples.count)
+        let quotientSum = samples.reduce(0) { $0 + $1.residentBytes / count }
+        let remainderSum = samples.reduce(0) { $0 + $1.residentBytes % count }
+        return quotientSum + remainderSum / count
+    }
+}
+
+public enum PerformanceDiagnosticScenario: String, Codable, CaseIterable, Sendable {
+    case singleDisplay = "single-display"
+    case twoDisplays = "two-displays"
+    case paused
+}
+
+public enum PerformanceChip: String, Codable, CaseIterable, Sendable {
+    case appleM1 = "Apple M1"
+    case appleM2 = "Apple M2"
+    case appleM3 = "Apple M3"
+    case appleM4 = "Apple M4"
+    case intel = "Intel"
+    case unknown
+}
+
+public enum PerformanceMacOSVersion: String, Codable, CaseIterable, Sendable {
+    case macOS14 = "macOS 14"
+    case macOS15 = "macOS 15"
+    case macOS26 = "macOS 26"
+    case unknown
 }
 
 public enum PerformanceDiagnosticReportError: Error, Equatable {
     case unsupportedSchema(Int)
     case unexpectedFields(Set<String>)
-    case sensitiveFieldValue(String)
 }
 
 /// The persistent diagnostic document. It intentionally contains aggregate and count-only data.
@@ -106,7 +134,7 @@ public struct PerformanceDiagnosticReport: Codable, Equatable, Sendable {
     public let startedAt: Date
     public let duration: TimeInterval
     public let sampleCount: Int
-    public let scenario: String
+    public let scenario: PerformanceDiagnosticScenario
     public let averageCPUPercent: Double
     public let peakCPUPercent: Double
     public let averageResidentBytes: UInt64
@@ -118,19 +146,19 @@ public struct PerformanceDiagnosticReport: Codable, Equatable, Sendable {
     public let sharedResourceReferenceCount: Int
     public let resourceCreationCount: Int
     public let pauseReasons: [RuntimePauseReason]
-    public let chip: String
+    public let chip: PerformanceChip
     public let physicalMemoryBytes: UInt64
-    public let macOSVersion: String
+    public let macOSVersion: PerformanceMacOSVersion
 
     public init(
         startedAt: Date,
         duration: TimeInterval,
-        scenario: String,
+        scenario: PerformanceDiagnosticScenario,
         summary: PerformanceSummary,
         runtime: PerformanceRuntimeContext,
-        chip: String,
+        chip: PerformanceChip,
         physicalMemoryBytes: UInt64,
-        macOSVersion: String
+        macOSVersion: PerformanceMacOSVersion
     ) {
         schemaVersion = Self.currentSchemaVersion
         self.startedAt = startedAt
@@ -193,7 +221,7 @@ public struct PerformanceDiagnosticReport: Codable, Equatable, Sendable {
         startedAt = try fields.decode(Date.self, forKey: .startedAt)
         duration = try fields.decode(TimeInterval.self, forKey: .duration)
         sampleCount = try fields.decode(Int.self, forKey: .sampleCount)
-        scenario = try fields.decode(String.self, forKey: .scenario)
+        scenario = try fields.decode(PerformanceDiagnosticScenario.self, forKey: .scenario)
         averageCPUPercent = try fields.decode(Double.self, forKey: .averageCPUPercent)
         peakCPUPercent = try fields.decode(Double.self, forKey: .peakCPUPercent)
         averageResidentBytes = try fields.decode(UInt64.self, forKey: .averageResidentBytes)
@@ -205,23 +233,12 @@ public struct PerformanceDiagnosticReport: Codable, Equatable, Sendable {
         sharedResourceReferenceCount = try fields.decode(Int.self, forKey: .sharedResourceReferenceCount)
         resourceCreationCount = try fields.decode(Int.self, forKey: .resourceCreationCount)
         pauseReasons = try fields.decode([RuntimePauseReason].self, forKey: .pauseReasons)
-        chip = try fields.decode(String.self, forKey: .chip)
+        chip = try fields.decode(PerformanceChip.self, forKey: .chip)
         physicalMemoryBytes = try fields.decode(UInt64.self, forKey: .physicalMemoryBytes)
-        macOSVersion = try fields.decode(String.self, forKey: .macOSVersion)
-        try Self.validateRedactedStrings(
-            scenario: scenario,
-            chip: chip,
-            macOSVersion: macOSVersion
-        )
+        macOSVersion = try fields.decode(PerformanceMacOSVersion.self, forKey: .macOSVersion)
     }
 
     public func encode(to encoder: any Encoder) throws {
-        try Self.validateRedactedStrings(
-            scenario: scenario,
-            chip: chip,
-            macOSVersion: macOSVersion
-        )
-
         var fields = encoder.container(keyedBy: CodingKeys.self)
         try fields.encode(schemaVersion, forKey: .schemaVersion)
         try fields.encode(startedAt, forKey: .startedAt)
@@ -244,27 +261,6 @@ public struct PerformanceDiagnosticReport: Codable, Equatable, Sendable {
         try fields.encode(macOSVersion, forKey: .macOSVersion)
     }
 
-    private static func validateRedactedStrings(
-        scenario: String,
-        chip: String,
-        macOSVersion: String
-    ) throws {
-        for (field, value) in [
-            ("scenario", scenario),
-            ("chip", chip),
-            ("macOSVersion", macOSVersion),
-        ] {
-            let lowered = value.lowercased()
-            let isAbsolutePath = value.hasPrefix("/") || value.hasPrefix("~")
-            let isURL = URL(string: value)?.scheme != nil
-            let isMediaName = ["mov", "mp4", "m4v", "avi", "webm"].contains {
-                lowered.hasSuffix(".\($0)")
-            }
-            guard !isAbsolutePath && !isURL && !isMediaName else {
-                throw PerformanceDiagnosticReportError.sensitiveFieldValue(field)
-            }
-        }
-    }
 }
 
 private struct AnyCodingKey: CodingKey {

@@ -25,6 +25,38 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
         XCTAssertEqual(summary.peakResidentBytes, 6_100)
     }
 
+    func testSummaryCalculatesAverageResidentBytesWithoutOverflow() {
+        let summary = PerformanceSummary(samples: [
+            PerformanceSample(timestamp: .distantPast, cpuPercent: 0, residentBytes: .max),
+            PerformanceSample(timestamp: .distantFuture, cpuPercent: 0, residentBytes: .max - 1),
+        ])
+
+        XCTAssertEqual(summary.averageResidentBytes, .max - 1)
+    }
+
+    func testReportEncodingUsesOnlyDeclaredSafeValues() throws {
+        let report = PerformanceDiagnosticReport(
+            startedAt: .distantPast,
+            duration: 30,
+            scenario: .singleDisplay,
+            summary: PerformanceSummary(samples: []),
+            runtime: PerformanceRuntimeContext(
+                activeDisplayCount: 0, activeSessionCount: 0, activeResourceCount: 0,
+                sharedResourceCount: 0, sharedResourceReferenceCount: 0,
+                resourceCreationCount: 0, pauseReasons: []
+            ),
+            chip: .appleM1,
+            physicalMemoryBytes: 8_000_000_000,
+            macOSVersion: .macOS14
+        )
+
+        let json = try String(decoding: JSONEncoder().encode(report), as: UTF8.self)
+
+        XCTAssertTrue(json.contains("\"scenario\":\"single-display\""))
+        XCTAssertTrue(json.contains("\"chip\":\"Apple M1\""))
+        XCTAssertTrue(json.contains("\"macOSVersion\":\"macOS 14\""))
+    }
+
     func testRuntimeContextDerivesDeterministicCountersWithoutMediaIdentifiers() {
         let snapshot = WallpaperRuntimeSnapshot(
             runtime: RuntimeSnapshot(
@@ -74,7 +106,7 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
         let report = PerformanceDiagnosticReport(
             startedAt: Date(timeIntervalSince1970: 1_700_000_000),
             duration: 30,
-            scenario: "two-displays",
+            scenario: .twoDisplays,
             summary: PerformanceSummary(samples: [
                 PerformanceSample(
                     timestamp: Date(timeIntervalSince1970: 1_700_000_000),
@@ -96,9 +128,9 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
                 resourceCreationCount: 1,
                 pauseReasons: [.user]
             ),
-            chip: "Apple M4",
+            chip: .appleM4,
             physicalMemoryBytes: 16_000_000_000,
-            macOSVersion: "macOS 15.0"
+            macOSVersion: .macOS15
         )
 
         XCTAssertNil(try store.latest())
@@ -148,7 +180,7 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
           "pauseReasons": [],
           "chip": "Apple M4",
           "physicalMemoryBytes": 16000000000,
-          "macOSVersion": "macOS 15.0",
+          "macOSVersion": "macOS 15",
           "mediaName": "Summer holiday.mov",
           "videoURL": "/Users/person/Movies/Summer holiday.mov"
         }
@@ -158,7 +190,7 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
         XCTAssertThrowsError(try store.latest())
     }
 
-    func testReportStoreRejectsMediaNamesAndAbsolutePathsInAllowedStringFields() throws {
+    func testReportDecodingRejectsSourceURLsAndMediaNamesInDeclaredFields() throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let files = LocalFileStore()
@@ -167,30 +199,16 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
             files: files,
             jsonStore: AtomicJSONStore(files: files)
         )
-        let unsafeReport = PerformanceDiagnosticReport(
-            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            duration: 30,
-            scenario: "/Users/person/Movies/Summer holiday.mov",
-            summary: PerformanceSummary(samples: []),
-            runtime: PerformanceRuntimeContext(
-                activeDisplayCount: 0,
-                activeSessionCount: 0,
-                activeResourceCount: 0,
-                sharedResourceCount: 0,
-                sharedResourceReferenceCount: 0,
-                resourceCreationCount: 0,
-                pauseReasons: []
-            ),
-            chip: "Apple M4",
-            physicalMemoryBytes: 16_000_000_000,
-            macOSVersion: "macOS 15.0"
-        )
+        try files.createDirectory(store.url.deletingLastPathComponent())
+        let unsafeDocument = """
+        {"schemaVersion":1,"startedAt":"2023-11-14T22:13:20Z","duration":30,"sampleCount":1,"scenario":"source=https://example.test/private.mp4?token=secret","averageCPUPercent":10,"peakCPUPercent":10,"averageResidentBytes":1024,"peakResidentBytes":1024,"activeDisplayCount":1,"activeSessionCount":1,"activeResourceCount":1,"sharedResourceCount":0,"sharedResourceReferenceCount":0,"resourceCreationCount":1,"pauseReasons":[],"chip":"Summer holiday.mov","physicalMemoryBytes":16000000000,"macOSVersion":"backup-2026"}
+        """
+        try files.writeAtomically(Data(unsafeDocument.utf8), to: store.url)
 
-        XCTAssertThrowsError(try store.save(unsafeReport))
-        XCTAssertNil(try store.latest())
+        XCTAssertThrowsError(try store.latest())
     }
 
-    func testReportStoreRejectsSourceURLsInAllowedStringFields() throws {
+    func testReportDecodingRejectsEveryUnsafeDeclaredValue() throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let files = LocalFileStore()
@@ -199,27 +217,22 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
             files: files,
             jsonStore: AtomicJSONStore(files: files)
         )
-        let unsafeReport = PerformanceDiagnosticReport(
-            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            duration: 30,
-            scenario: "https://example.test/private.mp4?token=secret",
-            summary: PerformanceSummary(samples: []),
-            runtime: PerformanceRuntimeContext(
-                activeDisplayCount: 0,
-                activeSessionCount: 0,
-                activeResourceCount: 0,
-                sharedResourceCount: 0,
-                sharedResourceReferenceCount: 0,
-                resourceCreationCount: 0,
-                pauseReasons: []
-            ),
-            chip: "Apple M4",
-            physicalMemoryBytes: 16_000_000_000,
-            macOSVersion: "macOS 15.0"
-        )
+        try files.createDirectory(store.url.deletingLastPathComponent())
+        let safeDocument = """
+        {"schemaVersion":1,"startedAt":"2023-11-14T22:13:20Z","duration":30,"sampleCount":1,"scenario":"single-display","averageCPUPercent":10,"peakCPUPercent":10,"averageResidentBytes":1024,"peakResidentBytes":1024,"activeDisplayCount":1,"activeSessionCount":1,"activeResourceCount":1,"sharedResourceCount":0,"sharedResourceReferenceCount":0,"resourceCreationCount":1,"pauseReasons":[],"chip":"Apple M4","physicalMemoryBytes":16000000000,"macOSVersion":"macOS 15"}
+        """
+        let unsafeReplacements = [
+            ("\"scenario\":\"single-display\"", "\"scenario\":\"source=https://example.test/private.mp4?token=secret\""),
+            ("\"chip\":\"Apple M4\"", "\"chip\":\"Summer holiday.mov\""),
+            ("\"macOSVersion\":\"macOS 15\"", "\"macOSVersion\":\"Wallume.backup\""),
+        ]
 
-        XCTAssertThrowsError(try store.save(unsafeReport))
-        XCTAssertNil(try store.latest())
+        for (safeValue, unsafeValue) in unsafeReplacements {
+            let document = safeDocument.replacingOccurrences(of: safeValue, with: unsafeValue)
+            try files.writeAtomically(Data(document.utf8), to: store.url)
+
+            XCTAssertThrowsError(try store.latest())
+        }
     }
 }
 
