@@ -95,12 +95,14 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             }
         )
         let performanceComposition = PerformanceApplicationComposition()
-        let settingsExportTerminationOwner = SettingsDiagnosticsExportTerminationOwner()
+        let diagnosticsExportCommitAdmission = DiagnosticsExportCommitAdmission()
+        let settingsExportTerminationOwner = SettingsDiagnosticsExportTerminationOwner(commitAdmission: diagnosticsExportCommitAdmission)
         let diagnosticsExportService = DiagnosticsExportService(
             settings: { settingsSnapshot.value },
             lockScreenSummary: { lockScreenDiagnosticsSnapshot.value },
             recentTransactionSummary: { lockScreenDiagnosticsSnapshot.recentTransactions },
             currentErrorSummary: { lockScreenDiagnosticsSnapshot.currentError },
+            commitAdmission: diagnosticsExportCommitAdmission,
             performanceReportStore: PerformanceReportStore(
                 homeDirectory: home,
                 files: files,

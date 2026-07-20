@@ -84,8 +84,9 @@ public actor SettingsDiagnosticsExportTerminationOwner {
 
     private var inFlightExport: InFlightExport?
     private var isTerminating = false
+    private let commitAdmission: DiagnosticsExportCommitAdmission
 
-    public init() {}
+    public init(commitAdmission: DiagnosticsExportCommitAdmission = .init()) { self.commitAdmission = commitAdmission }
 
     public func perform(_ operation: @escaping @Sendable () async throws -> Void) async throws {
         guard !isTerminating, inFlightExport == nil else { throw CancellationError() }
@@ -101,6 +102,7 @@ public actor SettingsDiagnosticsExportTerminationOwner {
 
     public func cancelAndWait() async {
         isTerminating = true
+        commitAdmission.terminateAndWait()
         guard let export = inFlightExport else { return }
         export.task.cancel()
         _ = try? await export.task.value

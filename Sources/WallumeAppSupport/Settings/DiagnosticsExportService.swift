@@ -1,6 +1,27 @@
 import Foundation
 import WallumeCore
 
+public final class DiagnosticsExportCommitAdmission: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var terminated = false
+    private var activeCommits = 0
+    public init() {}
+    public func beginCommit() -> Bool {
+        condition.lock(); defer { condition.unlock() }
+        guard !terminated else { return false }
+        activeCommits += 1
+        return true
+    }
+    public func finishCommit() {
+        condition.lock(); activeCommits -= 1; condition.broadcast(); condition.unlock()
+    }
+    public func terminateAndWait() {
+        condition.lock(); terminated = true
+        while activeCommits > 0 { condition.wait() }
+        condition.unlock()
+    }
+}
+
 public enum DiagnosticsSourceStatus: String, Codable, Equatable, Sendable {
     case available
     case unavailable
@@ -147,12 +168,14 @@ public struct DiagnosticsExportService: Sendable {
     private let performanceReportStore: any PerformanceReportReading
     private let buildSystemInfo: DiagnosticsBuildSystemInfo
     private let jsonStore: AtomicJSONStore
+    private let commitAdmission: DiagnosticsExportCommitAdmission
 
     public init(
         settings: @escaping @Sendable () -> ApplicationSettings,
         lockScreenSummary: @escaping @Sendable () throws -> LockScreenDiagnosticsSummary,
         recentTransactionSummary: @escaping @Sendable () throws -> DiagnosticsRecentTransactionSummary,
         currentErrorSummary: @escaping @Sendable () throws -> DiagnosticsCurrentErrorSummary = { .unavailable },
+        commitAdmission: DiagnosticsExportCommitAdmission = .init(),
         performanceReportStore: any PerformanceReportReading,
         buildSystemInfo: DiagnosticsBuildSystemInfo,
         files: any FileStore
@@ -164,6 +187,7 @@ public struct DiagnosticsExportService: Sendable {
         self.performanceReportStore = performanceReportStore
         self.buildSystemInfo = buildSystemInfo
         jsonStore = AtomicJSONStore(files: files)
+        self.commitAdmission = commitAdmission
     }
 
     public func export(to destination: URL) async throws {
@@ -177,6 +201,9 @@ public struct DiagnosticsExportService: Sendable {
                 performance: performanceSummary(),
                 buildSystem: buildSystemInfo
             )
+            try Task.checkCancellation()
+            guard commitAdmission.beginCommit() else { throw CancellationError() }
+            defer { commitAdmission.finishCommit() }
             try Task.checkCancellation()
             try jsonStore.write(document, to: destination)
         } catch is CancellationError {
