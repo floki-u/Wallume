@@ -1,0 +1,36 @@
+Sources/WallumeAppSupport/Settings/DiagnosticsExportService.swift
+  8696c979740de9f4 49-54,106,114,122,146,155,163,176
+Sources/WallumeApp/ApplicationController.swift
+  8696c979740de9f4 34,102-103,241,258,264-273,330,419-423,425-426,431-435
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "7db23530ad507c7471b5f82fe7783e7df6ebb2cd",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 45,
+      "total_deletions": 6,
+      "accepted_lines": 43,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/Settings/DiagnosticsExportService.swift": {
+          "additions": 13,
+          "accepted_lines": 13
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "additions": 32,
+          "deletions": 6,
+          "accepted_lines": 30
+        }
+      }
+    }
+  }
+}
