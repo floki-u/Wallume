@@ -5,12 +5,14 @@ public enum ApplicationShellRoute: Equatable, Sendable {
     case gallery
     case displays
     case lockScreen
+    case performance
     case unavailable
 
     public static func resolve(
         selection: WallumeFeatureID,
         hasDisplayStore: Bool,
-        hasLockScreenStore: Bool
+        hasLockScreenStore: Bool,
+        hasPerformanceStore: Bool = false
     ) -> Self {
         switch selection {
         case .gallery:
@@ -19,6 +21,8 @@ public enum ApplicationShellRoute: Equatable, Sendable {
             .displays
         case .lockScreen where hasLockScreenStore:
             .lockScreen
+        case .performance where hasPerformanceStore:
+            .performance
         case .displays, .lockScreen, .performance, .settings:
             .unavailable
         }
@@ -51,6 +55,43 @@ public final class LockScreenApplicationComposition {
             files: files
         )
         store = LockScreenFeatureStore(service: service)
+    }
+}
+
+/// Owns the sole performance service/store pair used by the application shell.
+@MainActor
+public final class PerformanceApplicationComposition {
+    public let service: PerformanceDiagnosticsService
+    public let store: PerformanceFeatureStore
+
+    public init(service: PerformanceDiagnosticsService = PerformanceDiagnosticsService()) {
+        self.service = service
+        store = PerformanceFeatureStore(service: service)
+    }
+}
+
+/// Keeps shutdown ownership explicit and testable. Callers provide their existing shutdown
+/// operations; this helper only establishes the required ordering.
+@MainActor
+public struct ApplicationTerminationCommands {
+    private let stopLockScreen: () async -> Void
+    private let stopDiagnostics: () async -> Void
+    private let stopRuntime: () async -> Void
+
+    public init(
+        stopLockScreen: @escaping () async -> Void,
+        stopDiagnostics: @escaping () async -> Void,
+        stopRuntime: @escaping () async -> Void
+    ) {
+        self.stopLockScreen = stopLockScreen
+        self.stopDiagnostics = stopDiagnostics
+        self.stopRuntime = stopRuntime
+    }
+
+    public func stopServices() async {
+        await stopLockScreen()
+        await stopDiagnostics()
+        await stopRuntime()
     }
 }
 
@@ -95,13 +136,14 @@ public struct ApplicationShellView: View {
     private let tasks: ImportTaskStore
     private let displays: DisplayFeatureStore?
     private let lockScreen: LockScreenFeatureStore?
+    private let performance: PerformanceFeatureStore?
     private let openSystemWallpaperSettings: () -> Void
     private let onImportFiles: () -> Void
     private let onImportFolder: () -> Void
     private let onDrop: ([URL]) -> Void
 
-    public init(gallery: GalleryStore, tasks: ImportTaskStore, displays: DisplayFeatureStore? = nil, lockScreen: LockScreenFeatureStore? = nil, navigation: ApplicationNavigation = ApplicationNavigation(), openSystemWallpaperSettings: @escaping () -> Void = {}, onImportFiles: @escaping () -> Void, onImportFolder: @escaping () -> Void, onDrop: @escaping ([URL]) -> Void) {
-        self.gallery = gallery; self.tasks = tasks; self.displays = displays; self.lockScreen = lockScreen; self.navigation = navigation; self.openSystemWallpaperSettings = openSystemWallpaperSettings; self.onImportFiles = onImportFiles; self.onImportFolder = onImportFolder; self.onDrop = onDrop
+    public init(gallery: GalleryStore, tasks: ImportTaskStore, displays: DisplayFeatureStore? = nil, lockScreen: LockScreenFeatureStore? = nil, performance: PerformanceFeatureStore? = nil, navigation: ApplicationNavigation = ApplicationNavigation(), openSystemWallpaperSettings: @escaping () -> Void = {}, onImportFiles: @escaping () -> Void, onImportFolder: @escaping () -> Void, onDrop: @escaping ([URL]) -> Void) {
+        self.gallery = gallery; self.tasks = tasks; self.displays = displays; self.lockScreen = lockScreen; self.performance = performance; self.navigation = navigation; self.openSystemWallpaperSettings = openSystemWallpaperSettings; self.onImportFiles = onImportFiles; self.onImportFolder = onImportFolder; self.onDrop = onDrop
     }
 
     public var body: some View {
@@ -113,7 +155,8 @@ public struct ApplicationShellView: View {
             switch ApplicationShellRoute.resolve(
                 selection: navigation.selection,
                 hasDisplayStore: displays != nil,
-                hasLockScreenStore: lockScreen != nil
+                hasLockScreenStore: lockScreen != nil,
+                hasPerformanceStore: performance != nil
             ) {
             case .gallery:
                 GalleryView(
@@ -136,6 +179,10 @@ public struct ApplicationShellView: View {
                         store: lockScreen,
                         openSystemWallpaperSettings: openSystemWallpaperSettings
                     )
+                }
+            case .performance:
+                if let performance {
+                    PerformanceView(store: performance)
                 }
             case .unavailable:
                 ContentUnavailableView("将在后续批次开放", systemImage: FeatureRegistry.features.first { $0.id == navigation.selection }?.systemImage ?? "hammer")

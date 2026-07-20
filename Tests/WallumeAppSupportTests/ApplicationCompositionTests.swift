@@ -18,6 +18,40 @@ final class ApplicationCompositionTests: XCTestCase {
     }
 
     @MainActor
+    func testPerformanceCompositionCreatesOneServiceAndStoreAndForwardsRuntimeEvents() async {
+        let composition = PerformanceApplicationComposition(
+            service: PerformanceDiagnosticsService(
+                sampler: CompositionPerformanceSampler(),
+                clock: CompositionPerformanceClock(),
+                reportStore: CompositionPerformanceReportStore(),
+                machineInformation: .init(chip: .intel, physicalMemoryBytes: 8, macOSVersion: .macOS14)
+            )
+        )
+        let runtime = populatedRuntimeSnapshot()
+
+        await composition.service.update(runtime: runtime)
+        let snapshot = await composition.service.snapshot
+
+        XCTAssertEqual(snapshot.runtime, PerformanceRuntimeContext(snapshot: runtime))
+        XCTAssertFalse(snapshot.isRealtimeActive)
+    }
+
+    @MainActor
+    func testTerminationSequenceStopsDiagnosticsBeforeRuntimeWithoutChangingExistingLockScreenFirstOrder() async {
+        let events = CompositionTerminationEvents()
+        let commands = ApplicationTerminationCommands(
+            stopLockScreen: { await events.append("lock-screen") },
+            stopDiagnostics: { await events.append("diagnostics") },
+            stopRuntime: { await events.append("runtime") }
+        )
+
+        await commands.stopServices()
+
+        let values = await events.values()
+        XCTAssertEqual(values, ["lock-screen", "diagnostics", "runtime"])
+    }
+
+    @MainActor
     func testLockScreenCompositionBuildsOneServiceAndStoreFromInjectedClient() async throws {
         let fixture = try LockScreenCompositionFixture()
         defer { fixture.cleanup() }
@@ -117,6 +151,42 @@ private enum CompositionError: Error {
 
 private struct CompositionScanner: ImportScanning {
     func scan(_ urls: [URL]) -> ImportScanResult { .init(candidates: urls, warnings: []) }
+}
+
+private struct CompositionPerformanceSampler: PerformanceMetricSampling {
+    func sample(at date: Date) async throws -> PerformanceSample {
+        .init(timestamp: date, cpuPercent: 0, residentBytes: 0)
+    }
+}
+
+private struct CompositionPerformanceClock: PerformanceClock {
+    func now() async -> Date { .distantPast }
+    func sleep(until deadline: Date) async throws {}
+}
+
+private struct CompositionPerformanceReportStore: PerformanceReportSaving {
+    func save(_ report: PerformanceDiagnosticReport) throws {}
+}
+
+private actor CompositionTerminationEvents {
+    private var valuesStorage: [String] = []
+    func append(_ value: String) { valuesStorage.append(value) }
+    func values() -> [String] { valuesStorage }
+}
+
+private func populatedRuntimeSnapshot() -> WallpaperRuntimeSnapshot {
+    let mediaID = UUID()
+    let resourceID = UUID()
+    return WallpaperRuntimeSnapshot(
+        runtime: RuntimeSnapshot(
+            sessions: [RuntimeDisplaySession(displayID: DisplayID("display-1"), mediaID: mediaID, resourceID: resourceID)],
+            resourceReferenceCounts: [resourceID: 1],
+            pauseReasons: [.user],
+            failures: [],
+            resourceCreationCount: 2
+        ),
+        surfaceFailures: []
+    )
 }
 private struct CompositionImporter: SingleMediaImporting {
     func importURL(_ source: URL, onEvent: @escaping @Sendable (MediaImportEvent) -> Void) async -> MediaImportResult {

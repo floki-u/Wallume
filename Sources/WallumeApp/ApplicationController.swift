@@ -16,6 +16,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private let runtimeService: WallpaperRuntimeService
     private let lockScreenService: LockScreenSyncService
     private let lockScreenStore: LockScreenFeatureStore
+    private let performanceService: PerformanceDiagnosticsService
+    private let performanceStore: PerformanceFeatureStore
     private let navigation = ApplicationNavigation()
     private let panels = ImportPanelController()
     private let notifier: any CompletionNotifying
@@ -77,6 +79,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 )
             }
         )
+        let performanceComposition = PerformanceApplicationComposition()
         let displayStore = DisplayFeatureStore(commands: DisplayFeatureCommands(
             assign: { mediaID, displayIDs in
                 let targets = await MainActor.run {
@@ -103,6 +106,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         self.runtimeService = runtimeService
         lockScreenService = lockScreenComposition.service
         lockScreenStore = lockScreenComposition.store
+        performanceService = performanceComposition.service
+        performanceStore = performanceComposition.store
         gallery = GalleryStore(
             library: library,
             usage: PersistedMediaUsageChecker(url: paths.displayAssignments, files: files, store: jsonStore)
@@ -110,12 +115,13 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         notifier = UserCompletionNotifier()
         super.init()
 
-        window = MainWindowController { [gallery, taskStore, displayStore, lockScreenStore, navigation, panels, queue] in
+        window = MainWindowController { [gallery, taskStore, displayStore, lockScreenStore, performanceStore, navigation, panels, queue] in
             AnyView(ApplicationShellView(
                 gallery: gallery,
                 tasks: taskStore,
                 displays: displayStore,
                 lockScreen: lockScreenStore,
+                performance: performanceStore,
                 navigation: navigation,
                 openSystemWallpaperSettings: {
                     guard let url = URL(string: "x-apple.systempreferences:com.apple.Wallpaper-Settings.extension"),
@@ -158,7 +164,12 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        Task { [queue, lockScreenService, runtimeService] in
+        let terminationCommands = ApplicationTerminationCommands(
+            stopLockScreen: { await self.lockScreenService.stopAcceptingNewCommandsAndWait() },
+            stopDiagnostics: { await self.performanceService.stop() },
+            stopRuntime: { await self.runtimeService.stop() }
+        )
+        Task { [queue, terminationCommands] in
             if await TerminationPolicy.decision(queue: queue) == .requestConfirmation {
                 let alert = NSAlert()
                 alert.messageText = "导入仍在进行"
@@ -171,8 +182,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 }
                 await queue.cancelAllAndWait()
             }
-            await lockScreenService.stopAcceptingNewCommandsAndWait()
-            await runtimeService.stop()
+            await terminationCommands.stopServices()
             NSApplication.shared.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
@@ -229,6 +239,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                     catch { displayStore.reportPageError(error.localizedDescription) }
                 }
                 latestRuntime = snapshot
+                await performanceService.update(runtime: snapshot)
                 status.updatePlayback(
                     activeDisplayCount: snapshot.activeDisplayCount,
                     pauseReasons: snapshot.runtime.pauseReasons,
