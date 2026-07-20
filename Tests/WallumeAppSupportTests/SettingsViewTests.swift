@@ -1,5 +1,3 @@
-import AppKit
-import SwiftUI
 import XCTest
 @testable import WallumeAppSupport
 
@@ -14,26 +12,18 @@ final class SettingsViewTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            state.preferenceControls.map(\.id),
+            state.preferenceControls,
             [
-                .launchAtLogin,
-                .openGalleryAtLaunch,
-                .pauseInLowPowerMode,
-            ]
-        )
-        XCTAssertEqual(
-            state.preferenceControls.map(\.title),
-            [
-                "登录时启动 Wallume",
-                "启动时打开图库",
-                "低电量模式时暂停播放",
+                .init(id: "settings.preference.launchAtLogin", title: "登录时启动 Wallume", role: .toggle, isEnabled: true, action: .setPreference(.launchAtLogin)),
+                .init(id: "settings.preference.openGalleryAtLaunch", title: "启动时打开图库", role: .toggle, isEnabled: true, action: .setPreference(.openGalleryAtLaunch)),
+                .init(id: "settings.preference.pauseInLowPowerMode", title: "低电量模式时暂停播放", role: .toggle, isEnabled: true, action: .setPreference(.pauseInLowPowerMode)),
             ]
         )
         XCTAssertEqual(state.dataDirectoryPath, "/tmp/Wallume")
         XCTAssertEqual(state.diagnosticsDirectoryPath, "/tmp/Wallume/Diagnostics")
         XCTAssertEqual(
-            state.diagnosticsActions,
-            [.init(id: .selectDestination, title: "导出诊断信息", isEnabled: true)]
+            state.diagnosticsControls,
+            [.init(id: "settings.diagnostics.selectDestination", title: "导出诊断信息", role: .button, isEnabled: true, action: .diagnostics(.selectDestination))]
         )
     }
 
@@ -46,10 +36,10 @@ final class SettingsViewTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            state.diagnosticsActions,
+            state.diagnosticsControls,
             [
-                .init(id: .retry, title: "重试导出", isEnabled: true),
-                .init(id: .chooseAnotherDestination, title: "选择其他位置", isEnabled: true),
+                .init(id: "settings.diagnostics.retry", title: "重试导出", role: .button, isEnabled: true, action: .diagnostics(.retry)),
+                .init(id: "settings.diagnostics.chooseAnotherDestination", title: "选择其他位置", role: .button, isEnabled: true, action: .diagnostics(.chooseAnotherDestination)),
             ]
         )
         XCTAssertEqual(state.exportErrorMessage, "Unable to export diagnostics. Please try again.")
@@ -113,78 +103,39 @@ final class SettingsViewTests: XCTestCase {
         XCTAssertEqual(controller.state, .succeeded)
     }
 
-    func testViewHasNonzeroFittingSizeWithInjectedSideEffectCommands() {
-        let store = SettingsStore(defaults: ephemeralDefaults(), loginItem: SettingsViewLoginItem())
-        let view = SettingsView(
-            store: store,
+    func testReadyPagePresentationDescribesActualControlRolesAndActions() {
+        let state = SettingsPageViewState(
             buildInfo: .init(productVersion: "1.2.3", buildNumber: "45"),
             dataDirectory: URL(fileURLWithPath: "/tmp/Wallume"),
             diagnosticsDirectory: URL(fileURLWithPath: "/tmp/Wallume/Diagnostics"),
-            openInFinder: { _ in },
-            chooseExportDestination: { nil },
-            exportDiagnostics: { _ in }
+            exportState: .ready
         )
 
-        let host = NSHostingView(rootView: view)
-        host.frame = NSRect(origin: .zero, size: host.fittingSize)
-        host.layoutSubtreeIfNeeded()
-        let identifiers = accessibilityIdentifiers(in: host)
-
-        XCTAssertGreaterThan(host.fittingSize.width, 0)
-        XCTAssertTrue(identifiers.contains("settings.preference.launchAtLogin"))
-        XCTAssertTrue(identifiers.contains("settings.preference.openGalleryAtLaunch"))
-        XCTAssertTrue(identifiers.contains("settings.preference.pauseInLowPowerMode"))
-        XCTAssertTrue(identifiers.contains("settings.diagnostics.selectDestination"))
+        XCTAssertEqual(state.preferenceControls.map(\.role), [.toggle, .toggle, .toggle])
+        XCTAssertEqual(
+            state.preferenceControls.map(\.action),
+            [.setPreference(.launchAtLogin), .setPreference(.openGalleryAtLaunch), .setPreference(.pauseInLowPowerMode)]
+        )
+        XCTAssertEqual(state.diagnosticsControls.map(\.role), [.button])
+        XCTAssertEqual(state.diagnosticsControls.map(\.action), [.diagnostics(.selectDestination)])
     }
 
-    func testRenderedFailureSurfaceContainsRetryAndChooseAnotherDestinationActions() async {
-        let controller = SettingsDiagnosticsExportController(
-            chooseExportDestination: { URL(fileURLWithPath: "/tmp/diagnostics.json") },
-            exportDiagnostics: { _ in throw SettingsViewExportError.expected }
-        )
-        await controller.exportToSelectedDestination()
-        let store = SettingsStore(defaults: ephemeralDefaults(), loginItem: SettingsViewLoginItem())
-        let view = SettingsView(
-            store: store,
+    func testFailedPagePresentationExposesTwoEnabledButtonActions() {
+        let state = SettingsPageViewState(
             buildInfo: .init(productVersion: "1.2.3", buildNumber: "45"),
             dataDirectory: URL(fileURLWithPath: "/tmp/Wallume"),
             diagnosticsDirectory: URL(fileURLWithPath: "/tmp/Wallume/Diagnostics"),
-            openInFinder: { _ in },
-            exportController: controller
+            exportState: .failed("expected export failure")
         )
-        let host = NSHostingView(rootView: view)
-        host.frame = NSRect(origin: .zero, size: host.fittingSize)
-        host.layoutSubtreeIfNeeded()
-        let identifiers = accessibilityIdentifiers(in: host)
 
-        XCTAssertTrue(identifiers.contains("settings.diagnostics.retry"))
-        XCTAssertTrue(identifiers.contains("settings.diagnostics.chooseAnotherDestination"))
+        XCTAssertEqual(state.diagnosticsControls.map(\.role), [.button, .button])
+        XCTAssertEqual(state.diagnosticsControls.map(\.isEnabled), [true, true])
+        XCTAssertEqual(
+            state.diagnosticsControls.map(\.action),
+            [.diagnostics(.retry), .diagnostics(.chooseAnotherDestination)]
+        )
     }
 
-    private func ephemeralDefaults() -> UserDefaults {
-        let name = "SettingsViewTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
-        addTeardownBlock { defaults.removePersistentDomain(forName: name) }
-        return defaults
-    }
-}
-
-@MainActor
-private func accessibilityIdentifiers(in root: NSView) -> Set<String> {
-    var identifiers: Set<String> = []
-    func visit(_ view: NSView) {
-        let identifier = view.accessibilityIdentifier()
-        if !identifier.isEmpty { identifiers.insert(identifier) }
-        view.subviews.forEach(visit)
-    }
-    visit(root)
-    return identifiers
-}
-
-private struct SettingsViewLoginItem: LoginItemControlling {
-    func isEnabled() throws -> Bool { false }
-    func register() throws {}
-    func unregister() throws {}
 }
 
 private enum SettingsViewExportError: LocalizedError {

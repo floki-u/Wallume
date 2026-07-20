@@ -1,6 +1,38 @@
 import SwiftUI
 import WallumeCore
 
+package final class LockScreenDiagnosticsSnapshot: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = LockScreenDiagnosticsSummary.unavailable
+    private var errorPresent = false
+
+    package init() {}
+
+    package var value: LockScreenDiagnosticsSummary { lock.withLock { storage } }
+
+    package var recentTransactions: DiagnosticsRecentTransactionSummary {
+        lock.withLock {
+            guard let succeeded = storage.lastTransactionSucceeded else { return .unavailable }
+            return .init(
+                status: .available,
+                completedCount: succeeded ? 1 : 0,
+                failedCount: succeeded ? 0 : 1
+            )
+        }
+    }
+
+    package var currentError: DiagnosticsCurrentErrorSummary {
+        lock.withLock { errorPresent ? .present : .none }
+    }
+
+    package func update(_ state: LockScreenSyncState) {
+        lock.withLock {
+            storage = LockScreenDiagnosticsSummary(state: state)
+            errorPresent = state.lastError != nil
+        }
+    }
+}
+
 public enum ApplicationShellRoute: Equatable, Sendable {
     case gallery
     case displays

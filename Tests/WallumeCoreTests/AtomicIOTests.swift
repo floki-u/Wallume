@@ -54,7 +54,38 @@ private func itemNames(in directory: URL) throws -> Set<String> {
     )
 }
 
+private func retainedPreparedFiles(in directory: URL, for targetName: String) throws -> [URL] {
+    try FileManager.default
+        .contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        .filter { $0.lastPathComponent.hasPrefix(".\(targetName).wallume.tmp.") }
+}
+
 final class AtomicIOTests: XCTestCase {
+    func testAtomicWriteRaceReplacingDestinationWithDirectoryPreservesItsContents() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appending(path: "target")
+        let sentinel = target.appending(path: "sentinel")
+        try Data("old".utf8).write(to: target)
+        let prepared = LockedURLs()
+        let files = LocalFileStore(
+            synchronizeDirectory: { _ in },
+            beforeAtomicReplacement: { target, preparedFile in
+                prepared.append(preparedFile)
+                try FileManager.default.removeItem(at: target)
+                try FileManager.default.createDirectory(at: target, withIntermediateDirectories: false)
+                try Data("keep".utf8).write(to: sentinel)
+            }
+        )
+
+        XCTAssertThrowsError(try files.writeAtomically(Data("new".utf8), to: target))
+
+        XCTAssertEqual(try Data(contentsOf: sentinel), Data("keep".utf8))
+        let preparedFile = try XCTUnwrap(prepared.values.first)
+        XCTAssertEqual(try Data(contentsOf: preparedFile), Data("new".utf8))
+    }
+
     func testReplaceRejectsDirectoryTargetWithoutDeletingItsContents() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -142,9 +173,6 @@ final class AtomicIOTests: XCTestCase {
         try Data("value".utf8).write(to: target)
         let synchronized = LockedURLs()
         let files = LocalFileStore(
-            replaceItem: { source, destination in
-                try FileManager.default.moveItem(at: source, to: destination)
-            },
             synchronizeDirectory: { synchronized.append($0) }
         )
 
@@ -210,7 +238,6 @@ final class AtomicIOTests: XCTestCase {
         try Data("old".utf8).write(to: target)
         try Data("new".utf8).write(to: prepared)
         let files = LocalFileStore(
-            replaceItem: { _, _ in },
             synchronizeDirectory: { _ in throw InjectedFailure.synchronizeDirectory }
         )
 
@@ -290,7 +317,7 @@ final class AtomicIOTests: XCTestCase {
         XCTAssertEqual(try itemNames(in: root), ["source", "destination"])
     }
 
-    func testFailedAtomicWritePreservesDestinationAndCleansTemporaryFile() throws {
+    func testFailedAtomicWritePreservesDestinationAndRetainsPreparedFileSafely() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -298,16 +325,14 @@ final class AtomicIOTests: XCTestCase {
         let old = Data("old".utf8)
         try old.write(to: target)
         let files = LocalFileStore(
-            replaceItem: { source, destination in
-                try FileManager.default.moveItem(at: source, to: destination)
-            },
             synchronizeDirectory: { _ in throw InjectedFailure.synchronizeDirectory }
         )
 
         XCTAssertThrowsError(try files.writeAtomically(Data("new".utf8), to: target))
 
         XCTAssertEqual(try Data(contentsOf: target), old)
-        XCTAssertEqual(try itemNames(in: root), ["target"])
+        let retained = try XCTUnwrap(retainedPreparedFiles(in: root, for: "target").only)
+        XCTAssertEqual(try Data(contentsOf: retained), Data("new".utf8))
     }
 
     func testFailedAtomicOverwriteAfterReplacementRestoresOldBytesAndCanRetry() throws {
@@ -319,9 +344,6 @@ final class AtomicIOTests: XCTestCase {
         try old.write(to: target)
         let synchronization = FailFirstDirectorySynchronization()
         let files = LocalFileStore(
-            replaceItem: { source, destination in
-                try FileManager.default.moveItem(at: source, to: destination)
-            },
             synchronizeDirectory: { try synchronization.synchronize($0) }
         )
 
@@ -332,7 +354,7 @@ final class AtomicIOTests: XCTestCase {
         XCTAssertEqual(try files.read(target), Data("new".utf8))
     }
 
-    func testFailedCopyPreservesDestinationAndCleansTemporaryFile() throws {
+    func testFailedCopyPreservesDestinationAndRetainsPreparedFileSafely() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -342,16 +364,14 @@ final class AtomicIOTests: XCTestCase {
         try Data("new".utf8).write(to: source)
         try old.write(to: destination)
         let files = LocalFileStore(
-            replaceItem: { source, destination in
-                try FileManager.default.moveItem(at: source, to: destination)
-            },
             synchronizeDirectory: { _ in throw InjectedFailure.synchronizeDirectory }
         )
 
         XCTAssertThrowsError(try files.copy(source, to: destination))
 
         XCTAssertEqual(try Data(contentsOf: destination), old)
-        XCTAssertEqual(try itemNames(in: root), ["source", "destination"])
+        let retained = try XCTUnwrap(retainedPreparedFiles(in: root, for: "destination").only)
+        XCTAssertEqual(try Data(contentsOf: retained), Data("new".utf8))
     }
 
     func testDirectorySynchronizationFailureIsPropagated() throws {
@@ -359,9 +379,6 @@ final class AtomicIOTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let target = root.appending(path: "target")
         let files = LocalFileStore(
-            replaceItem: { source, destination in
-                try FileManager.default.moveItem(at: source, to: destination)
-            },
             synchronizeDirectory: { _ in throw InjectedFailure.synchronizeDirectory }
         )
 
@@ -370,6 +387,12 @@ final class AtomicIOTests: XCTestCase {
                 return XCTFail("Expected directory synchronization failure, got \(error)")
             }
         }
-        XCTAssertEqual(try itemNames(in: root), ["target"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+        let retained = try XCTUnwrap(retainedPreparedFiles(in: root, for: "target").only)
+        XCTAssertEqual(try Data(contentsOf: retained), Data("new".utf8))
     }
+}
+
+private extension Array {
+    var only: Element? { count == 1 ? first : nil }
 }

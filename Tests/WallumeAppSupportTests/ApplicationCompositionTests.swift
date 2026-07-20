@@ -3,6 +3,18 @@ import XCTest
 import WallumeCore
 
 final class ApplicationCompositionTests: XCTestCase {
+    func testLockScreenDiagnosticsSnapshotClearsCurrentErrorOnLaterHealthyState() {
+        let snapshot = LockScreenDiagnosticsSnapshot()
+
+        snapshot.update(LockScreenSyncState(phase: .needsRepair, lastError: "repair required"))
+        XCTAssertEqual(snapshot.currentError, .present)
+
+        snapshot.update(LockScreenSyncState(phase: .readyToConfigure))
+
+        XCTAssertEqual(snapshot.value.status, .readyToConfigure)
+        XCTAssertEqual(snapshot.currentError, .none)
+    }
+
     func testTerminationPolicyOnlyPromptsForActiveQueue() {
         XCTAssertEqual(TerminationPolicy.decision(queueActive: false), .terminateNow)
         XCTAssertEqual(TerminationPolicy.decision(queueActive: true), .requestConfirmation)

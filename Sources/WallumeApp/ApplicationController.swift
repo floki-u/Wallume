@@ -411,33 +411,6 @@ private final class ApplicationSettingsSnapshot: @unchecked Sendable {
     }
 }
 
-private final class LockScreenDiagnosticsSnapshot: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage = LockScreenDiagnosticsSummary.unavailable
-
-    var value: LockScreenDiagnosticsSummary {
-        lock.withLock { storage }
-    }
-    var recentTransactions: DiagnosticsRecentTransactionSummary {
-        lock.withLock {
-            guard let succeeded = storage.lastTransactionSucceeded else { return .unavailable }
-            return .init(status: .available, completedCount: succeeded ? 1 : 0, failedCount: succeeded ? 0 : 1)
-        }
-    }
-    var currentError: DiagnosticsCurrentErrorSummary { lock.withLock { errorPresent ? .present : .none } }
-    private var errorPresent = false
-
-    func update(_ value: LockScreenDiagnosticsSummary) {
-        lock.withLock { storage = value }
-    }
-    func update(_ state: LockScreenSyncState) {
-        lock.withLock {
-            storage = LockScreenDiagnosticsSummary(state: state)
-            errorPresent = state.lastError != nil
-        }
-    }
-}
-
 private struct ResolvedGeneratedUIDProvider: GeneratedUIDProviding {
     let value: String
     func generatedUID(for homeDirectory: URL) throws -> String { value }

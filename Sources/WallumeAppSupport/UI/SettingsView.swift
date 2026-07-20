@@ -47,10 +47,22 @@ public enum SettingsDiagnosticsAction: String, Identifiable, Sendable {
     public var id: Self { self }
 }
 
-public struct SettingsDiagnosticsActionPresentation: Equatable, Identifiable, Sendable {
-    public let id: SettingsDiagnosticsAction
+public enum SettingsControlRole: Equatable, Sendable {
+    case toggle
+    case button
+}
+
+public enum SettingsControlAction: Equatable, Sendable {
+    case setPreference(SettingsPreferenceControl)
+    case diagnostics(SettingsDiagnosticsAction)
+}
+
+public struct SettingsControlPresentation: Equatable, Identifiable, Sendable {
+    public let id: String
     public let title: String
+    public let role: SettingsControlRole
     public let isEnabled: Bool
+    public let action: SettingsControlAction
 }
 
 public struct SettingsPageViewState: Equatable, Sendable {
@@ -71,37 +83,38 @@ public struct SettingsPageViewState: Equatable, Sendable {
         self.exportState = exportState
     }
 
-    public var preferenceControls: [SettingsPreferenceControl] {
-        SettingsPreferenceControl.allCases
+    public var preferenceControls: [SettingsControlPresentation] {
+        SettingsPreferenceControl.allCases.map { control in
+            SettingsControlPresentation(
+                id: "settings.preference.\(control.rawValue)",
+                title: control.title,
+                role: .toggle,
+                isEnabled: true,
+                action: .setPreference(control)
+            )
+        }
     }
 
-    public var diagnosticsActions: [SettingsDiagnosticsActionPresentation] {
-        switch exportState {
+    public var diagnosticsControls: [SettingsControlPresentation] {
+        let actions: [(SettingsDiagnosticsAction, String, Bool)] = switch exportState {
         case .ready, .succeeded:
-            [SettingsDiagnosticsActionPresentation(
-                id: .selectDestination,
-                title: "导出诊断信息",
-                isEnabled: true
-            )]
+            [(.selectDestination, "导出诊断信息", true)]
         case .exporting:
-            [SettingsDiagnosticsActionPresentation(
-                id: .selectDestination,
-                title: "正在导出…",
-                isEnabled: false
-            )]
+            [(.selectDestination, "正在导出…", false)]
         case .failed:
             [
-                SettingsDiagnosticsActionPresentation(
-                    id: .retry,
-                    title: "重试导出",
-                    isEnabled: true
-                ),
-                SettingsDiagnosticsActionPresentation(
-                    id: .chooseAnotherDestination,
-                    title: "选择其他位置",
-                    isEnabled: true
-                ),
+                (.retry, "重试导出", true),
+                (.chooseAnotherDestination, "选择其他位置", true),
             ]
+        }
+        return actions.map { action, title, isEnabled in
+            SettingsControlPresentation(
+                id: "settings.diagnostics.\(action.rawValue)",
+                title: title,
+                role: .button,
+                isEnabled: isEnabled,
+                action: .diagnostics(action)
+            )
         }
     }
 
@@ -237,9 +250,12 @@ public struct SettingsView: View {
     private func preferencesCard(_ page: SettingsPageViewState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("启动与播放").font(.title3.bold())
-            ForEach(page.preferenceControls) { control in
-                Toggle(control.title, isOn: preferenceBinding(for: control))
-                    .settingsControlIdentifier("settings.preference.\(control.rawValue)")
+            ForEach(page.preferenceControls) { presentation in
+                if case let .setPreference(control) = presentation.action {
+                    Toggle(presentation.title, isOn: preferenceBinding(for: control))
+                        .disabled(!presentation.isEnabled)
+                        .accessibilityIdentifier(presentation.id)
+                }
             }
         }
         .settingsCardStyle()
@@ -296,10 +312,12 @@ public struct SettingsView: View {
                 Label(message, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
             }
             HStack {
-                ForEach(page.diagnosticsActions) { action in
-                    Button(action.title) { performDiagnosticsAction(action.id) }
-                        .disabled(!action.isEnabled)
-                        .settingsControlIdentifier("settings.diagnostics.\(action.id.rawValue)")
+                ForEach(page.diagnosticsControls) { presentation in
+                    if case let .diagnostics(action) = presentation.action {
+                        Button(presentation.title) { performDiagnosticsAction(action) }
+                            .disabled(!presentation.isEnabled)
+                            .accessibilityIdentifier(presentation.id)
+                    }
                 }
             }
         }
@@ -321,25 +339,5 @@ public struct SettingsView: View {
 private extension View {
     func settingsCardStyle() -> some View {
         padding(16).background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    func settingsControlIdentifier(_ identifier: String) -> some View {
-        accessibilityIdentifier(identifier)
-            .background(SettingsControlIdentityBridge(identifier: identifier))
-    }
-}
-
-private struct SettingsControlIdentityBridge: NSViewRepresentable {
-    let identifier: String
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        view.setAccessibilityElement(false)
-        view.setAccessibilityIdentifier(identifier)
-        return view
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        view.setAccessibilityIdentifier(identifier)
     }
 }
