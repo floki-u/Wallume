@@ -21,6 +21,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private let performanceStore: PerformanceFeatureStore
     private let settingsStore: SettingsStore
     private let diagnosticsExportService: DiagnosticsExportService
+    private let settingsExportTerminationOwner: SettingsDiagnosticsExportTerminationOwner
     private let lockScreenDiagnosticsSnapshot: LockScreenDiagnosticsSnapshot
     private let navigation = ApplicationNavigation()
     private let panels = ImportPanelController()
@@ -93,6 +94,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             }
         )
         let performanceComposition = PerformanceApplicationComposition()
+        let settingsExportTerminationOwner = SettingsDiagnosticsExportTerminationOwner()
         let diagnosticsExportService = DiagnosticsExportService(
             settings: { settingsSnapshot.value },
             lockScreenSummary: { lockScreenDiagnosticsSnapshot.value },
@@ -136,6 +138,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         performanceStore = performanceComposition.store
         self.settingsStore = settingsStore
         self.diagnosticsExportService = diagnosticsExportService
+        self.settingsExportTerminationOwner = settingsExportTerminationOwner
         self.lockScreenDiagnosticsSnapshot = lockScreenDiagnosticsSnapshot
         gallery = GalleryStore(
             library: library,
@@ -144,7 +147,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         notifier = UserCompletionNotifier()
         super.init()
 
-        window = MainWindowController { [gallery, taskStore, displayStore, lockScreenStore, performanceStore, settingsStore, diagnosticsExportService, navigation, panels, queue, paths] in
+        window = MainWindowController { [gallery, taskStore, displayStore, lockScreenStore, performanceStore, settingsStore, diagnosticsExportService, settingsExportTerminationOwner, navigation, panels, queue, paths] in
             AnyView(ApplicationShellView(
                 gallery: gallery,
                 tasks: taskStore,
@@ -157,7 +160,11 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 settingsDiagnosticsDirectory: paths.displayAssignments.deletingLastPathComponent().appending(path: "Diagnostics"),
                 openInFinder: { NSWorkspace.shared.activateFileViewerSelecting([$0]) },
                 chooseDiagnosticsExportDestination: Self.chooseDiagnosticsExportDestination,
-                exportDiagnostics: { try await diagnosticsExportService.export(to: $0) },
+                exportDiagnostics: { destination in
+                    try await settingsExportTerminationOwner.perform {
+                        try await diagnosticsExportService.export(to: destination)
+                    }
+                },
                 navigation: navigation,
                 openSystemWallpaperSettings: {
                     guard let url = URL(string: "x-apple.systempreferences:com.apple.Wallpaper-Settings.extension"),
@@ -201,6 +208,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         let terminationCommands = ApplicationTerminationCommands(
+            cancelSettingsExport: { await self.settingsExportTerminationOwner.cancelAndWait() },
             stopLockScreen: { await self.lockScreenService.stopAcceptingNewCommandsAndWait() },
             stopDiagnostics: { await self.performanceService.stop() },
             stopRuntime: { await self.runtimeService.stop() }

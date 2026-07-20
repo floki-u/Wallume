@@ -74,25 +74,66 @@ public final class PerformanceApplicationComposition {
     }
 }
 
+/// Owns the application-lifetime export task so termination can cancel and await it.
+/// The Settings view only requests exports; it never owns their termination lifecycle.
+public actor SettingsDiagnosticsExportTerminationOwner {
+    private struct InFlightExport {
+        let id: UUID
+        let task: Task<Void, Error>
+    }
+
+    private var inFlightExport: InFlightExport?
+
+    public init() {}
+
+    public func perform(_ operation: @escaping @Sendable () async throws -> Void) async throws {
+        guard inFlightExport == nil else { throw CancellationError() }
+
+        let export = InFlightExport(
+            id: UUID(),
+            task: Task { try await operation() }
+        )
+        inFlightExport = export
+        defer { clearExport(id: export.id) }
+        try await export.task.value
+    }
+
+    public func cancelAndWait() async {
+        guard let export = inFlightExport else { return }
+        export.task.cancel()
+        _ = try? await export.task.value
+        clearExport(id: export.id)
+    }
+
+    private func clearExport(id: UUID) {
+        guard inFlightExport?.id == id else { return }
+        inFlightExport = nil
+    }
+}
+
 /// Keeps shutdown ownership explicit and testable. Callers provide their existing shutdown
 /// operations; this helper only establishes the required ordering.
 @MainActor
 public struct ApplicationTerminationCommands {
+    private let cancelSettingsExport: () async -> Void
     private let stopLockScreen: () async -> Void
     private let stopDiagnostics: () async -> Void
     private let stopRuntime: () async -> Void
 
     public init(
+        cancelSettingsExport: @escaping () async -> Void,
         stopLockScreen: @escaping () async -> Void,
         stopDiagnostics: @escaping () async -> Void,
         stopRuntime: @escaping () async -> Void
     ) {
+        self.cancelSettingsExport = cancelSettingsExport
         self.stopLockScreen = stopLockScreen
         self.stopDiagnostics = stopDiagnostics
         self.stopRuntime = stopRuntime
     }
 
     public func stopServices() async {
+        await cancelSettingsExport()
         await stopLockScreen()
         await stopDiagnostics()
         await stopRuntime()
