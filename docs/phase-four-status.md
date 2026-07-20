@@ -61,7 +61,7 @@ Manual acceptance pending: no real-device/system-wallpaper installation, lock/un
 
 ## Batch 4: performance diagnostics
 
-Implementation status: engineering and automated/current-machine verification complete; pending final branch review and local merge.
+Implementation status: engineering and automated/current-machine verification complete; locally merged.
 
 Delivered:
 
@@ -72,9 +72,24 @@ Delivered:
 
 Verification: `swift test` passed 378 tests with zero failures; release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed. A production-service reference diagnostic completed on the current machine with exactly 30 samples over 30 seconds and was retained at `~/Library/Application Support/Wallume/Diagnostics/report.json`. Reference environment only (not M1 certification): Apple M4, 51,539,607,552 bytes physical memory, macOS 26, `single-display` scenario.
 
+## Batch 5: settings lifecycle completion
+
+Implementation status: engineering and automated verification complete; pending the remaining phase-four manual acceptance work.
+
+Delivered:
+
+- Application-owned cancellation and awaiting of an in-flight Settings diagnostics export during termination.
+- Persisted ordinary preferences remain intact when termination cancels an incomplete export.
+- The established shutdown order remains lock-screen, diagnostics, then desktop runtime; export cancellation completes before that sequence.
+- No Settings controls, routes, or direct system/filesystem/runtime side effects were added.
+
+Verification: `swift test` passed 399 tests with zero failures; release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed. The focused composition suite includes cancellation, preference-preservation, and exact shutdown-order coverage.
+
 ## Remaining phase-four work
 
-1. Settings page.
-2. Localization, state restoration, UI acceptance, and phase-four completion.
+1. Localization and application state restoration.
+2. Manual Settings and whole-application UI acceptance.
+3. Real-device/system-wallpaper installation, lock/unlock, and restoration acceptance for Lock Screen.
+4. Final phase-four completion review.
 
 Phase four as a whole is not yet complete.
