@@ -3,6 +3,8 @@ import Foundation
 
 public enum AtomicFileStoreError: Error, Equatable {
     case exchangeRecoveryFailed(URL)
+    case unsafeReplacementTarget(URL)
+    case durabilityUncertain(URL)
 }
 
 public struct FileIdentity: Equatable, Sendable {
@@ -32,21 +34,29 @@ public protocol FileStore: Sendable {
 }
 
 public struct LocalFileStore: FileStore {
-    private let replaceItem: @Sendable (URL, URL) throws -> Void
     private let synchronizeDirectory: @Sendable (URL) throws -> Void
+    private let synchronizeCommittedDirectories: @Sendable (Int32, Int32) throws -> Void
+    private let beforeAtomicReplacement: @Sendable (URL, URL) throws -> Void
+    private let beforePreparedPublication: @Sendable (URL, URL) throws -> Void
     private var manager: FileManager { .default }
 
     public init() {
-        replaceItem = Self.renameItem
         synchronizeDirectory = Self.synchronizeDirectoryEntry
+        synchronizeCommittedDirectories = Self.synchronizeDirectoryDescriptors
+        beforeAtomicReplacement = { _, _ in }
+        beforePreparedPublication = { _, _ in }
     }
 
     init(
-        replaceItem: @escaping @Sendable (URL, URL) throws -> Void,
-        synchronizeDirectory: @escaping @Sendable (URL) throws -> Void
+        synchronizeDirectory: @escaping @Sendable (URL) throws -> Void,
+        synchronizeCommittedDirectories: @escaping @Sendable (Int32, Int32) throws -> Void = Self.synchronizeDirectoryDescriptors,
+        beforeAtomicReplacement: @escaping @Sendable (URL, URL) throws -> Void = { _, _ in },
+        beforePreparedPublication: @escaping @Sendable (URL, URL) throws -> Void = { _, _ in }
     ) {
-        self.replaceItem = replaceItem
         self.synchronizeDirectory = synchronizeDirectory
+        self.synchronizeCommittedDirectories = synchronizeCommittedDirectories
+        self.beforeAtomicReplacement = beforeAtomicReplacement
+        self.beforePreparedPublication = beforePreparedPublication
     }
 
     public func exists(_ url: URL) -> Bool {
@@ -170,6 +180,9 @@ public struct LocalFileStore: FileStore {
     }
 
     public func copyExclusively(_ source: URL, to destination: URL) throws {
+        if try Self.entryTypeNoFollow(destination, allowingMissing: true) != nil {
+            throw Self.posixError(EEXIST)
+        }
         try copy(source, to: destination, exclusively: true)
     }
 
@@ -192,8 +205,25 @@ public struct LocalFileStore: FileStore {
     }
 
     public func replace(_ target: URL, with preparedFile: URL) throws {
-        try replaceItem(preparedFile, target)
-        try synchronizeDirectory(target.deletingLastPathComponent())
+        try validateRegularPreparedFile(preparedFile)
+        try validateReplacementTarget(target)
+        try synchronizeDirectories(for: target, and: preparedFile)
+        try beforeAtomicReplacement(target, preparedFile)
+        let preparedIdentity = try regularFileIdentityNoFollow(preparedFile)
+        if try Self.entryTypeNoFollow(target, allowingMissing: true) == S_IFREG {
+            try swapReplaceNoFollow(
+                target,
+                with: preparedFile,
+                preparedIdentity: preparedIdentity
+            )
+        } else {
+            try renameNoFollow(
+                preparedFile,
+                target,
+                exclusively: false,
+                expectedSourceIdentity: preparedIdentity
+            )
+        }
     }
 
     public func exchange(_ target: URL, with preparedFile: URL) throws {
@@ -212,14 +242,57 @@ public struct LocalFileStore: FileStore {
     }
 
     public func installExclusively(_ target: URL, from preparedFile: URL) throws {
-        try Self.renameItem(preparedFile, target, flags: UInt32(RENAME_EXCL))
+        try validateRegularPreparedFile(preparedFile)
         try synchronizeDirectories(for: target, and: preparedFile)
+        let preparedIdentity = try regularFileIdentityNoFollow(preparedFile)
+        try renameNoFollow(
+            preparedFile,
+            target,
+            exclusively: true,
+            expectedSourceIdentity: preparedIdentity
+        )
     }
 
     public func remove(_ url: URL) throws {
         if exists(url) {
             try manager.removeItem(at: url)
             try synchronizeDirectory(url.deletingLastPathComponent())
+        }
+    }
+
+    private func validateRegularPreparedFile(_ url: URL) throws {
+        _ = try regularFileIdentityNoFollow(url)
+    }
+
+    private func regularFileIdentityNoFollow(_ url: URL) throws -> FileIdentity {
+        guard let parent = try Self.openDirectoryNoFollow(url.deletingLastPathComponent()) else {
+            throw Self.posixError(ELOOP)
+        }
+        defer { _ = Darwin.close(parent) }
+        let descriptor = url.lastPathComponent.withCString {
+            Darwin.openat(parent, $0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        }
+        guard descriptor >= 0 else { throw AtomicFileStoreError.unsafeReplacementTarget(url) }
+        defer { _ = Darwin.close(descriptor) }
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG else {
+            throw AtomicFileStoreError.unsafeReplacementTarget(url)
+        }
+        let descriptorIdentity = FileIdentity(
+            device: UInt64(info.st_dev), inode: UInt64(info.st_ino),
+            isDirectory: false, isRegularFile: true
+        )
+        guard try Self.entryIdentityNoFollow(parent, name: url.lastPathComponent) == descriptorIdentity else {
+            throw AtomicFileStoreError.unsafeReplacementTarget(url)
+        }
+        return descriptorIdentity
+    }
+
+    private func validateReplacementTarget(_ url: URL) throws {
+        guard let type = try Self.entryTypeNoFollow(url, allowingMissing: true) else { return }
+        guard type == S_IFREG else {
+            throw AtomicFileStoreError.unsafeReplacementTarget(url)
         }
     }
 
@@ -230,6 +303,9 @@ public struct LocalFileStore: FileStore {
     }
 
     public func writeExclusively(_ data: Data, to target: URL) throws {
+        if try Self.entryTypeNoFollow(target, allowingMissing: true) != nil {
+            throw Self.posixError(EEXIST)
+        }
         try installAtomically(to: target, exclusively: true) { handle in
             try handle.write(contentsOf: data)
         }
@@ -247,7 +323,6 @@ public struct LocalFileStore: FileStore {
             if !handleIsClosed {
                 try? handle.close()
             }
-            try? remove(temporary)
         }
 
         try contents(handle)
@@ -263,26 +338,160 @@ public struct LocalFileStore: FileStore {
 
     private func makeTemporaryFile(nextTo target: URL) throws -> (URL, FileHandle) {
         let directory = target.deletingLastPathComponent()
-        let prefix = ".\(target.lastPathComponent).wallume.tmp.XXXXXX"
-        var template = Array(directory.appending(path: prefix).path.utf8CString)
-        let descriptor = template.withUnsafeMutableBufferPointer { buffer in
-            mkstemp(buffer.baseAddress)
+        guard let parent = try Self.openDirectoryNoFollow(directory) else {
+            throw Self.posixError(ELOOP)
         }
-        guard descriptor >= 0 else {
-            throw Self.posixError()
-        }
+        defer { _ = Darwin.close(parent) }
 
-        let path = String(
-            decoding: template.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
-            as: UTF8.self
-        )
-        let url = URL(fileURLWithPath: path)
-        return (url, FileHandle(fileDescriptor: descriptor, closeOnDealloc: true))
+        for _ in 0..<100 {
+            let name = ".\(target.lastPathComponent).wallume.tmp.\(UUID().uuidString)"
+            let descriptor = name.withCString {
+                Darwin.openat(
+                    parent,
+                    $0,
+                    O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
+                    0o600
+                )
+            }
+            if descriptor >= 0 {
+                return (
+                    directory.appending(path: name),
+                    FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+                )
+            }
+            if errno != EEXIST { throw Self.posixError() }
+        }
+        throw Self.posixError(EEXIST)
     }
 
     private static func renameItem(_ source: URL, _ destination: URL) throws {
         guard Darwin.rename(source.path, destination.path) == 0 else {
             throw posixError()
+        }
+    }
+
+    private func renameNoFollow(
+        _ source: URL,
+        _ destination: URL,
+        exclusively: Bool,
+        expectedSourceIdentity: FileIdentity
+    ) throws {
+        guard let sourceDirectory = try Self.openDirectoryNoFollow(source.deletingLastPathComponent()),
+              let destinationDirectory = try Self.openDirectoryNoFollow(destination.deletingLastPathComponent()) else {
+            throw Self.posixError(ELOOP)
+        }
+        defer {
+            _ = Darwin.close(sourceDirectory)
+            _ = Darwin.close(destinationDirectory)
+        }
+        guard try Self.entryIdentityNoFollow(sourceDirectory, name: source.lastPathComponent) == expectedSourceIdentity else {
+            throw AtomicFileStoreError.unsafeReplacementTarget(source)
+        }
+        let result = source.lastPathComponent.withCString { sourceName in
+            destination.lastPathComponent.withCString { destinationName in
+                if exclusively {
+                    return Darwin.renameatx_np(
+                        sourceDirectory,
+                        sourceName,
+                        destinationDirectory,
+                        destinationName,
+                        UInt32(RENAME_EXCL)
+                    )
+                }
+                return Darwin.renameat(
+                    sourceDirectory,
+                    sourceName,
+                    destinationDirectory,
+                    destinationName
+                )
+            }
+        }
+        guard result == 0 else { throw Self.posixError() }
+        // Keep the directory descriptors that performed `renameat` open through
+        // the sync. Reopening either path here could sync a replacement directory.
+        do {
+            try synchronizeCommittedDirectories(sourceDirectory, destinationDirectory)
+        } catch {
+            throw AtomicFileStoreError.durabilityUncertain(destination)
+        }
+    }
+
+    private func swapReplaceNoFollow(
+        _ target: URL,
+        with preparedFile: URL,
+        preparedIdentity: FileIdentity
+    ) throws {
+        let targetParent = target.deletingLastPathComponent()
+        let preparedParent = preparedFile.deletingLastPathComponent()
+        guard let targetDirectory = try Self.openDirectoryNoFollow(targetParent) else {
+            throw Self.posixError(ELOOP)
+        }
+        let sharesParent = targetParent == preparedParent
+        let preparedDirectory: Int32
+        if sharesParent {
+            preparedDirectory = targetDirectory
+        } else {
+            guard let descriptor = try Self.openDirectoryNoFollow(preparedParent) else {
+                _ = Darwin.close(targetDirectory)
+                throw Self.posixError(ELOOP)
+            }
+            preparedDirectory = descriptor
+        }
+        defer {
+            _ = Darwin.close(targetDirectory)
+            if !sharesParent { _ = Darwin.close(preparedDirectory) }
+        }
+        guard try Self.entryIdentityNoFollow(preparedDirectory, name: preparedFile.lastPathComponent) == preparedIdentity else {
+            throw AtomicFileStoreError.unsafeReplacementTarget(preparedFile)
+        }
+        guard (try Self.entryIdentityNoFollow(targetDirectory, name: target.lastPathComponent)).isRegularFile else {
+            throw AtomicFileStoreError.unsafeReplacementTarget(target)
+        }
+
+        // This hook is intentionally after the final prepared-entry identity check
+        // and immediately before publication, so tests exercise the last syscall
+        // window. `RENAME_SWAP` retains the old target for verified rollback.
+        try beforePreparedPublication(target, preparedFile)
+        try Self.renameSwap(
+            targetDirectory, target.lastPathComponent,
+            preparedDirectory, preparedFile.lastPathComponent
+        )
+
+        do {
+            guard try Self.entryIdentityNoFollow(targetDirectory, name: target.lastPathComponent) == preparedIdentity,
+                  (try Self.entryIdentityNoFollow(preparedDirectory, name: preparedFile.lastPathComponent)).isRegularFile else {
+                throw AtomicFileStoreError.unsafeReplacementTarget(preparedFile)
+            }
+        } catch {
+            do {
+                try Self.renameSwap(
+                    targetDirectory, target.lastPathComponent,
+                    preparedDirectory, preparedFile.lastPathComponent
+                )
+                try synchronizeCommittedDirectories(targetDirectory, preparedDirectory)
+            } catch {
+                throw AtomicFileStoreError.exchangeRecoveryFailed(target)
+            }
+            throw AtomicFileStoreError.unsafeReplacementTarget(preparedFile)
+        }
+
+        // The displaced target is known regular at this point. This is only an
+        // unlink of that entry; no error path follows or recursively removes it.
+        let displacedAfterPublication = try Self.entryIdentityNoFollow(
+            preparedDirectory,
+            name: preparedFile.lastPathComponent
+        )
+        if displacedAfterPublication.isRegularFile {
+            try? Self.unlinkRegularEntry(
+                preparedDirectory,
+                name: preparedFile.lastPathComponent,
+                expectedIdentity: displacedAfterPublication
+            )
+        }
+        do {
+            try synchronizeCommittedDirectories(targetDirectory, preparedDirectory)
+        } catch {
+            throw AtomicFileStoreError.durabilityUncertain(target)
         }
     }
 
@@ -301,6 +510,22 @@ public struct LocalFileStore: FileStore {
         guard result == 0 else { throw posixError() }
     }
 
+    private static func renameSwap(
+        _ firstDirectory: Int32,
+        _ firstName: String,
+        _ secondDirectory: Int32,
+        _ secondName: String
+    ) throws {
+        let result = firstName.withCString { first in
+            secondName.withCString { second in
+                Darwin.renameatx_np(
+                    firstDirectory, first, secondDirectory, second, UInt32(RENAME_SWAP)
+                )
+            }
+        }
+        guard result == 0 else { throw posixError() }
+    }
+
     private func synchronizeDirectories(for first: URL, and second: URL) throws {
         let firstDirectory = first.deletingLastPathComponent()
         let secondDirectory = second.deletingLastPathComponent()
@@ -311,10 +536,7 @@ public struct LocalFileStore: FileStore {
     }
 
     private static func synchronizeDirectoryEntry(_ directory: URL) throws {
-        let descriptor = Darwin.open(directory.path, O_RDONLY)
-        guard descriptor >= 0 else {
-            throw posixError()
-        }
+        guard let descriptor = try openDirectoryNoFollow(directory) else { throw posixError(ELOOP) }
 
         if Darwin.fsync(descriptor) != 0 {
             let error = posixError()
@@ -326,10 +548,66 @@ public struct LocalFileStore: FileStore {
         }
     }
 
+    private static func synchronizeDirectoryDescriptors(_ firstDescriptor: Int32, _ secondDescriptor: Int32) throws {
+        guard Darwin.fsync(firstDescriptor) == 0 else { throw posixError() }
+        if secondDescriptor != firstDescriptor {
+            guard Darwin.fsync(secondDescriptor) == 0 else { throw posixError() }
+        }
+    }
+
+    private static func entryTypeNoFollow(
+        _ url: URL,
+        allowingMissing: Bool = false
+    ) throws -> mode_t? {
+        guard let descriptor = try openDirectoryNoFollow(url.deletingLastPathComponent()) else {
+            throw posixError(ELOOP)
+        }
+        defer { _ = Darwin.close(descriptor) }
+        var info = stat()
+        let status = url.lastPathComponent.withCString {
+            Darwin.fstatat(descriptor, $0, &info, AT_SYMLINK_NOFOLLOW)
+        }
+        if status != 0, allowingMissing, errno == ENOENT { return nil }
+        guard status == 0 else { throw posixError() }
+        return info.st_mode & S_IFMT
+    }
+
+    private static func entryIdentityNoFollow(_ parent: Int32, name: String) throws -> FileIdentity {
+        var info = stat()
+        let status = name.withCString {
+            Darwin.fstatat(parent, $0, &info, AT_SYMLINK_NOFOLLOW)
+        }
+        guard status == 0 else { throw posixError() }
+        return FileIdentity(
+            device: UInt64(info.st_dev),
+            inode: UInt64(info.st_ino),
+            isDirectory: (info.st_mode & S_IFMT) == S_IFDIR,
+            isRegularFile: (info.st_mode & S_IFMT) == S_IFREG
+        )
+    }
+
+    private static func unlinkRegularEntry(
+        _ parent: Int32,
+        name: String,
+        expectedIdentity: FileIdentity
+    ) throws {
+        guard expectedIdentity.isRegularFile,
+              try entryIdentityNoFollow(parent, name: name) == expectedIdentity else { return }
+        let result = name.withCString { Darwin.unlinkat(parent, $0, 0) }
+        guard result == 0 else { throw posixError() }
+    }
+
     private static func openDirectoryNoFollow(_ directory: URL) throws -> Int32? {
         var descriptor = Darwin.open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC)
         guard descriptor >= 0 else { throw posixError() }
-        for component in directory.path.split(separator: "/").map(String.init) {
+        // Foundation exposes the system temporary directory through `/var`, whose
+        // root entry is the platform-owned `/private/var` compatibility symlink.
+        // Canonicalize that one OS alias before enforcing no-follow traversal on
+        // every application-controlled component below it.
+        let path = directory.path == "/var" || directory.path.hasPrefix("/var/")
+            ? "/private" + directory.path
+            : directory.path
+        for component in path.split(separator: "/").map(String.init) {
             var info = stat()
             let status = component.withCString {
                 Darwin.fstatat(descriptor, $0, &info, AT_SYMLINK_NOFOLLOW)

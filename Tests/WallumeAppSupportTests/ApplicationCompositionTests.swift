@@ -3,9 +3,38 @@ import XCTest
 import WallumeCore
 
 final class ApplicationCompositionTests: XCTestCase {
+    func testLockScreenDiagnosticsSnapshotClearsCurrentErrorOnLaterHealthyState() {
+        let snapshot = LockScreenDiagnosticsSnapshot()
+
+        snapshot.update(LockScreenSyncState(phase: .needsRepair, lastError: "repair required"))
+        XCTAssertEqual(snapshot.currentError, .present)
+
+        snapshot.update(LockScreenSyncState(phase: .readyToConfigure))
+
+        XCTAssertEqual(snapshot.value.status, .readyToConfigure)
+        XCTAssertEqual(snapshot.currentError, .none)
+    }
+
     func testTerminationPolicyOnlyPromptsForActiveQueue() {
         XCTAssertEqual(TerminationPolicy.decision(queueActive: false), .terminateNow)
         XCTAssertEqual(TerminationPolicy.decision(queueActive: true), .requestConfirmation)
+    }
+
+    @MainActor
+    func testLowPowerToggleImmediatelyPropagatesTheRuntimePolicy() {
+        let suiteName = "ApplicationCompositionTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var observedValues: [Bool] = []
+        let store = SettingsStore(
+            defaults: defaults,
+            loginItem: CompositionLoginItem(),
+            onPauseInLowPowerModeChanged: { observedValues.append($0) }
+        )
+
+        store.setPauseInLowPowerMode(false)
+
+        XCTAssertEqual(observedValues, [false])
     }
 
     func testImmediatePostEnqueueTerminationDecisionUsesAuthoritativeQueue() async {
@@ -40,6 +69,7 @@ final class ApplicationCompositionTests: XCTestCase {
     func testTerminationSequenceStopsDiagnosticsBeforeRuntimeWithoutChangingExistingLockScreenFirstOrder() async {
         let events = CompositionTerminationEvents()
         let commands = ApplicationTerminationCommands(
+            cancelSettingsExport: {},
             stopLockScreen: { await events.append("lock-screen") },
             stopDiagnostics: { await events.append("diagnostics") },
             stopRuntime: { await events.append("runtime") }
@@ -49,6 +79,74 @@ final class ApplicationCompositionTests: XCTestCase {
 
         let values = await events.values()
         XCTAssertEqual(values, ["lock-screen", "diagnostics", "runtime"])
+    }
+
+    @MainActor
+    func testTerminationCancelsAndWaitsForSettingsExportWhilePreservingPreferencesAndServiceOrder() async {
+        let suiteName = "ApplicationCompositionTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = SettingsStore(defaults: defaults, loginItem: CompositionLoginItem())
+        settings.setOpenGalleryAtLaunch(true)
+        settings.setPauseInLowPowerMode(false)
+
+        let owner = SettingsDiagnosticsExportTerminationOwner()
+        let export = CompositionSettingsExport()
+        let exportTask = Task {
+            try? await owner.perform { try await export.run() }
+        }
+        await export.waitUntilStarted()
+
+        let events = CompositionTerminationEvents()
+        let commands = ApplicationTerminationCommands(
+            cancelSettingsExport: {
+                await owner.cancelAndWait()
+                await events.append("settings-export")
+            },
+            stopLockScreen: { await events.append("lock-screen") },
+            stopDiagnostics: { await events.append("diagnostics") },
+            stopRuntime: { await events.append("runtime") }
+        )
+
+        await commands.stopServices()
+        await exportTask.value
+
+        let exportWasCancelled = await export.wasCancelled()
+        let shutdownEvents = await events.values()
+        XCTAssertTrue(exportWasCancelled)
+        XCTAssertEqual(settings.settings.openGalleryAtLaunch, true)
+        XCTAssertEqual(settings.settings.pauseInLowPowerMode, false)
+        XCTAssertTrue(defaults.bool(forKey: "openGalleryAtLaunch"))
+        XCTAssertEqual(defaults.object(forKey: "pauseInLowPowerMode") as? Bool, false)
+        XCTAssertEqual(shutdownEvents, ["settings-export", "lock-screen", "diagnostics", "runtime"])
+    }
+
+    @MainActor
+    func testTerminationRejectsAnExportThatArrivesAfterCancellingAnInFlightExport() async {
+        let owner = SettingsDiagnosticsExportTerminationOwner()
+        let inFlightExport = CompositionSettingsExport()
+        let inFlightTask = Task {
+            try? await owner.perform { try await inFlightExport.run() }
+        }
+        await inFlightExport.waitUntilStarted()
+
+        await owner.cancelAndWait()
+        await inFlightTask.value
+
+        let rejectedExport = CompositionExportAttempt()
+        do {
+            try await owner.perform { await rejectedExport.run() }
+            XCTFail("An export must not begin after termination starts.")
+        } catch is CancellationError {
+            // Expected: termination permanently owns the export lifecycle.
+        } catch {
+            XCTFail("Expected cancellation, got \(error).")
+        }
+
+        let initialExportWasCancelled = await inFlightExport.wasCancelled()
+        let rejectedExportStarted = await rejectedExport.didStart()
+        XCTAssertTrue(initialExportWasCancelled)
+        XCTAssertFalse(rejectedExportStarted)
     }
 
     @MainActor
@@ -149,6 +247,12 @@ private enum CompositionError: Error {
     case unexpectedWrite
 }
 
+private struct CompositionLoginItem: LoginItemControlling {
+    func isEnabled() throws -> Bool { false }
+    func register() throws {}
+    func unregister() throws {}
+}
+
 private struct CompositionScanner: ImportScanning {
     func scan(_ urls: [URL]) -> ImportScanResult { .init(candidates: urls, warnings: []) }
 }
@@ -172,6 +276,47 @@ private actor CompositionTerminationEvents {
     private var valuesStorage: [String] = []
     func append(_ value: String) { valuesStorage.append(value) }
     func values() -> [String] { valuesStorage }
+}
+
+private actor CompositionSettingsExport {
+    private var startContinuation: CheckedContinuation<Void, Never>?
+    private var cancellationContinuation: CheckedContinuation<Void, Never>?
+    private var started = false
+    private var cancelled = false
+
+    func run() async throws {
+        started = true
+        startContinuation?.resume()
+        startContinuation = nil
+        try await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                cancellationContinuation = continuation
+            }
+            throw CancellationError()
+        } onCancel: {
+            Task { await self.cancel() }
+        }
+    }
+
+    func waitUntilStarted() async {
+        guard !started else { return }
+        await withCheckedContinuation { startContinuation = $0 }
+    }
+
+    func wasCancelled() -> Bool { cancelled }
+
+    private func cancel() {
+        cancelled = true
+        cancellationContinuation?.resume()
+        cancellationContinuation = nil
+    }
+}
+
+private actor CompositionExportAttempt {
+    private var started = false
+
+    func run() { started = true }
+    func didStart() -> Bool { started }
 }
 
 private func populatedRuntimeSnapshot() -> WallpaperRuntimeSnapshot {

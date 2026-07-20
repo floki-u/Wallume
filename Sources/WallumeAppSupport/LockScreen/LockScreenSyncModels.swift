@@ -38,6 +38,75 @@ public struct LockScreenSyncedMediaSummary: Equatable, Sendable {
     }
 }
 
+/// A value-only diagnostic view of lock-screen sync state. It deliberately omits
+/// media identity, names, paths, URLs, and transaction identifiers.
+public enum LockScreenDiagnosticsStatus: String, Codable, Equatable, Sendable {
+    case unavailable
+    case unconfigured
+    case probing
+    case readyToConfigure
+    case waitingForMainWallpaper
+    case syncing
+    case synced
+    case restoring
+    case needsRepair
+    case unsupported
+}
+
+public struct LockScreenDiagnosticsSummary: Codable, Equatable, Sendable {
+    public let status: LockScreenDiagnosticsStatus
+    public let writesPermitted: Bool?
+    public let availableSlotCount: Int
+    public let foreignBackupCount: Int
+    public let lastTransactionSucceeded: Bool?
+
+    public init(
+        status: LockScreenDiagnosticsStatus,
+        writesPermitted: Bool?,
+        availableSlotCount: Int,
+        foreignBackupCount: Int,
+        lastTransactionSucceeded: Bool?
+    ) {
+        self.status = status
+        self.writesPermitted = writesPermitted
+        self.availableSlotCount = availableSlotCount
+        self.foreignBackupCount = foreignBackupCount
+        self.lastTransactionSucceeded = lastTransactionSucceeded
+    }
+
+    public init(state: LockScreenSyncState) {
+        self.init(
+            status: Self.status(for: state.phase),
+            writesPermitted: state.probe?.writesPermitted,
+            availableSlotCount: state.probe?.availableSlots.count ?? 0,
+            foreignBackupCount: state.probe?.foreignBackupNames.count ?? 0,
+            lastTransactionSucceeded: state.lastCompletedCommandSucceeded
+        )
+    }
+
+    public static let unavailable = LockScreenDiagnosticsSummary(
+        status: .unavailable,
+        writesPermitted: nil,
+        availableSlotCount: 0,
+        foreignBackupCount: 0,
+        lastTransactionSucceeded: nil
+    )
+
+    private static func status(for phase: LockScreenSyncPhase) -> LockScreenDiagnosticsStatus {
+        switch phase {
+        case .unconfigured: .unconfigured
+        case .probing: .probing
+        case .readyToConfigure: .readyToConfigure
+        case .waitingForMainWallpaper: .waitingForMainWallpaper
+        case .syncing: .syncing
+        case .synced: .synced
+        case .restoring: .restoring
+        case .needsRepair: .needsRepair
+        case .unsupported: .unsupported
+        }
+    }
+}
+
 public struct LockScreenSyncCapabilities: Equatable, Sendable {
     public let canRefreshProbe: Bool
     public let canSelectAerialSlot: Bool

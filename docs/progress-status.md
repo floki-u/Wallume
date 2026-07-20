@@ -10,16 +10,17 @@ Updated: 2026-07-20
 4. Phase 4 batch 1: application shell, gallery, and complete serial background import experience.
 5. Phase 4 batch 2: display assignment, per-display presentation, reconnect restoration, global playback controls, and in-process runtime ownership.
 6. Phase 4 batch 3: Lock Screen setup page, serialized main-display synchronization, recovery-safe restoration, and automated regression verification.
-7. Phase 4 batch 4: Performance diagnostics page, application composition, local report persistence/export, and current-machine reference verification (pending final branch review and local merge).
+7. Phase 4 batch 4: Performance diagnostics page, application composition, local report persistence/export, and current-machine reference verification (locally merged).
+8. Phase 4 batch 5: enabled Settings page with launch/login/low-power preferences, directory and build information, redacted retryable local diagnostics export, termination-safe commit admission, and automated verification.
 
 ## Current position
 
-Performance diagnostics implementation and verification are complete on its feature branch: the full suite passed 378 tests, all four release products built successfully, and the production service retained an anonymous 30-second reference report locally. The current reference machine is Apple M4 with 51,539,607,552 bytes physical memory on macOS 26; this is not M1 data or target-hardware certification. Lock Screen real-device/system-wallpaper acceptance is still pending manual verification. Phase 4 itself remains in progress.
+Performance diagnostics is locally merged. Settings is enabled and its engineering work is complete: all three preferences, directory/build information, redacted retryable local export, and application-owned export termination are delivered. Final review-remediation verification passed 39 focused tests and 405 full-suite tests with zero failures; local Release-configuration builds completed for `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore`; and `git diff --check` passed. Termination closes commit admission, rejects not-yet-admitted export writes, drains an already-admitted synchronous atomic commit, and preserves preferences plus the lock-screen → diagnostics → runtime shutdown order. The current diagnostics reference machine is Apple M4 with 51,539,607,552 bytes physical memory on macOS 26; this is not M1 data or target-hardware certification. No packaged release or remote integration is claimed. Phase 4 itself remains in progress pending localization, application state restoration, manual Settings/whole-app UI acceptance, and real-system Lock Screen installation/lock/unlock/restoration acceptance.
 
 ## Next work
 
-1. Complete final branch review/local merge for Performance, then implement the Settings page.
-2. Complete localization and application state restoration.
-3. Perform real-device/system-wallpaper acceptance for Lock Screen, then run final UI acceptance and phase-four completion review.
+1. Complete localization and application state restoration.
+2. Perform manual Settings and whole-application UI acceptance.
+3. Perform real-device/system-wallpaper installation, lock/unlock, and restoration acceptance for Lock Screen, then run the final phase-four completion review.
 
 Remote policy: keep the phase-four commits local until the complete phase is finished and approved for push.

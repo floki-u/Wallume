@@ -48,7 +48,7 @@ Implementation status: engineering and automated verification complete; real-mac
 
 Delivered:
 
-- A Lock Screen page, enabled in navigation while Performance and Settings remain unavailable.
+- A Lock Screen page, enabled in navigation. At this batch's completion, Performance and Settings were intentionally unavailable; both are now enabled.
 - Explicit Aerial-slot selection and a separate risk-confirmation gate before any lock-screen installation.
 - Serial, main-display-driven synchronization with read-only startup reconciliation, idempotent same-media handling, restore-before-reinstall transitions, and conflict-safe disable/recovery behavior.
 - Fail-closed configuration persistence and a narrow production system-client boundary that leaves desktop wallpaper runtime construction isolated from lock-screen failures.
@@ -61,20 +61,40 @@ Manual acceptance pending: no real-device/system-wallpaper installation, lock/un
 
 ## Batch 4: performance diagnostics
 
-Implementation status: engineering and automated/current-machine verification complete; pending final branch review and local merge.
+Implementation status: engineering and automated/current-machine verification complete; locally merged.
 
 Delivered:
 
 - Page-scoped, in-memory one-per-second realtime process metrics with a 60-sample cap.
 - User-triggered serial 30-second diagnostic with cancellation, local atomic persistence, retry-save, and anonymous JSON export.
 - Count-only wallpaper runtime context; no media identifiers, paths, URLs, thumbnails, backup data, uploads, or runtime-control side effects.
-- One application-owned diagnostics service/store; Performance is enabled and Settings remains unavailable. Runtime snapshots are forwarded to diagnostics, and application termination stops diagnostics before the desktop runtime.
+- One application-owned diagnostics service/store; Performance is enabled. Settings remained unavailable at this batch's completion and is now enabled. Runtime snapshots are forwarded to diagnostics, and application termination stops diagnostics before the desktop runtime.
 
 Verification: `swift test` passed 378 tests with zero failures; release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed. A production-service reference diagnostic completed on the current machine with exactly 30 samples over 30 seconds and was retained at `~/Library/Application Support/Wallume/Diagnostics/report.json`. Reference environment only (not M1 certification): Apple M4, 51,539,607,552 bytes physical memory, macOS 26, `single-display` scenario.
 
+## Batch 5: settings lifecycle completion
+
+Implementation status: engineering and automated verification complete; pending the remaining phase-four manual acceptance work.
+
+Delivered:
+
+- Settings is enabled in the application navigation and routes to the production page when its application-owned store is supplied.
+- Three persisted preferences are available: launch at login, open Gallery at launch, and pause playback in Low Power Mode. Login-item failures retain the observed system value and show a user-safe error; the low-power policy applies immediately while monitoring remains active.
+- The page displays app/build information plus Wallume data and diagnostics directories with injected Finder actions.
+- User-selected local diagnostics export includes only redacted settings, lock-screen, transaction, performance, build, and system summaries. Atomic failures preserve an earlier export, and the failure UI exposes both retry and choose-another-destination actions.
+- Application-owned cancellation and awaiting of an in-flight Settings diagnostics export during termination.
+- Terminal commit admission rejects an export that has not begun committing; an export already inside its synchronous atomic commit is drained and completes before shutdown continues.
+- Persisted ordinary preferences remain intact when termination cancels an incomplete export.
+- The established shutdown order remains lock-screen, diagnostics, then desktop runtime; export cancellation completes before that sequence.
+- SwiftUI remains limited to the observable store/page model and injected commands; it performs no direct UserDefaults, ServiceManagement, filesystem, runtime sampling, or shutdown work.
+
+Initial completion verification: `swift test` passed 399 tests with zero failures; local Release-configuration builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` completed; `git diff --check` passed. Final review-remediation verification: the focused Settings/composition/export/low-power suites passed 39 tests; full `swift test` passed 405 tests with zero failures; all four local Release-configuration product builds completed; and `git diff --check` passed. Real `DiagnosticsExportService`/`AtomicJSONStore`/`FileStore` regressions cover both sides of the terminal commit-admission boundary. This is build evidence only; no packaged release, remote integration, or manual UI acceptance is claimed.
+
 ## Remaining phase-four work
 
-1. Settings page.
-2. Localization, state restoration, UI acceptance, and phase-four completion.
+1. Localization and application state restoration.
+2. Manual Settings and whole-application UI acceptance.
+3. Real-device/system-wallpaper installation, lock/unlock, and restoration acceptance for Lock Screen.
+4. Final phase-four completion review.
 
 Phase four as a whole is not yet complete.

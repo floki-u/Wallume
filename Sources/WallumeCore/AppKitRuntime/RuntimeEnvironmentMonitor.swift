@@ -39,6 +39,7 @@ public final class RuntimeEnvironmentMonitor {
     private var screenLocked = false
     private var systemSleeping = false
     private var lowPowerMode = false
+    private var lowPowerPauseEnabled = true
     private var thermalPressure = false
 
     public init(
@@ -91,6 +92,12 @@ public final class RuntimeEnvironmentMonitor {
         distributedTokens.forEach(DistributedNotificationCenter.default().removeObserver)
         distributedTokens.removeAll()
         onChange = nil
+    }
+
+    public func setLowPowerPauseEnabled(_ enabled: Bool) {
+        guard lowPowerPauseEnabled != enabled else { return }
+        lowPowerPauseEnabled = enabled
+        emit()
     }
 
     private func observe(
@@ -157,7 +164,7 @@ public final class RuntimeEnvironmentMonitor {
             userPaused: false,
             appObscured: false,
             screenLocked: screenLocked,
-            lowPowerMode: lowPowerMode,
+            lowPowerMode: lowPowerPauseEnabled && lowPowerMode,
             systemSleeping: systemSleeping,
             thermalPressure: thermalPressure
         ))

@@ -17,6 +17,12 @@ public enum FeatureRegistry {
         .init(id: .displays, title: "显示器", systemImage: "display.2", isEnabled: true),
         .init(id: .lockScreen, title: "锁屏", systemImage: "lock.display", isEnabled: true),
         .init(id: .performance, title: "性能", systemImage: "gauge.with.dots.needle.67percent", isEnabled: true),
-        .init(id: .settings, title: "设置", systemImage: "gearshape", isEnabled: false),
+        .init(id: .settings, title: "设置", systemImage: "gearshape", isEnabled: true),
     ]
+
+    public static func availableFeatures(hasSettingsStore: Bool) -> [WallumeFeature] {
+        features.filter { feature in
+            feature.isEnabled && (feature.id != .settings || hasSettingsStore)
+        }
+    }
 }

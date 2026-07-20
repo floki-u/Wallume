@@ -1,18 +1,52 @@
 import SwiftUI
 import WallumeCore
 
+package final class LockScreenDiagnosticsSnapshot: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = LockScreenDiagnosticsSummary.unavailable
+    private var errorPresent = false
+
+    package init() {}
+
+    package var value: LockScreenDiagnosticsSummary { lock.withLock { storage } }
+
+    package var recentTransactions: DiagnosticsRecentTransactionSummary {
+        lock.withLock {
+            guard let succeeded = storage.lastTransactionSucceeded else { return .unavailable }
+            return .init(
+                status: .available,
+                completedCount: succeeded ? 1 : 0,
+                failedCount: succeeded ? 0 : 1
+            )
+        }
+    }
+
+    package var currentError: DiagnosticsCurrentErrorSummary {
+        lock.withLock { errorPresent ? .present : .none }
+    }
+
+    package func update(_ state: LockScreenSyncState) {
+        lock.withLock {
+            storage = LockScreenDiagnosticsSummary(state: state)
+            errorPresent = state.lastError != nil
+        }
+    }
+}
+
 public enum ApplicationShellRoute: Equatable, Sendable {
     case gallery
     case displays
     case lockScreen
     case performance
+    case settings
     case unavailable
 
     public static func resolve(
         selection: WallumeFeatureID,
         hasDisplayStore: Bool,
         hasLockScreenStore: Bool,
-        hasPerformanceStore: Bool = false
+        hasPerformanceStore: Bool = false,
+        hasSettingsStore: Bool = false
     ) -> Self {
         switch selection {
         case .gallery:
@@ -23,6 +57,8 @@ public enum ApplicationShellRoute: Equatable, Sendable {
             .lockScreen
         case .performance where hasPerformanceStore:
             .performance
+        case .settings where hasSettingsStore:
+            .settings
         case .displays, .lockScreen, .performance, .settings:
             .unavailable
         }
@@ -70,25 +106,70 @@ public final class PerformanceApplicationComposition {
     }
 }
 
+/// Owns the application-lifetime export task so termination can cancel and await it.
+/// The Settings view only requests exports; it never owns their termination lifecycle.
+public actor SettingsDiagnosticsExportTerminationOwner {
+    private struct InFlightExport {
+        let id: UUID
+        let task: Task<Void, Error>
+    }
+
+    private var inFlightExport: InFlightExport?
+    private var isTerminating = false
+    private let commitAdmission: DiagnosticsExportCommitAdmission
+
+    public init(commitAdmission: DiagnosticsExportCommitAdmission = .init()) { self.commitAdmission = commitAdmission }
+
+    public func perform(_ operation: @escaping @Sendable () async throws -> Void) async throws {
+        guard !isTerminating, inFlightExport == nil else { throw CancellationError() }
+
+        let export = InFlightExport(
+            id: UUID(),
+            task: Task { try await operation() }
+        )
+        inFlightExport = export
+        defer { clearExport(id: export.id) }
+        try await export.task.value
+    }
+
+    public func cancelAndWait() async {
+        isTerminating = true
+        await commitAdmission.terminateAndWait()
+        guard let export = inFlightExport else { return }
+        export.task.cancel()
+        _ = try? await export.task.value
+        clearExport(id: export.id)
+    }
+
+    private func clearExport(id: UUID) {
+        guard inFlightExport?.id == id else { return }
+        inFlightExport = nil
+    }
+}
+
 /// Keeps shutdown ownership explicit and testable. Callers provide their existing shutdown
 /// operations; this helper only establishes the required ordering.
 @MainActor
 public struct ApplicationTerminationCommands {
+    private let cancelSettingsExport: () async -> Void
     private let stopLockScreen: () async -> Void
     private let stopDiagnostics: () async -> Void
     private let stopRuntime: () async -> Void
 
     public init(
+        cancelSettingsExport: @escaping () async -> Void,
         stopLockScreen: @escaping () async -> Void,
         stopDiagnostics: @escaping () async -> Void,
         stopRuntime: @escaping () async -> Void
     ) {
+        self.cancelSettingsExport = cancelSettingsExport
         self.stopLockScreen = stopLockScreen
         self.stopDiagnostics = stopDiagnostics
         self.stopRuntime = stopRuntime
     }
 
     public func stopServices() async {
+        await cancelSettingsExport()
         await stopLockScreen()
         await stopDiagnostics()
         await stopRuntime()
@@ -137,18 +218,59 @@ public struct ApplicationShellView: View {
     private let displays: DisplayFeatureStore?
     private let lockScreen: LockScreenFeatureStore?
     private let performance: PerformanceFeatureStore?
+    private let settings: SettingsStore?
+    private let settingsBuildInfo: SettingsBuildInfo
+    private let settingsDataDirectory: URL
+    private let settingsDiagnosticsDirectory: URL
+    private let openInFinder: (URL) -> Void
+    private let chooseDiagnosticsExportDestination: () -> URL?
+    private let exportDiagnostics: (URL) async throws -> Void
     private let openSystemWallpaperSettings: () -> Void
     private let onImportFiles: () -> Void
     private let onImportFolder: () -> Void
     private let onDrop: ([URL]) -> Void
 
-    public init(gallery: GalleryStore, tasks: ImportTaskStore, displays: DisplayFeatureStore? = nil, lockScreen: LockScreenFeatureStore? = nil, performance: PerformanceFeatureStore? = nil, navigation: ApplicationNavigation = ApplicationNavigation(), openSystemWallpaperSettings: @escaping () -> Void = {}, onImportFiles: @escaping () -> Void, onImportFolder: @escaping () -> Void, onDrop: @escaping ([URL]) -> Void) {
-        self.gallery = gallery; self.tasks = tasks; self.displays = displays; self.lockScreen = lockScreen; self.performance = performance; self.navigation = navigation; self.openSystemWallpaperSettings = openSystemWallpaperSettings; self.onImportFiles = onImportFiles; self.onImportFolder = onImportFolder; self.onDrop = onDrop
+    public init(
+        gallery: GalleryStore,
+        tasks: ImportTaskStore,
+        displays: DisplayFeatureStore? = nil,
+        lockScreen: LockScreenFeatureStore? = nil,
+        performance: PerformanceFeatureStore? = nil,
+        settings: SettingsStore? = nil,
+        settingsBuildInfo: SettingsBuildInfo = .unavailable,
+        settingsDataDirectory: URL = URL(fileURLWithPath: "/"),
+        settingsDiagnosticsDirectory: URL = URL(fileURLWithPath: "/"),
+        openInFinder: @escaping (URL) -> Void = { _ in },
+        chooseDiagnosticsExportDestination: @escaping () -> URL? = { nil },
+        exportDiagnostics: @escaping (URL) async throws -> Void = { _ in },
+        navigation: ApplicationNavigation = ApplicationNavigation(),
+        openSystemWallpaperSettings: @escaping () -> Void = {},
+        onImportFiles: @escaping () -> Void,
+        onImportFolder: @escaping () -> Void,
+        onDrop: @escaping ([URL]) -> Void
+    ) {
+        self.gallery = gallery
+        self.tasks = tasks
+        self.displays = displays
+        self.lockScreen = lockScreen
+        self.performance = performance
+        self.settings = settings
+        self.settingsBuildInfo = settingsBuildInfo
+        self.settingsDataDirectory = settingsDataDirectory
+        self.settingsDiagnosticsDirectory = settingsDiagnosticsDirectory
+        self.openInFinder = openInFinder
+        self.chooseDiagnosticsExportDestination = chooseDiagnosticsExportDestination
+        self.exportDiagnostics = exportDiagnostics
+        self.navigation = navigation
+        self.openSystemWallpaperSettings = openSystemWallpaperSettings
+        self.onImportFiles = onImportFiles
+        self.onImportFolder = onImportFolder
+        self.onDrop = onDrop
     }
 
     public var body: some View {
         NavigationSplitView {
-            List(FeatureRegistry.features, selection: $navigation.selection) { feature in
+            List(FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil), selection: $navigation.selection) { feature in
                 Label(feature.title, systemImage: feature.systemImage).tag(feature.id)
             }.navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
@@ -156,7 +278,8 @@ public struct ApplicationShellView: View {
                 selection: navigation.selection,
                 hasDisplayStore: displays != nil,
                 hasLockScreenStore: lockScreen != nil,
-                hasPerformanceStore: performance != nil
+                hasPerformanceStore: performance != nil,
+                hasSettingsStore: settings != nil
             ) {
             case .gallery:
                 GalleryView(
@@ -183,6 +306,18 @@ public struct ApplicationShellView: View {
             case .performance:
                 if let performance {
                     PerformanceView(store: performance)
+                }
+            case .settings:
+                if let settings {
+                    SettingsView(
+                        store: settings,
+                        buildInfo: settingsBuildInfo,
+                        dataDirectory: settingsDataDirectory,
+                        diagnosticsDirectory: settingsDiagnosticsDirectory,
+                        openInFinder: openInFinder,
+                        chooseExportDestination: chooseDiagnosticsExportDestination,
+                        exportDiagnostics: exportDiagnostics
+                    )
                 }
             case .unavailable:
                 ContentUnavailableView("将在后续批次开放", systemImage: FeatureRegistry.features.first { $0.id == navigation.selection }?.systemImage ?? "hammer")

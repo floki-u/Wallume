@@ -5,9 +5,9 @@ import WallumeCore
 final class ApplicationShellViewTests: XCTestCase {
     func testRegistryHasStableFeatureOrderAndOnlyCompletedFeaturesEnabled() {
         XCTAssertEqual(FeatureRegistry.features.map(\.id), [.gallery, .displays, .lockScreen, .performance, .settings])
-        XCTAssertEqual(FeatureRegistry.features.filter(\.isEnabled).map(\.id), [.gallery, .displays, .lockScreen, .performance])
+        XCTAssertEqual(FeatureRegistry.features.filter(\.isEnabled).map(\.id), [.gallery, .displays, .lockScreen, .performance, .settings])
         XCTAssertTrue(FeatureRegistry.features.first { $0.id == .performance }?.isEnabled ?? false)
-        XCTAssertFalse(FeatureRegistry.features.first { $0.id == .settings }?.isEnabled ?? true)
+        XCTAssertTrue(FeatureRegistry.features.first { $0.id == .settings }?.isEnabled ?? false)
     }
 
     func testLockScreenRouteRequiresFeatureStore() {
@@ -47,6 +47,29 @@ final class ApplicationShellViewTests: XCTestCase {
                 hasPerformanceStore: false
             ),
             .unavailable
+        )
+    }
+
+    func testSettingsRouteRequiresInjectedStore() {
+        XCTAssertEqual(
+            ApplicationShellRoute.resolve(
+                selection: .settings,
+                hasDisplayStore: true,
+                hasLockScreenStore: true,
+                hasPerformanceStore: true,
+                hasSettingsStore: false
+            ),
+            .unavailable
+        )
+        XCTAssertEqual(
+            ApplicationShellRoute.resolve(
+                selection: .settings,
+                hasDisplayStore: true,
+                hasLockScreenStore: true,
+                hasPerformanceStore: true,
+                hasSettingsStore: true
+            ),
+            .settings
         )
     }
 
