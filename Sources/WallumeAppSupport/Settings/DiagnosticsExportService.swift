@@ -1,0 +1,189 @@
+import Foundation
+import WallumeCore
+
+public enum DiagnosticsSourceStatus: String, Codable, Equatable, Sendable {
+    case available
+    case unavailable
+}
+
+public struct DiagnosticsSettingsSummary: Codable, Equatable, Sendable {
+    public let launchAtLogin: Bool
+    public let openGalleryAtLaunch: Bool
+    public let pauseInLowPowerMode: Bool
+
+    public init(settings: ApplicationSettings) {
+        launchAtLogin = settings.launchAtLogin
+        openGalleryAtLaunch = settings.openGalleryAtLaunch
+        pauseInLowPowerMode = settings.pauseInLowPowerMode
+    }
+}
+
+public struct DiagnosticsRecentTransactionSummary: Codable, Equatable, Sendable {
+    public let status: DiagnosticsSourceStatus
+    public let completedCount: Int
+    public let failedCount: Int
+
+    public init(status: DiagnosticsSourceStatus, completedCount: Int, failedCount: Int) {
+        self.status = status
+        self.completedCount = completedCount
+        self.failedCount = failedCount
+    }
+
+    public static let unavailable = DiagnosticsRecentTransactionSummary(
+        status: .unavailable,
+        completedCount: 0,
+        failedCount: 0
+    )
+}
+
+public struct DiagnosticsPerformanceSummary: Codable, Equatable, Sendable {
+    public let status: DiagnosticsSourceStatus
+    public let report: PerformanceDiagnosticReport?
+
+    public init(status: DiagnosticsSourceStatus, report: PerformanceDiagnosticReport?) {
+        self.status = status
+        self.report = report
+    }
+}
+
+public struct DiagnosticsBuildSystemInfo: Codable, Equatable, Sendable {
+    public let productVersion: String
+    public let buildNumber: String
+    public let systemVersion: String
+    public let architecture: String
+
+    public init(
+        productVersion: String,
+        buildNumber: String,
+        systemVersion: String,
+        architecture: String
+    ) {
+        self.productVersion = Self.version(productVersion)
+        self.buildNumber = Self.buildNumber(buildNumber)
+        self.systemVersion = Self.systemVersion(systemVersion)
+        self.architecture = Self.architecture(architecture)
+    }
+
+    private static let unavailable = "unavailable"
+
+    private static func version(_ value: String) -> String {
+        guard value.contains(where: \.isWholeNumber),
+              value.allSatisfy({ $0.isWholeNumber || ".-+".contains($0) }) else {
+            return unavailable
+        }
+        return value
+    }
+
+    private static func buildNumber(_ value: String) -> String {
+        guard !value.isEmpty, value.allSatisfy(\.isWholeNumber) else { return unavailable }
+        return value
+    }
+
+    private static func systemVersion(_ value: String) -> String {
+        guard value.hasPrefix("macOS ") else { return unavailable }
+        let version = String(value.dropFirst("macOS ".count))
+        return Self.version(version) == version ? value : unavailable
+    }
+
+    private static func architecture(_ value: String) -> String {
+        ["arm64", "x86_64", "unknown"].contains(value) ? value : unavailable
+    }
+}
+
+public struct DiagnosticsExportDocument: Codable, Equatable, Sendable {
+    public static let currentSchemaVersion = 1
+
+    public let schemaVersion: Int
+    public let settings: DiagnosticsSettingsSummary
+    public let lockScreen: LockScreenDiagnosticsSummary
+    public let recentTransactions: DiagnosticsRecentTransactionSummary
+    public let performance: DiagnosticsPerformanceSummary
+    public let buildSystem: DiagnosticsBuildSystemInfo
+
+    public init(
+        settings: DiagnosticsSettingsSummary,
+        lockScreen: LockScreenDiagnosticsSummary,
+        recentTransactions: DiagnosticsRecentTransactionSummary,
+        performance: DiagnosticsPerformanceSummary,
+        buildSystem: DiagnosticsBuildSystemInfo
+    ) {
+        schemaVersion = Self.currentSchemaVersion
+        self.settings = settings
+        self.lockScreen = lockScreen
+        self.recentTransactions = recentTransactions
+        self.performance = performance
+        self.buildSystem = buildSystem
+    }
+}
+
+public enum DiagnosticsExportUserError: Error, Equatable, LocalizedError, Sendable {
+    case writeFailed
+    case cancelled
+
+    public var errorDescription: String? {
+        switch self {
+        case .writeFailed:
+            "Unable to export diagnostics. Please try again."
+        case .cancelled:
+            "Diagnostics export was cancelled."
+        }
+    }
+}
+
+public struct DiagnosticsExportService: Sendable {
+    private let settings: @Sendable () -> ApplicationSettings
+    private let lockScreenSummary: @Sendable () throws -> LockScreenDiagnosticsSummary
+    private let recentTransactionSummary: @Sendable () throws -> DiagnosticsRecentTransactionSummary
+    private let latestPerformanceReport: @Sendable () throws -> PerformanceDiagnosticReport?
+    private let buildSystemInfo: DiagnosticsBuildSystemInfo
+    private let jsonStore: AtomicJSONStore
+
+    public init(
+        settings: @escaping @Sendable () -> ApplicationSettings,
+        lockScreenSummary: @escaping @Sendable () throws -> LockScreenDiagnosticsSummary,
+        recentTransactionSummary: @escaping @Sendable () throws -> DiagnosticsRecentTransactionSummary,
+        latestPerformanceReport: @escaping @Sendable () throws -> PerformanceDiagnosticReport?,
+        buildSystemInfo: DiagnosticsBuildSystemInfo,
+        files: any FileStore
+    ) {
+        self.settings = settings
+        self.lockScreenSummary = lockScreenSummary
+        self.recentTransactionSummary = recentTransactionSummary
+        self.latestPerformanceReport = latestPerformanceReport
+        self.buildSystemInfo = buildSystemInfo
+        jsonStore = AtomicJSONStore(files: files)
+    }
+
+    public func export(to destination: URL) async throws {
+        do {
+            try Task.checkCancellation()
+            let document = DiagnosticsExportDocument(
+                settings: DiagnosticsSettingsSummary(settings: settings()),
+                lockScreen: (try? lockScreenSummary()) ?? .unavailable,
+                recentTransactions: (try? recentTransactionSummary()) ?? .unavailable,
+                performance: performanceSummary(),
+                buildSystem: buildSystemInfo
+            )
+            try Task.checkCancellation()
+            try jsonStore.write(document, to: destination)
+        } catch is CancellationError {
+            throw DiagnosticsExportUserError.cancelled
+        } catch {
+            throw DiagnosticsExportUserError.writeFailed
+        }
+    }
+
+    private func performanceSummary() -> DiagnosticsPerformanceSummary {
+        do {
+            guard let report = try latestPerformanceReport() else {
+                return DiagnosticsPerformanceSummary(status: .unavailable, report: nil)
+            }
+            return DiagnosticsPerformanceSummary(
+                status: .available,
+                report: report
+            )
+        } catch {
+            return DiagnosticsPerformanceSummary(status: .unavailable, report: nil)
+        }
+    }
+}
