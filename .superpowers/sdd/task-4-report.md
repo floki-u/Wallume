@@ -51,4 +51,4 @@ Performance is already locally merged. Settings engineering and automated verifi
 
 - Replaced the bounded scheduler-yield admission probe with an explicit lock-protected termination signal, so the crossing-termination regression synchronizes on the actual terminal transition without timing assumptions.
 - Consolidated the duplicated destination-selection/export path in `SettingsDiagnosticsExportController`.
-- Made the page model the source for build and success rendering, retained typed labels/actions as the production `ForEach` inputs, and added hosting-view coverage proving three checkbox controls render and the failed state renders one additional action compared with the ready state. Accessibility identifiers now provide stable semantic names for future end-to-end UI checks.
+- Made the page model the source for build and success rendering, retained typed labels/actions as the production `ForEach` inputs, and added hosting-view coverage that asserts the exact semantic identifiers for all three toggles plus select-destination, retry, and choose-another-destination. The controller-seeding initializer is internal to the app-support module.

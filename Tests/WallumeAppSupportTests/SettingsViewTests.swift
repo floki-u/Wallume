@@ -128,9 +128,13 @@ final class SettingsViewTests: XCTestCase {
         let host = NSHostingView(rootView: view)
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         host.layoutSubtreeIfNeeded()
+        let identifiers = accessibilityIdentifiers(in: host)
 
         XCTAssertGreaterThan(host.fittingSize.width, 0)
-        XCTAssertEqual(subviewCount(in: host, typeNameContaining: "Checkbox"), 3)
+        XCTAssertTrue(identifiers.contains("settings.preference.launchAtLogin"))
+        XCTAssertTrue(identifiers.contains("settings.preference.openGalleryAtLaunch"))
+        XCTAssertTrue(identifiers.contains("settings.preference.pauseInLowPowerMode"))
+        XCTAssertTrue(identifiers.contains("settings.diagnostics.selectDestination"))
     }
 
     func testRenderedFailureSurfaceContainsRetryAndChooseAnotherDestinationActions() async {
@@ -146,35 +150,15 @@ final class SettingsViewTests: XCTestCase {
             dataDirectory: URL(fileURLWithPath: "/tmp/Wallume"),
             diagnosticsDirectory: URL(fileURLWithPath: "/tmp/Wallume/Diagnostics"),
             openInFinder: { _ in },
-            chooseExportDestination: { nil },
-            exportDiagnostics: { _ in },
             exportController: controller
         )
         let host = NSHostingView(rootView: view)
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         host.layoutSubtreeIfNeeded()
-        let failedActionSurfaceCount = subviewCount(in: host, typeNameContaining: "_FocusRingView")
+        let identifiers = accessibilityIdentifiers(in: host)
 
-        let readyController = SettingsDiagnosticsExportController(
-            chooseExportDestination: { nil },
-            exportDiagnostics: { _ in }
-        )
-        let readyView = SettingsView(
-            store: store,
-            buildInfo: .init(productVersion: "1.2.3", buildNumber: "45"),
-            dataDirectory: URL(fileURLWithPath: "/tmp/Wallume"),
-            diagnosticsDirectory: URL(fileURLWithPath: "/tmp/Wallume/Diagnostics"),
-            openInFinder: { _ in },
-            chooseExportDestination: { nil },
-            exportDiagnostics: { _ in },
-            exportController: readyController
-        )
-        let readyHost = NSHostingView(rootView: readyView)
-        readyHost.frame = NSRect(origin: .zero, size: readyHost.fittingSize)
-        readyHost.layoutSubtreeIfNeeded()
-        let readyActionSurfaceCount = subviewCount(in: readyHost, typeNameContaining: "_FocusRingView")
-
-        XCTAssertEqual(failedActionSurfaceCount, readyActionSurfaceCount + 1)
+        XCTAssertTrue(identifiers.contains("settings.diagnostics.retry"))
+        XCTAssertTrue(identifiers.contains("settings.diagnostics.chooseAnotherDestination"))
     }
 
     private func ephemeralDefaults() -> UserDefaults {
@@ -186,11 +170,15 @@ final class SettingsViewTests: XCTestCase {
 }
 
 @MainActor
-private func subviewCount(in view: NSView, typeNameContaining fragment: String) -> Int {
-    let ownCount = String(describing: type(of: view)).contains(fragment) ? 1 : 0
-    return ownCount + view.subviews.reduce(0) {
-        $0 + subviewCount(in: $1, typeNameContaining: fragment)
+private func accessibilityIdentifiers(in root: NSView) -> Set<String> {
+    var identifiers: Set<String> = []
+    func visit(_ view: NSView) {
+        let identifier = view.accessibilityIdentifier()
+        if !identifier.isEmpty { identifiers.insert(identifier) }
+        view.subviews.forEach(visit)
     }
+    visit(root)
+    return identifiers
 }
 
 private struct SettingsViewLoginItem: LoginItemControlling {

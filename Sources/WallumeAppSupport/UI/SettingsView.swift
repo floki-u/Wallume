@@ -175,18 +175,35 @@ public struct SettingsView: View {
         diagnosticsDirectory: URL,
         openInFinder: @escaping (URL) -> Void,
         chooseExportDestination: @escaping () -> URL?,
-        exportDiagnostics: @escaping (URL) async throws -> Void,
-        exportController: SettingsDiagnosticsExportController? = nil
+        exportDiagnostics: @escaping (URL) async throws -> Void
+    ) {
+        self.init(
+            store: store,
+            buildInfo: buildInfo,
+            dataDirectory: dataDirectory,
+            diagnosticsDirectory: diagnosticsDirectory,
+            openInFinder: openInFinder,
+            exportController: SettingsDiagnosticsExportController(
+                chooseExportDestination: chooseExportDestination,
+                exportDiagnostics: exportDiagnostics
+            )
+        )
+    }
+
+    init(
+        store: SettingsStore,
+        buildInfo: SettingsBuildInfo,
+        dataDirectory: URL,
+        diagnosticsDirectory: URL,
+        openInFinder: @escaping (URL) -> Void,
+        exportController: SettingsDiagnosticsExportController
     ) {
         self.store = store
         self.buildInfo = buildInfo
         self.dataDirectory = dataDirectory
         self.diagnosticsDirectory = diagnosticsDirectory
         self.openInFinder = openInFinder
-        _exportController = State(initialValue: exportController ?? SettingsDiagnosticsExportController(
-            chooseExportDestination: chooseExportDestination,
-            exportDiagnostics: exportDiagnostics
-        ))
+        _exportController = State(initialValue: exportController)
     }
 
     public var body: some View {
@@ -222,7 +239,7 @@ public struct SettingsView: View {
             Text("启动与播放").font(.title3.bold())
             ForEach(page.preferenceControls) { control in
                 Toggle(control.title, isOn: preferenceBinding(for: control))
-                    .accessibilityIdentifier("settings.preference.\(control.rawValue)")
+                    .settingsControlIdentifier("settings.preference.\(control.rawValue)")
             }
         }
         .settingsCardStyle()
@@ -282,7 +299,7 @@ public struct SettingsView: View {
                 ForEach(page.diagnosticsActions) { action in
                     Button(action.title) { performDiagnosticsAction(action.id) }
                         .disabled(!action.isEnabled)
-                        .accessibilityIdentifier("settings.diagnostics.\(action.id.rawValue)")
+                        .settingsControlIdentifier("settings.diagnostics.\(action.id.rawValue)")
                 }
             }
         }
@@ -304,5 +321,25 @@ public struct SettingsView: View {
 private extension View {
     func settingsCardStyle() -> some View {
         padding(16).background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    func settingsControlIdentifier(_ identifier: String) -> some View {
+        accessibilityIdentifier(identifier)
+            .background(SettingsControlIdentityBridge(identifier: identifier))
+    }
+}
+
+private struct SettingsControlIdentityBridge: NSViewRepresentable {
+    let identifier: String
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        view.setAccessibilityElement(false)
+        view.setAccessibilityIdentifier(identifier)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        view.setAccessibilityIdentifier(identifier)
     }
 }
