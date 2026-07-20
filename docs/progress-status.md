@@ -1,6 +1,6 @@
 # Wallume progress status
 
-Updated: 2026-07-17
+Updated: 2026-07-20
 
 ## Completed engineering milestones
 
@@ -10,14 +10,15 @@ Updated: 2026-07-17
 4. Phase 4 batch 1: application shell, gallery, and complete serial background import experience.
 5. Phase 4 batch 2: display assignment, per-display presentation, reconnect restoration, global playback controls, and in-process runtime ownership.
 6. Phase 4 batch 3: Lock Screen setup page, serialized main-display synchronization, recovery-safe restoration, and automated regression verification.
+7. Phase 4 batch 4: Performance diagnostics page, application composition, local report persistence/export, and current-machine reference verification (pending final branch review and local merge).
 
 ## Current position
 
-Phase 4 batch 3 Lock Screen engineering and automated verification are complete: the focused Lock Screen suites passed 86 tests, the full suite passed 336 tests, and all four release products built successfully. The safety review found the required fail-closed and recovery ordering safeguards covered by implementation and automated tests. Real-device/system-wallpaper acceptance is still pending manual verification. Phase 4 itself remains in progress.
+Performance diagnostics implementation and verification are complete on its feature branch: the full suite passed 378 tests, all four release products built successfully, and the production service retained an anonymous 30-second reference report locally. The current reference machine is Apple M4 with 51,539,607,552 bytes physical memory on macOS 26; this is not M1 data or target-hardware certification. Lock Screen real-device/system-wallpaper acceptance is still pending manual verification. Phase 4 itself remains in progress.
 
 ## Next work
 
-1. Implement the Performance and Settings pages.
+1. Complete final branch review/local merge for Performance, then implement the Settings page.
 2. Complete localization and application state restoration.
 3. Perform real-device/system-wallpaper acceptance for Lock Screen, then run final UI acceptance and phase-four completion review.
 

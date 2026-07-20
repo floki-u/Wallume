@@ -1,6 +1,6 @@
 # Phase four status
 
-Updated: 2026-07-17
+Updated: 2026-07-20
 
 ## Batch 1: application shell, gallery, and import experience
 
@@ -59,9 +59,22 @@ Safety review: the implemented and tested paths require selection and confirmati
 
 Manual acceptance pending: no real-device/system-wallpaper installation, lock/unlock, or restoration exercise was performed in this verification. This remains a separate acceptance requirement and is not represented as an automated result.
 
+## Batch 4: performance diagnostics
+
+Implementation status: engineering and automated/current-machine verification complete; pending final branch review and local merge.
+
+Delivered:
+
+- Page-scoped, in-memory one-per-second realtime process metrics with a 60-sample cap.
+- User-triggered serial 30-second diagnostic with cancellation, local atomic persistence, retry-save, and anonymous JSON export.
+- Count-only wallpaper runtime context; no media identifiers, paths, URLs, thumbnails, backup data, uploads, or runtime-control side effects.
+- One application-owned diagnostics service/store; Performance is enabled and Settings remains unavailable. Runtime snapshots are forwarded to diagnostics, and application termination stops diagnostics before the desktop runtime.
+
+Verification: `swift test` passed 378 tests with zero failures; release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed. A production-service reference diagnostic completed on the current machine with exactly 30 samples over 30 seconds and was retained at `~/Library/Application Support/Wallume/Diagnostics/report.json`. Reference environment only (not M1 certification): Apple M4, 51,539,607,552 bytes physical memory, macOS 26, `single-display` scenario.
+
 ## Remaining phase-four work
 
-1. Performance and settings pages.
+1. Settings page.
 2. Localization, state restoration, UI acceptance, and phase-four completion.
 
 Phase four as a whole is not yet complete.
