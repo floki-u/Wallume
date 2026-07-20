@@ -1,0 +1,45 @@
+.superpowers/sdd/task-4-report.md
+  8696c979740de9f4 35-39
+Tests/WallumeCoreTests/AtomicIOTests.swift
+  8696c979740de9f4 58-72
+Sources/WallumeCore/IO/FileStore.swift
+  8696c979740de9f4 6,201-204,206-212,242-251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "cde8af9b0ef5b86c6b52dbeb8c6fc885a490cd69",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 49,
+      "total_deletions": 5,
+      "accepted_lines": 44,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/IO/FileStore.swift": {
+          "additions": 28,
+          "deletions": 5,
+          "accepted_lines": 24
+        },
+        "Tests/WallumeCoreTests/AtomicIOTests.swift": {
+          "additions": 15,
+          "accepted_lines": 15
+        },
+        ".superpowers/sdd/progress.md": {
+          "additions": 1
+        },
+        ".superpowers/sdd/task-4-report.md": {
+          "additions": 5,
+          "accepted_lines": 5
+        }
+      }
+    }
+  }
+}
