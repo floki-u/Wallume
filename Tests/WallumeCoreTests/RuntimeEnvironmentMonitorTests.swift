@@ -48,6 +48,27 @@ final class RuntimeEnvironmentMonitorTests: XCTestCase {
         processCenter.post(name: RuntimeEnvironmentMonitor.thermalStateDidChangeNotification, object: nil)
         XCTAssertEqual(environments.last?.pauseReasons, [])
     }
+
+    @MainActor
+    func testLowPowerPolicyImmediatelyRemovesAndRestoresReasonWhileHardwareStateRemainsEnabled() {
+        let monitor = RuntimeEnvironmentMonitor(
+            sessionCenter: NotificationCenter(),
+            workspaceCenter: NotificationCenter(),
+            processCenter: NotificationCenter(),
+            powerState: FixedPowerState(isLowPowerModeEnabled: true),
+            observesDistributedSession: false
+        )
+        var environments = [RuntimeEnvironment]()
+        monitor.start { environments.append($0) }
+
+        XCTAssertEqual(environments.last?.pauseReasons, [.lowPower])
+
+        monitor.setLowPowerPauseEnabled(false)
+        XCTAssertEqual(environments.last?.pauseReasons, [])
+
+        monitor.setLowPowerPauseEnabled(true)
+        XCTAssertEqual(environments.last?.pauseReasons, [.lowPower])
+    }
 }
 
 private struct FixedPowerState: PowerStateProviding {
