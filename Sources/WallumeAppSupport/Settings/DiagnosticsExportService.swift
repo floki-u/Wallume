@@ -2,23 +2,48 @@ import Foundation
 import WallumeCore
 
 public final class DiagnosticsExportCommitAdmission: @unchecked Sendable {
-    private let condition = NSCondition()
+    private let lock = NSLock()
     private var terminated = false
     private var activeCommits = 0
+    private var drainWaiters: [CheckedContinuation<Void, Never>] = []
+
     public init() {}
+
     public func beginCommit() -> Bool {
-        condition.lock(); defer { condition.unlock() }
+        lock.lock()
+        defer { lock.unlock() }
         guard !terminated else { return false }
         activeCommits += 1
         return true
     }
+
     public func finishCommit() {
-        condition.lock(); activeCommits -= 1; condition.broadcast(); condition.unlock()
+        let waiters: [CheckedContinuation<Void, Never>]
+        lock.lock()
+        precondition(activeCommits > 0, "A diagnostics commit must finish exactly once.")
+        activeCommits -= 1
+        if terminated, activeCommits == 0 {
+            waiters = drainWaiters
+            drainWaiters.removeAll()
+        } else {
+            waiters = []
+        }
+        lock.unlock()
+        waiters.forEach { $0.resume() }
     }
-    public func terminateAndWait() {
-        condition.lock(); terminated = true
-        while activeCommits > 0 { condition.wait() }
-        condition.unlock()
+
+    public func terminateAndWait() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            terminated = true
+            if activeCommits == 0 {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                drainWaiters.append(continuation)
+                lock.unlock()
+            }
+        }
     }
 }
 

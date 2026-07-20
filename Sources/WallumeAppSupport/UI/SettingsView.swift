@@ -23,6 +23,36 @@ public enum SettingsDiagnosticsExportState: Equatable, Sendable {
     case failed(String)
 }
 
+public enum SettingsPreferenceControl: String, CaseIterable, Identifiable, Sendable {
+    case launchAtLogin
+    case openGalleryAtLaunch
+    case pauseInLowPowerMode
+
+    public var id: Self { self }
+
+    public var title: String {
+        switch self {
+        case .launchAtLogin: "登录时启动 Wallume"
+        case .openGalleryAtLaunch: "启动时打开图库"
+        case .pauseInLowPowerMode: "低电量模式时暂停播放"
+        }
+    }
+}
+
+public enum SettingsDiagnosticsAction: String, Identifiable, Sendable {
+    case selectDestination
+    case retry
+    case chooseAnotherDestination
+
+    public var id: Self { self }
+}
+
+public struct SettingsDiagnosticsActionPresentation: Equatable, Identifiable, Sendable {
+    public let id: SettingsDiagnosticsAction
+    public let title: String
+    public let isEnabled: Bool
+}
+
 public struct SettingsPageViewState: Equatable, Sendable {
     public let buildInfo: SettingsBuildInfo
     public let dataDirectoryPath: String
@@ -41,22 +71,42 @@ public struct SettingsPageViewState: Equatable, Sendable {
         self.exportState = exportState
     }
 
-    public var showsLaunchAtLoginControl: Bool { true }
-    public var showsOpenGalleryAtLaunchControl: Bool { true }
-    public var showsLowPowerPauseControl: Bool { true }
-    public var canRetryExport: Bool {
-        if case .failed = exportState { true } else { false }
+    public var preferenceControls: [SettingsPreferenceControl] {
+        SettingsPreferenceControl.allCases
     }
-    public var canChooseAnotherDestination: Bool { canRetryExport }
+
+    public var diagnosticsActions: [SettingsDiagnosticsActionPresentation] {
+        switch exportState {
+        case .ready, .succeeded:
+            [SettingsDiagnosticsActionPresentation(
+                id: .selectDestination,
+                title: "导出诊断信息",
+                isEnabled: true
+            )]
+        case .exporting:
+            [SettingsDiagnosticsActionPresentation(
+                id: .selectDestination,
+                title: "正在导出…",
+                isEnabled: false
+            )]
+        case .failed:
+            [
+                SettingsDiagnosticsActionPresentation(
+                    id: .retry,
+                    title: "重试导出",
+                    isEnabled: true
+                ),
+                SettingsDiagnosticsActionPresentation(
+                    id: .chooseAnotherDestination,
+                    title: "选择其他位置",
+                    isEnabled: true
+                ),
+            ]
+        }
+    }
+
     public var exportErrorMessage: String? {
         if case let .failed(message) = exportState { message } else { nil }
-    }
-    public var exportActionTitle: String {
-        switch exportState {
-        case .ready, .succeeded: "导出诊断信息"
-        case .exporting: "正在导出…"
-        case .failed: "重试导出"
-        }
     }
 }
 
@@ -146,7 +196,7 @@ public struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Text("设置").font(.largeTitle.bold())
-                preferencesCard
+                preferencesCard(page)
                 directoriesCard(page)
                 diagnosticsCard(page)
                 Text(buildInfo.displayText).foregroundStyle(.secondary)
@@ -164,23 +214,34 @@ public struct SettingsView: View {
         }
     }
 
-    private var preferencesCard: some View {
+    private func preferencesCard(_ page: SettingsPageViewState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("启动与播放").font(.title3.bold())
-            Toggle("登录时启动 Wallume", isOn: Binding(
-                get: { store.settings.launchAtLogin },
-                set: { store.setLaunchAtLogin($0) }
-            ))
-            Toggle("启动时打开图库", isOn: Binding(
-                get: { store.settings.openGalleryAtLaunch },
-                set: { store.setOpenGalleryAtLaunch($0) }
-            ))
-            Toggle("低电量模式时暂停播放", isOn: Binding(
-                get: { store.settings.pauseInLowPowerMode },
-                set: { store.setPauseInLowPowerMode($0) }
-            ))
+            ForEach(page.preferenceControls) { control in
+                Toggle(control.title, isOn: preferenceBinding(for: control))
+            }
         }
         .settingsCardStyle()
+    }
+
+    private func preferenceBinding(for control: SettingsPreferenceControl) -> Binding<Bool> {
+        switch control {
+        case .launchAtLogin:
+            Binding(
+                get: { store.settings.launchAtLogin },
+                set: { store.setLaunchAtLogin($0) }
+            )
+        case .openGalleryAtLaunch:
+            Binding(
+                get: { store.settings.openGalleryAtLaunch },
+                set: { store.setOpenGalleryAtLaunch($0) }
+            )
+        case .pauseInLowPowerMode:
+            Binding(
+                get: { store.settings.pauseInLowPowerMode },
+                set: { store.setPauseInLowPowerMode($0) }
+            )
+        }
     }
 
     private func directoriesCard(_ page: SettingsPageViewState) -> some View {
@@ -213,17 +274,25 @@ public struct SettingsView: View {
             } else if exportController.state == .succeeded {
                 Label("诊断信息已导出。", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
             }
-            if page.canRetryExport {
-                HStack {
-                    Button("重试导出") { Task { await exportController.retry() } }
-                    Button("选择其他位置") { Task { await exportController.chooseAnotherDestination() } }
+            HStack {
+                ForEach(page.diagnosticsActions) { action in
+                    Button(action.title) { performDiagnosticsAction(action.id) }
+                        .disabled(!action.isEnabled)
                 }
-            } else {
-                Button(page.exportActionTitle) { Task { await exportController.exportToSelectedDestination() } }
-                    .disabled(exportController.state == .exporting)
             }
         }
         .settingsCardStyle()
+    }
+
+    private func performDiagnosticsAction(_ action: SettingsDiagnosticsAction) {
+        switch action {
+        case .selectDestination:
+            Task { await exportController.exportToSelectedDestination() }
+        case .retry:
+            Task { await exportController.retry() }
+        case .chooseAnotherDestination:
+            Task { await exportController.chooseAnotherDestination() }
+        }
     }
 }
 

@@ -37,3 +37,12 @@ Performance is already locally merged. Settings engineering and automated verifi
 
 - `LocalFileStore.replace` now refuses a directory or symlink destination before `RENAME_SWAP` and removes the swapped-out entry only with `unlink` after a second no-follow regular-file check. A directory destination retains both its contents and the prepared file.
 - The release gate was rerun because this changes core atomic I/O.
+
+## Final commit-admission and Settings UI review
+
+- Replaced the blocking `NSCondition` drain with an `NSLock`-protected admission state and checked continuations. Terminal marking remains synchronous with `beginCommit()`, while an actor calling `terminateAndWait()` now suspends instead of occupying a cooperative executor thread. Cancellation cannot bypass draining an admitted commit.
+- Added deterministic regressions through the real `DiagnosticsExportService` → `AtomicJSONStore` → `FileStore` path. A pre-commit export blocked during snapshot preparation is rejected after admission becomes terminal and writes no destination. An export blocked inside `writeAtomically` keeps termination suspended, completes as valid JSON after release, and is treated as successful.
+- Replaced constant Settings test flags with typed preference-control and diagnostics-action presentations that `SettingsView` itself renders. Coverage asserts all three production toggle labels plus ready, retry, and choose-another-destination actions; controller tests exercise both retrying the same destination and choosing a replacement destination after failure.
+- Focused verification passed 38 tests across `DiagnosticsExportServiceTests`, `SettingsViewTests`, `ApplicationCompositionTests`, `ApplicationShellViewTests`, `SettingsStoreTests`, and `RuntimeEnvironmentMonitorTests`.
+- Final local verification passed `swift test` with 404 tests and zero failures. Release-configuration builds completed for `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore`; `git diff --check` passed.
+- Remaining acceptance is explicitly manual: Settings/whole-app UI acceptance, localization, application state restoration, and real-system Lock Screen installation, lock/unlock, and restoration. No packaged release or remote integration is claimed.

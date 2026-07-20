@@ -102,7 +102,7 @@ public actor SettingsDiagnosticsExportTerminationOwner {
 
     public func cancelAndWait() async {
         isTerminating = true
-        commitAdmission.terminateAndWait()
+        await commitAdmission.terminateAndWait()
         guard let export = inFlightExport else { return }
         export.task.cancel()
         _ = try? await export.task.value

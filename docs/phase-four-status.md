@@ -78,12 +78,17 @@ Implementation status: engineering and automated verification complete; pending 
 
 Delivered:
 
+- Settings is enabled in the application navigation and routes to the production page when its application-owned store is supplied.
+- Three persisted preferences are available: launch at login, open Gallery at launch, and pause playback in Low Power Mode. Login-item failures retain the observed system value and show a user-safe error; the low-power policy applies immediately while monitoring remains active.
+- The page displays app/build information plus Wallume data and diagnostics directories with injected Finder actions.
+- User-selected local diagnostics export includes only redacted settings, lock-screen, transaction, performance, build, and system summaries. Atomic failures preserve an earlier export, and the failure UI exposes both retry and choose-another-destination actions.
 - Application-owned cancellation and awaiting of an in-flight Settings diagnostics export during termination.
+- Terminal commit admission rejects an export that has not begun committing; an export already inside its synchronous atomic commit is drained and completes before shutdown continues.
 - Persisted ordinary preferences remain intact when termination cancels an incomplete export.
 - The established shutdown order remains lock-screen, diagnostics, then desktop runtime; export cancellation completes before that sequence.
-- No Settings controls, routes, or direct system/filesystem/runtime side effects were added.
+- SwiftUI remains limited to the observable store/page model and injected commands; it performs no direct UserDefaults, ServiceManagement, filesystem, runtime sampling, or shutdown work.
 
-Initial completion verification: `swift test` passed 399 tests with zero failures; release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed. Review-remediation verification: `swift test` passed 400 tests with zero failures; focused composition, Settings view, and diagnostics-export suites plus `git diff --check` passed. The focused composition suite includes cancellation, preference-preservation, exact shutdown-order, and post-termination export-rejection coverage.
+Initial completion verification: `swift test` passed 399 tests with zero failures; local Release-configuration builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` completed; `git diff --check` passed. Final review-remediation verification: the focused Settings/composition/export/low-power suites passed 38 tests; full `swift test` passed 404 tests with zero failures; all four local Release-configuration product builds completed; and `git diff --check` passed. Real `DiagnosticsExportService`/`AtomicJSONStore`/`FileStore` regressions cover both sides of the terminal commit-admission boundary. This is build evidence only; no packaged release, remote integration, or manual UI acceptance is claimed.
 
 ## Remaining phase-four work
 

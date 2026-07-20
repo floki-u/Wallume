@@ -13,12 +13,28 @@ final class SettingsViewTests: XCTestCase {
             exportState: .ready
         )
 
-        XCTAssertTrue(state.showsLaunchAtLoginControl)
-        XCTAssertTrue(state.showsOpenGalleryAtLaunchControl)
-        XCTAssertTrue(state.showsLowPowerPauseControl)
+        XCTAssertEqual(
+            state.preferenceControls.map(\.id),
+            [
+                .launchAtLogin,
+                .openGalleryAtLaunch,
+                .pauseInLowPowerMode,
+            ]
+        )
+        XCTAssertEqual(
+            state.preferenceControls.map(\.title),
+            [
+                "登录时启动 Wallume",
+                "启动时打开图库",
+                "低电量模式时暂停播放",
+            ]
+        )
         XCTAssertEqual(state.dataDirectoryPath, "/tmp/Wallume")
         XCTAssertEqual(state.diagnosticsDirectoryPath, "/tmp/Wallume/Diagnostics")
-        XCTAssertEqual(state.exportActionTitle, "导出诊断信息")
+        XCTAssertEqual(
+            state.diagnosticsActions,
+            [.init(id: .selectDestination, title: "导出诊断信息", isEnabled: true)]
+        )
     }
 
     func testFailedExportOffersRetryWithoutAccessingNativeSavePanel() {
@@ -29,9 +45,42 @@ final class SettingsViewTests: XCTestCase {
             exportState: .failed("Unable to export diagnostics. Please try again.")
         )
 
-        XCTAssertTrue(state.canRetryExport)
-        XCTAssertTrue(state.canChooseAnotherDestination)
+        XCTAssertEqual(
+            state.diagnosticsActions,
+            [
+                .init(id: .retry, title: "重试导出", isEnabled: true),
+                .init(id: .chooseAnotherDestination, title: "选择其他位置", isEnabled: true),
+            ]
+        )
         XCTAssertEqual(state.exportErrorMessage, "Unable to export diagnostics. Please try again.")
+    }
+
+    func testFailedExportCanRetryTheSameDestinationWithoutOpeningChooserAgain() async {
+        let destination = URL(fileURLWithPath: "/tmp/diagnostics.json")
+        var chooserCallCount = 0
+        var exportedDestinations: [URL] = []
+        let controller = SettingsDiagnosticsExportController(
+            chooseExportDestination: {
+                chooserCallCount += 1
+                return destination
+            },
+            exportDiagnostics: { selectedDestination in
+                exportedDestinations.append(selectedDestination)
+                if exportedDestinations.count == 1 {
+                    throw SettingsViewExportError.expected
+                }
+            }
+        )
+
+        await controller.exportToSelectedDestination()
+        XCTAssertEqual(controller.state, .failed(SettingsViewExportError.expected.localizedDescription))
+
+        await controller.retry()
+
+        XCTAssertEqual(chooserCallCount, 1)
+        XCTAssertEqual(exportedDestinations, [destination, destination])
+        XCTAssertEqual(controller.retryDestination, destination)
+        XCTAssertEqual(controller.state, .succeeded)
     }
 
     func testChoosingAnotherDestinationAfterFailureReplacesRetryTargetAndSucceeds() async {

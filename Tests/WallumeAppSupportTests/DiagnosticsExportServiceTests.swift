@@ -125,6 +125,67 @@ final class DiagnosticsExportServiceTests: XCTestCase {
         XCTAssertEqual(document.performance.report, makeReport())
     }
 
+    func testTerminationAdmissionRejectsARealExportThatHasNotReachedAtomicWrite() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let destination = root.appending(path: "diagnostics.json")
+        let files = LocalFileStore()
+        let admission = DiagnosticsExportCommitAdmission()
+        let preparation = BlockingDiagnosticsPreparation()
+        let service = makeService(
+            files: files,
+            commitAdmission: admission,
+            settings: { preparation.settings() }
+        )
+        let export = Task { try await service.export(to: destination) }
+
+        await preparation.waitUntilStarted()
+        await admission.terminateAndWait()
+        preparation.release()
+
+        do {
+            try await export.value
+            XCTFail("A terminal admission gate must reject an export that has not begun its commit.")
+        } catch {
+            XCTAssertEqual(error as? DiagnosticsExportUserError, .cancelled)
+        }
+        XCTAssertFalse(files.exists(destination))
+    }
+
+    func testTerminationAwaitsAndCompletesARealAtomicWriteThatWasAlreadyAdmitted() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let destination = root.appending(path: "diagnostics.json")
+        let files = BlockingAtomicDiagnosticsFileStore()
+        let admission = DiagnosticsExportCommitAdmission()
+        let owner = SettingsDiagnosticsExportTerminationOwner(commitAdmission: admission)
+        let service = makeService(files: files, commitAdmission: admission)
+        let export = Task {
+            try await owner.perform { try await service.export(to: destination) }
+        }
+
+        await files.waitUntilWriteStarted()
+        let termination = DiagnosticsTerminationCompletion()
+        let terminationTask = Task {
+            await owner.cancelAndWait()
+            await termination.markCompleted()
+        }
+        let admissionIsTerminal = await waitUntilAdmissionIsTerminal(admission)
+        let completedBeforeRelease = await termination.isCompleted
+        XCTAssertTrue(admissionIsTerminal)
+        XCTAssertFalse(completedBeforeRelease)
+
+        files.releaseWrite()
+        try await export.value
+        await terminationTask.value
+
+        let completedAfterRelease = await termination.isCompleted
+        XCTAssertTrue(completedAfterRelease)
+        let document = try decode(DiagnosticsExportDocument.self, from: files.read(destination))
+        XCTAssertEqual(document.schemaVersion, DiagnosticsExportDocument.currentSchemaVersion)
+        XCTAssertEqual(document.performance.report, makeReport())
+    }
+
     func testExportRepresentsUnavailableSourcesWithoutEncodingProviderErrors() async throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -228,16 +289,18 @@ private func makeReport() -> PerformanceDiagnosticReport {
 
 private func makeService(
     files: any FileStore,
+    commitAdmission: DiagnosticsExportCommitAdmission = .init(),
+    settings: @escaping @Sendable () -> ApplicationSettings = {
+        ApplicationSettings(
+            launchAtLogin: false,
+            openGalleryAtLaunch: true,
+            pauseInLowPowerMode: true
+        )
+    },
     reportReader: any PerformanceReportReading = TestPerformanceReportReader(report: makeReport())
 ) -> DiagnosticsExportService {
     DiagnosticsExportService(
-        settings: {
-            ApplicationSettings(
-                launchAtLogin: false,
-                openGalleryAtLaunch: true,
-                pauseInLowPowerMode: true
-            )
-        },
+        settings: settings,
         lockScreenSummary: {
             LockScreenDiagnosticsSummary(
                 status: .unconfigured,
@@ -254,6 +317,7 @@ private func makeService(
                 failedCount: 0
             )
         },
+        commitAdmission: commitAdmission,
         performanceReportStore: reportReader,
         buildSystemInfo: DiagnosticsBuildSystemInfo(
             productVersion: "1.0",
@@ -263,6 +327,17 @@ private func makeService(
         ),
         files: files
     )
+}
+
+private func waitUntilAdmissionIsTerminal(
+    _ admission: DiagnosticsExportCommitAdmission
+) async -> Bool {
+    for _ in 0..<1_000 {
+        if !admission.beginCommit() { return true }
+        admission.finishCommit()
+        await Task.yield()
+    }
+    return false
 }
 
 private enum DiagnosticsFixtureError: Error, LocalizedError {
@@ -329,4 +404,102 @@ private final class FailingDiagnosticsFileStore: FileStore, @unchecked Sendable 
         try local.installExclusively(target, from: preparedFile)
     }
     func remove(_ url: URL) throws { try local.remove(url) }
+}
+
+private final class BlockingDiagnosticsPreparation: @unchecked Sendable {
+    private let started = AsyncStartSignal()
+    private let releaseBarrier = DispatchSemaphore(value: 0)
+
+    func settings() -> ApplicationSettings {
+        started.signal()
+        releaseBarrier.wait()
+        return ApplicationSettings(
+            launchAtLogin: false,
+            openGalleryAtLaunch: true,
+            pauseInLowPowerMode: true
+        )
+    }
+
+    func waitUntilStarted() async { await started.wait() }
+
+    func release() { releaseBarrier.signal() }
+}
+
+private actor DiagnosticsTerminationCompletion {
+    private(set) var isCompleted = false
+
+    func markCompleted() { isCompleted = true }
+}
+
+private final class BlockingAtomicDiagnosticsFileStore: FileStore, @unchecked Sendable {
+    private let local = LocalFileStore()
+    private let writeStarted = AsyncStartSignal()
+    private let releaseBarrier = DispatchSemaphore(value: 0)
+
+    func waitUntilWriteStarted() async { await writeStarted.wait() }
+
+    func releaseWrite() { releaseBarrier.signal() }
+
+    func exists(_ url: URL) -> Bool { local.exists(url) }
+    func read(_ url: URL) throws -> Data { try local.read(url) }
+    func contents(_ directory: URL) throws -> [URL] { try local.contents(directory) }
+    func createDirectory(_ url: URL) throws { try local.createDirectory(url) }
+    func createPrivateDirectory(_ url: URL) throws { try local.createPrivateDirectory(url) }
+    func identity(of url: URL) throws -> FileIdentity { try local.identity(of: url) }
+    func hasNoSymlinkComponents(_ url: URL) throws -> Bool { try local.hasNoSymlinkComponents(url) }
+    func removeDurably(_ url: URL, ifIdentityMatches identity: FileIdentity) throws -> Bool {
+        try local.removeDurably(url, ifIdentityMatches: identity)
+    }
+    func writeAtomically(_ data: Data, to target: URL) throws {
+        writeStarted.signal()
+        releaseBarrier.wait()
+        try local.writeAtomically(data, to: target)
+    }
+    func writeExclusively(_ data: Data, to target: URL) throws {
+        try local.writeExclusively(data, to: target)
+    }
+    func copy(_ source: URL, to destination: URL) throws { try local.copy(source, to: destination) }
+    func copyExclusively(_ source: URL, to destination: URL) throws {
+        try local.copyExclusively(source, to: destination)
+    }
+    func replace(_ target: URL, with preparedFile: URL) throws {
+        try local.replace(target, with: preparedFile)
+    }
+    func exchange(_ target: URL, with preparedFile: URL) throws {
+        try local.exchange(target, with: preparedFile)
+    }
+    func installExclusively(_ target: URL, from preparedFile: URL) throws {
+        try local.installExclusively(target, from: preparedFile)
+    }
+    func remove(_ url: URL) throws { try local.remove(url) }
+}
+
+private final class AsyncStartSignal: @unchecked Sendable {
+    private let lock = NSLock()
+    private var didSignal = false
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    func signal() {
+        let continuation: CheckedContinuation<Void, Never>?
+        lock.lock()
+        didSignal = true
+        continuation = waiter
+        waiter = nil
+        lock.unlock()
+        continuation?.resume()
+    }
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if didSignal {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                precondition(waiter == nil, "Only one test waiter is supported.")
+                waiter = continuation
+                lock.unlock()
+            }
+        }
+    }
 }
