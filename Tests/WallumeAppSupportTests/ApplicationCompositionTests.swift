@@ -36,6 +36,7 @@ final class ApplicationCompositionTests: XCTestCase {
         XCTAssertFalse(snapshot.isRealtimeActive)
     }
 
+    @MainActor
     func testTerminationSequenceStopsDiagnosticsBeforeRuntimeWithoutChangingExistingLockScreenFirstOrder() async {
         let events = CompositionTerminationEvents()
         let commands = ApplicationTerminationCommands(

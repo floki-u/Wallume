@@ -72,15 +72,16 @@ public final class PerformanceApplicationComposition {
 
 /// Keeps shutdown ownership explicit and testable. Callers provide their existing shutdown
 /// operations; this helper only establishes the required ordering.
-public struct ApplicationTerminationCommands: Sendable {
-    private let stopLockScreen: @Sendable () async -> Void
-    private let stopDiagnostics: @Sendable () async -> Void
-    private let stopRuntime: @Sendable () async -> Void
+@MainActor
+public struct ApplicationTerminationCommands {
+    private let stopLockScreen: () async -> Void
+    private let stopDiagnostics: () async -> Void
+    private let stopRuntime: () async -> Void
 
     public init(
-        stopLockScreen: @escaping @Sendable () async -> Void,
-        stopDiagnostics: @escaping @Sendable () async -> Void,
-        stopRuntime: @escaping @Sendable () async -> Void
+        stopLockScreen: @escaping () async -> Void,
+        stopDiagnostics: @escaping () async -> Void,
+        stopRuntime: @escaping () async -> Void
     ) {
         self.stopLockScreen = stopLockScreen
         self.stopDiagnostics = stopDiagnostics

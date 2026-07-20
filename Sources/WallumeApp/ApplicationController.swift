@@ -164,7 +164,12 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        Task { [queue, lockScreenService, performanceService, runtimeService] in
+        let terminationCommands = ApplicationTerminationCommands(
+            stopLockScreen: { await self.lockScreenService.stopAcceptingNewCommandsAndWait() },
+            stopDiagnostics: { await self.performanceService.stop() },
+            stopRuntime: { await self.runtimeService.stop() }
+        )
+        Task { [queue, terminationCommands] in
             if await TerminationPolicy.decision(queue: queue) == .requestConfirmation {
                 let alert = NSAlert()
                 alert.messageText = "导入仍在进行"
@@ -177,9 +182,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 }
                 await queue.cancelAllAndWait()
             }
-            await lockScreenService.stopAcceptingNewCommandsAndWait()
-            await performanceService.stop()
-            await runtimeService.stop()
+            await terminationCommands.stopServices()
             NSApplication.shared.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
