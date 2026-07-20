@@ -69,3 +69,9 @@ Performance is already locally merged. Settings engineering and automated verifi
 - `AtomicJSONStore` documents and propagates this contract. An audit confirmed every production JSON writer propagates its throwing write result; Diagnostics export maps the error to `destinationMayContainExport` with an inspect-before-retry message instead of the ordinary retry-safe failure.
 - Regressions inject a post-rename sync failure, prove the exact durable-commit error, prove the newly committed bytes remain readable, and prove unrelated populated directories and symlinks are untouched. A diagnostics regression proves the high-level user error is surfaced while the completed export remains decodable.
 - Verification: `AtomicIOTests` (20) and `DiagnosticsExportServiceTests` (7) passed before final full-suite and release verification.
+
+### Final uncertainty UX and prepared-source follow-up
+
+- Settings diagnostics export now preserves `destinationMayContainExport` as a typed controller state. That state renders the inspect guidance and only the choose-another-destination action; `retry()` is a no-op until a replacement destination is explicitly selected. Regression coverage proves the original destination is not written a second time.
+- `LocalFileStore` reopens the prepared source with `O_NOFOLLOW`, validates a regular-file descriptor identity against its directory entry after the injectable race hook, and compares that identity again from the descriptor-relative rename parent immediately before `renameat`. A prepared path substituted with a symlink is rejected before commit; the target remains on its old bytes and no symlink is installed.
+- The existing populated-directory destination race and post-commit durability-uncertainty behavior remain covered by the same descriptor-relative path. Focused verification passed `AtomicIOTests` (21), `SettingsViewTests` (7), and `DiagnosticsExportServiceTests` (7) before final full-suite and release verification.

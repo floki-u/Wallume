@@ -103,6 +103,49 @@ final class SettingsViewTests: XCTestCase {
         XCTAssertEqual(controller.state, .succeeded)
     }
 
+    func testDurabilityUncertainExportSuppressesSameDestinationRetryUntilAnotherDestinationIsChosen() async {
+        let original = URL(fileURLWithPath: "/tmp/original-diagnostics.json")
+        let replacement = URL(fileURLWithPath: "/tmp/replacement-diagnostics.json")
+        var destinations = [original, replacement]
+        var exported: [URL] = []
+        var contents = [original: Data("old".utf8)]
+        let controller = SettingsDiagnosticsExportController(
+            chooseExportDestination: { destinations.removeFirst() },
+            exportDiagnostics: { destination in
+                exported.append(destination)
+                contents[destination] = Data("new".utf8)
+                if destination == original {
+                    throw DiagnosticsExportUserError.destinationMayContainExport
+                }
+            }
+        )
+
+        await controller.exportToSelectedDestination()
+
+        XCTAssertEqual(
+            controller.state,
+            .destinationMayContainExport(DiagnosticsExportUserError.destinationMayContainExport.localizedDescription)
+        )
+        await controller.retry()
+        XCTAssertEqual(exported, [original])
+        XCTAssertEqual(contents[original], Data("new".utf8))
+        let uncertainPage = SettingsPageViewState(
+            buildInfo: .unavailable,
+            dataDirectory: URL(fileURLWithPath: "/tmp/Wallume"),
+            diagnosticsDirectory: URL(fileURLWithPath: "/tmp/Wallume/Diagnostics"),
+            exportState: controller.state
+        )
+        XCTAssertEqual(
+            uncertainPage.diagnosticsControls.map(\.action),
+            [.diagnostics(.chooseAnotherDestination)]
+        )
+
+        await controller.chooseAnotherDestination()
+
+        XCTAssertEqual(exported, [original, replacement])
+        XCTAssertEqual(controller.state, .succeeded)
+    }
+
     func testReadyPagePresentationDescribesActualControlRolesAndActions() {
         let state = SettingsPageViewState(
             buildInfo: .init(productVersion: "1.2.3", buildNumber: "45"),

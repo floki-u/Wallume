@@ -21,6 +21,7 @@ public enum SettingsDiagnosticsExportState: Equatable, Sendable {
     case exporting
     case succeeded
     case failed(String)
+    case destinationMayContainExport(String)
 }
 
 public enum SettingsPreferenceControl: String, CaseIterable, Identifiable, Sendable {
@@ -106,6 +107,8 @@ public struct SettingsPageViewState: Equatable, Sendable {
                 (.retry, "重试导出", true),
                 (.chooseAnotherDestination, "选择其他位置", true),
             ]
+        case .destinationMayContainExport:
+            [(.chooseAnotherDestination, "选择其他位置", true)]
         }
         return actions.map { action, title, isEnabled in
             SettingsControlPresentation(
@@ -119,7 +122,10 @@ public struct SettingsPageViewState: Equatable, Sendable {
     }
 
     public var exportErrorMessage: String? {
-        if case let .failed(message) = exportState { message } else { nil }
+        switch exportState {
+        case let .failed(message), let .destinationMayContainExport(message): message
+        case .ready, .exporting, .succeeded: nil
+        }
     }
 
     public var exportSuccessMessage: String? {
@@ -148,6 +154,7 @@ public final class SettingsDiagnosticsExportController {
     }
 
     public func retry() async {
+        guard case .failed = state else { return }
         guard let retryDestination else { return }
         await export(to: retryDestination)
     }
@@ -167,6 +174,12 @@ public final class SettingsDiagnosticsExportController {
         do {
             try await exportDiagnostics(destination)
             state = .succeeded
+        } catch let error as DiagnosticsExportUserError {
+            if case .destinationMayContainExport = error {
+                state = .destinationMayContainExport(error.localizedDescription)
+            } else {
+                state = .failed(error.localizedDescription)
+            }
         } catch {
             state = .failed(error.localizedDescription)
         }

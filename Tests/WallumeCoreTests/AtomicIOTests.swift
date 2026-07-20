@@ -86,6 +86,35 @@ final class AtomicIOTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: preparedFile), Data("new".utf8))
     }
 
+    func testAtomicWriteRejectsPreparedFileReplacedWithSymlinkBeforeRename() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appending(path: "target")
+        let referent = root.appending(path: "referent")
+        try Data("old".utf8).write(to: target)
+        try Data("outside".utf8).write(to: referent)
+        let prepared = LockedURLs()
+        let files = LocalFileStore(
+            synchronizeDirectory: { _ in },
+            beforeAtomicReplacement: { _, preparedFile in
+                prepared.append(preparedFile)
+                try FileManager.default.removeItem(at: preparedFile)
+                try FileManager.default.createSymbolicLink(at: preparedFile, withDestinationURL: referent)
+            }
+        )
+
+        XCTAssertThrowsError(try files.writeAtomically(Data("new".utf8), to: target)) { error in
+            guard case .unsafeReplacementTarget? = error as? AtomicFileStoreError else {
+                return XCTFail("Expected unsafe prepared-source rejection, got \(error)")
+            }
+        }
+
+        XCTAssertEqual(try Data(contentsOf: target), Data("old".utf8))
+        let preparedFile = try XCTUnwrap(prepared.values.first)
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: preparedFile.path), referent.path)
+    }
+
     func testPostRenameSynchronizationFailureMustNotReportSuccess() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
