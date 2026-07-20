@@ -1,0 +1,51 @@
+docs/superpowers/plans/2026-07-20-performance-diagnostics.md
+  8696c979740de9f4 40-44,53-57,67-71,83-88,92-98
+docs/phase-four-status.md
+  8696c979740de9f4 3,62-74,77
+docs/progress-status.md
+  8696c979740de9f4 3,13,17,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "f2fc49f33ac432825504d249bae754d3362275d1",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 81,
+      "total_deletions": 32,
+      "accepted_lines": 47,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Package.swift": {
+          "additions": 2
+        },
+        "docs/superpowers/plans/2026-07-20-performance-diagnostics.md": {
+          "additions": 28,
+          "deletions": 26,
+          "accepted_lines": 28
+        },
+        "docs/phase-four-status.md": {
+          "additions": 15,
+          "deletions": 2,
+          "accepted_lines": 15
+        },
+        "docs/progress-status.md": {
+          "additions": 4,
+          "deletions": 3,
+          "accepted_lines": 4
+        },
+        "Sources/WallumePerformanceReference/main.swift": {
+          "additions": 32,
+          "deletions": 1
+        }
+      }
+    }
+  }
+}
