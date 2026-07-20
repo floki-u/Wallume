@@ -109,11 +109,13 @@ public struct PerformanceDiagnosticsSnapshot: Equatable, Sendable {
     public let diagnosticSampleCount: Int
     public let diagnosticSampleLimit: Int
     public let completedReport: PerformanceDiagnosticReport?
+    public let realtimeError: PerformanceDiagnosticsUserError?
     public let reportSaveError: PerformanceDiagnosticsUserError?
     public let diagnosticError: PerformanceDiagnosticsUserError?
 
     public var reportSaveErrorDescription: String? { reportSaveError?.userVisibleDescription }
     public var diagnosticErrorDescription: String? { diagnosticError?.userVisibleDescription }
+    public var realtimeErrorDescription: String? { realtimeError?.userVisibleDescription }
 
     public init(
         realtimeSummary: PerformanceSummary,
@@ -124,6 +126,7 @@ public struct PerformanceDiagnosticsSnapshot: Equatable, Sendable {
         diagnosticSampleCount: Int,
         diagnosticSampleLimit: Int,
         completedReport: PerformanceDiagnosticReport?,
+        realtimeError: PerformanceDiagnosticsUserError?,
         reportSaveError: PerformanceDiagnosticsUserError?,
         diagnosticError: PerformanceDiagnosticsUserError?
     ) {
@@ -135,6 +138,7 @@ public struct PerformanceDiagnosticsSnapshot: Equatable, Sendable {
         self.diagnosticSampleCount = diagnosticSampleCount
         self.diagnosticSampleLimit = diagnosticSampleLimit
         self.completedReport = completedReport
+        self.realtimeError = realtimeError
         self.reportSaveError = reportSaveError
         self.diagnosticError = diagnosticError
     }
@@ -153,6 +157,7 @@ public actor PerformanceDiagnosticsService {
     private var realtimeTask: Task<Void, Never>?
     private var realtimeTaskID: UUID?
     private var isRealtimeActive = false
+    private var realtimeError: PerformanceDiagnosticsUserError?
 
     private var diagnosticTask: Task<Void, Never>?
     private var diagnosticID: UUID?
@@ -189,6 +194,7 @@ public actor PerformanceDiagnosticsService {
             diagnosticSampleCount: diagnosticSamples.count,
             diagnosticSampleLimit: Self.diagnosticSampleLimit,
             completedReport: completedReport,
+            realtimeError: realtimeError,
             reportSaveError: reportSaveError,
             diagnosticError: diagnosticError
         )
@@ -213,6 +219,7 @@ public actor PerformanceDiagnosticsService {
     public func beginRealtime() {
         guard !isStopped, !isRealtimeActive else { return }
         isRealtimeActive = true
+        realtimeError = nil
         publish()
         startRealtimeSamplingIfNeeded()
     }
@@ -234,7 +241,8 @@ public actor PerformanceDiagnosticsService {
     }
 
     public func startDiagnostic(scenario: PerformanceDiagnosticScenario) async {
-        guard !isStopped,
+        guard !Task.isCancelled,
+              !isStopped,
               diagnosticID == nil,
               tasksBeingCancelled.isEmpty,
               reportSaveError == nil else { return }
@@ -326,6 +334,11 @@ public actor PerformanceDiagnosticsService {
                     ? nextDeadline
                     : finishedAt.addingTimeInterval(1)
             } catch is CancellationError {
+                guard !Task.isCancelled,
+                      realtimeTaskID == id,
+                      isRealtimeActive,
+                      !isStopped else { return }
+                failRealtime(id: id)
                 return
             } catch {
                 guard realtimeTaskID == id else { return }
@@ -336,6 +349,12 @@ public actor PerformanceDiagnosticsService {
 
     private func runDiagnostic(id: UUID, scenario: PerformanceDiagnosticScenario) async {
         do {
+            try Task.checkCancellation()
+            guard !isStopped, diagnosticID == id else {
+                resumeDiagnosticStartWaiter(id: id)
+                startRealtimeSamplingIfNeeded()
+                return
+            }
             await cancelRealtimeSampling()
             try Task.checkCancellation()
             guard !isStopped, diagnosticID == id else {
@@ -371,7 +390,11 @@ public actor PerformanceDiagnosticsService {
             }
             completeDiagnostic(id: id, scenario: scenario, startedAt: startedAt)
         } catch is CancellationError {
-            return
+            guard !Task.isCancelled, diagnosticID == id, !isStopped else {
+                resumeDiagnosticStartWaiter(id: id)
+                return
+            }
+            failDiagnostic(id: id, error: CancellationError())
         } catch {
             failDiagnostic(id: id, error: error)
         }
@@ -413,6 +436,15 @@ public actor PerformanceDiagnosticsService {
         resumeDiagnosticStartWaiter(id: id)
         publish()
         startRealtimeSamplingIfNeeded()
+    }
+
+    private func failRealtime(id: UUID) {
+        guard realtimeTaskID == id else { return }
+        realtimeTaskID = nil
+        realtimeTask = nil
+        isRealtimeActive = false
+        realtimeError = .samplingFailed
+        publish()
     }
 
     private func waitForDiagnosticStart(id: UUID) async {

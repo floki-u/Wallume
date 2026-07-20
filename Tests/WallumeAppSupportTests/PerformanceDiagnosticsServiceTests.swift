@@ -301,6 +301,17 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
         XCTAssertEqual(sampleCount, 0)
     }
 
+    func testRealtimeTreatsUnexpectedCancellationErrorFromClockAsSamplingFailure() async throws {
+        let clock = CancellationErrorPerformanceClock(now: Date(timeIntervalSince1970: 160))
+        let service = makeService(clock: clock)
+
+        await service.beginRealtime()
+        try await waitUntil { !(await service.snapshot.isRealtimeActive) }
+
+        let snapshot = await service.snapshot
+        XCTAssertEqual(snapshot.realtimeError, .samplingFailed)
+    }
+
     func testDiagnosticDoesNotSampleAfterCancellationDuringClockRead() async throws {
         let clock = ManualPerformanceClock(now: Date(timeIntervalSince1970: 175))
         let sampler = SequencePerformanceMetricSampler()
@@ -319,6 +330,20 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
 
         let sampleCount = await sampler.sampleCount
         XCTAssertEqual(sampleCount, 0)
+    }
+
+    func testDiagnosticTreatsUnexpectedCancellationErrorFromSamplerAsSamplingFailure() async throws {
+        let clock = ManualPerformanceClock(now: Date(timeIntervalSince1970: 180))
+        let sampler = CancellationErrorPerformanceMetricSampler()
+        let service = makeService(clock: clock, sampler: sampler)
+
+        await service.startDiagnostic(scenario: .singleDisplay)
+        try await waitUntil { await clock.pendingSleepCount == 1 }
+        await clock.advanceToNextDeadline()
+        try await waitUntil { !(await service.snapshot.isDiagnosticRunning) }
+
+        let snapshot = await service.snapshot
+        XCTAssertEqual(snapshot.diagnosticError, .samplingFailed)
     }
 
     func testRealtimeSummaryTrimsToLatestSixtyOneSecondSamples() async throws {
@@ -483,6 +508,33 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
 
         await service.cancelDiagnostic()
         await service.endRealtime()
+    }
+
+    func testCancelledDiagnosticBeforeFirstRunDoesNotWaitForUncooperativeRealtimeSampler() async throws {
+        let clock = ManualPerformanceClock(now: Date(timeIntervalSince1970: 2_460))
+        let sampler = BlockingFirstPerformanceMetricSampler()
+        let service = makeService(clock: clock, sampler: sampler)
+        let completion = CompletionProbe()
+
+        await service.beginRealtime()
+        try await waitUntil { await clock.pendingSleepCount == 1 }
+        await clock.advanceToNextDeadline()
+        try await waitUntil { await sampler.sampleCount == 1 }
+
+        let start = Task {
+            await service.startDiagnostic(scenario: .singleDisplay)
+            await completion.markCompleted()
+        }
+        start.cancel()
+        try await waitUntil { await completion.isCompleted }
+
+        let snapshot = await service.snapshot
+        XCTAssertTrue(snapshot.isRealtimeActive)
+        XCTAssertFalse(snapshot.isDiagnosticRunning)
+
+        await sampler.releaseFirstSample()
+        await service.endRealtime()
+        await start.value
     }
 
     func testDiagnosticFailsWithoutReportInsteadOfBackfillingMissedTicks() async throws {
@@ -804,7 +856,7 @@ private func makeTemporaryDirectory() throws -> URL {
 
 private extension PerformanceDiagnosticsServiceTests {
     func makeService(
-        clock: ManualPerformanceClock,
+        clock: any PerformanceClock,
         sampler: any PerformanceMetricSampling = SequencePerformanceMetricSampler(),
         reports: RecordingPerformanceReportStore = RecordingPerformanceReportStore()
     ) -> PerformanceDiagnosticsService {
@@ -925,6 +977,12 @@ private actor PathLeakingPerformanceMetricSampler: PerformanceMetricSampling {
     }
 }
 
+private actor CancellationErrorPerformanceMetricSampler: PerformanceMetricSampling {
+    func sample(at timestamp: Date) async throws -> PerformanceSample {
+        throw CancellationError()
+    }
+}
+
 private enum PathLeakingPerformanceMetricSamplerError: Error {
     case failure(String)
 }
@@ -934,6 +992,20 @@ private actor CompletionProbe {
 
     func markCompleted() {
         isCompleted = true
+    }
+}
+
+private actor CancellationErrorPerformanceClock: PerformanceClock {
+    private let currentDate: Date
+
+    init(now: Date) {
+        currentDate = now
+    }
+
+    func now() async -> Date { currentDate }
+
+    func sleep(until deadline: Date) async throws {
+        throw CancellationError()
     }
 }
 
