@@ -1,0 +1,29 @@
+docs/superpowers/plans/2026-07-20-performance-diagnostics.md
+  8696c979740de9f4 1-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "62a4e9c6c9603217568676bd6ca297cb0acca589",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 96,
+      "total_deletions": 0,
+      "accepted_lines": 96,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/superpowers/plans/2026-07-20-performance-diagnostics.md": {
+          "additions": 96,
+          "accepted_lines": 96
+        }
+      }
+    }
+  }
+}
