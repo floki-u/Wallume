@@ -1,14 +1,14 @@
+Tests/WallumeAppSupportTests/PerformanceDiagnosticsServiceTests.swift
+  8696c979740de9f4 1-203
 Sources/WallumeAppSupport/Performance/PerformanceModels.swift
-  8696c979740de9f4 1-226
+  8696c979740de9f4 1-282
 Sources/WallumeAppSupport/Performance/PerformanceReportStore.swift
   8696c979740de9f4 1-45
-Tests/WallumeAppSupportTests/PerformanceDiagnosticsServiceTests.swift
-  8696c979740de9f4 1-171
 ---
 {
   "schema_version": "authorship/3.0.0",
   "git_ai_version": "1.2.8-ntes.9",
-  "base_commit_sha": "703c0603a07b765a72d0598c2b94fd6663753182",
+  "base_commit_sha": "73f84f799bec8797b950f41d02ba1d80b62124e4",
   "prompts": {
     "8696c979740de9f4": {
       "agent_id": {
@@ -18,23 +18,23 @@ Tests/WallumeAppSupportTests/PerformanceDiagnosticsServiceTests.swift
       },
       "human_author": "floki-u",
       "messages": [],
-      "total_additions": 443,
+      "total_additions": 531,
       "total_deletions": 1,
-      "accepted_lines": 442,
+      "accepted_lines": 530,
       "overriden_lines": 0,
       "per_file_stats": {
-        "Tests/WallumeAppSupportTests/PerformanceDiagnosticsServiceTests.swift": {
-          "additions": 172,
-          "deletions": 1,
-          "accepted_lines": 171
-        },
         "Sources/WallumeAppSupport/Performance/PerformanceModels.swift": {
-          "additions": 226,
-          "accepted_lines": 226
+          "additions": 282,
+          "accepted_lines": 282
         },
         "Sources/WallumeAppSupport/Performance/PerformanceReportStore.swift": {
           "additions": 45,
           "accepted_lines": 45
+        },
+        "Tests/WallumeAppSupportTests/PerformanceDiagnosticsServiceTests.swift": {
+          "additions": 204,
+          "deletions": 1,
+          "accepted_lines": 203
         }
       }
     }
