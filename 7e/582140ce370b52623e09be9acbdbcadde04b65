@@ -1,0 +1,38 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "7e582140ce370b52623e09be9acbdbcadde04b65",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 194,
+      "accepted_lines": 0,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        ".superpowers/sdd/task-2-report.md": {
+          "deletions": 38
+        },
+        ".superpowers/sdd/task-3-report.md": {
+          "deletions": 43
+        },
+        ".superpowers/sdd/task-4-report.md": {
+          "deletions": 83
+        },
+        ".superpowers/sdd/task-1-report.md": {
+          "deletions": 24
+        },
+        ".superpowers/sdd/progress.md": {
+          "deletions": 6
+        }
+      }
+    }
+  }
+}
