@@ -55,6 +55,21 @@ private func itemNames(in directory: URL) throws -> Set<String> {
 }
 
 final class AtomicIOTests: XCTestCase {
+    func testReplaceRejectsDirectoryTargetWithoutDeletingItsContents() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appending(path: "target")
+        let prepared = root.appending(path: "prepared")
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        try Data("keep".utf8).write(to: target.appending(path: "sentinel"))
+        try Data("new".utf8).write(to: prepared)
+
+        XCTAssertThrowsError(try LocalFileStore().replace(target, with: prepared))
+        XCTAssertEqual(try Data(contentsOf: target.appending(path: "sentinel")), Data("keep".utf8))
+        XCTAssertEqual(try Data(contentsOf: prepared), Data("new".utf8))
+    }
+
     func testGuardedRemoveRejectsSymlinkedParentEvenForSameInode() throws {
         let temporary = FileManager.default.temporaryDirectory
         let base = temporary.path.hasPrefix("/var/")

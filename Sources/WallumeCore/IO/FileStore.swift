@@ -3,6 +3,7 @@ import Foundation
 
 public enum AtomicFileStoreError: Error, Equatable {
     case exchangeRecoveryFailed(URL)
+    case unsafeReplacementTarget(URL)
 }
 
 public struct FileIdentity: Equatable, Sendable {
@@ -197,8 +198,18 @@ public struct LocalFileStore: FileStore {
             try synchronizeDirectory(target.deletingLastPathComponent())
             return
         }
+        guard try Self.isRegularFileNoFollow(target),
+              try Self.isRegularFileNoFollow(preparedFile) else {
+            throw AtomicFileStoreError.unsafeReplacementTarget(target)
+        }
         try exchange(target, with: preparedFile)
-        try? remove(preparedFile)
+        // Remove only the swapped-out file we verified before the exchange. In
+        // particular, never recursively remove a directory or follow a symlink.
+        guard try Self.isRegularFileNoFollow(preparedFile) else {
+            throw AtomicFileStoreError.unsafeReplacementTarget(preparedFile)
+        }
+        try Self.unlinkRegularFile(preparedFile)
+        try synchronizeDirectory(preparedFile.deletingLastPathComponent())
     }
 
     public func exchange(_ target: URL, with preparedFile: URL) throws {
@@ -226,6 +237,18 @@ public struct LocalFileStore: FileStore {
             try manager.removeItem(at: url)
             try synchronizeDirectory(url.deletingLastPathComponent())
         }
+    }
+
+    private static func isRegularFileNoFollow(_ url: URL) throws -> Bool {
+        var info = stat()
+        let status = url.path.withCString { Darwin.lstat($0, &info) }
+        guard status == 0 else { throw posixError() }
+        return (info.st_mode & S_IFMT) == S_IFREG
+    }
+
+    private static func unlinkRegularFile(_ url: URL) throws {
+        let removed = url.path.withCString { Darwin.unlink($0) }
+        guard removed == 0 else { throw posixError() }
     }
 
     public func writeAtomically(_ data: Data, to target: URL) throws {

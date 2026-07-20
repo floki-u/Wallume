@@ -32,3 +32,8 @@ Performance is already locally merged. Settings engineering and automated verifi
 - GREEN: termination now marks the coordinator terminal before examining the in-flight task. It cancels and awaits any started export, while every later or crossing `perform` request rejects before its operation is invoked.
 - Regression coverage holds one export in flight, terminates it, attempts another export, and proves the attempted operation never starts. The existing composition test continues to prove persisted preference values and lock-screen → diagnostics → runtime ordering.
 - Verification: `swift test --filter ApplicationCompositionTests` (9 tests), `swift test --filter SettingsViewTests` (4 tests), `swift test --filter DiagnosticsExportServiceTests` (4 tests), full `swift test` (400 tests), and `git diff --check` all passed.
+
+## Final review remediation
+
+- `LocalFileStore.replace` now refuses a directory or symlink destination before `RENAME_SWAP` and removes the swapped-out entry only with `unlink` after a second no-follow regular-file check. A directory destination retains both its contents and the prepared file.
+- The release gate was rerun because this changes core atomic I/O.
