@@ -26,6 +26,23 @@ public protocol PerformanceReportSaving: Sendable {
 
 extension PerformanceReportStore: PerformanceReportSaving {}
 
+public enum PerformanceDiagnosticsUserError: Equatable, Sendable {
+    case reportSaveFailed
+    case samplingFailed
+    case missedDiagnosticDeadline
+
+    public var userVisibleDescription: String {
+        switch self {
+        case .reportSaveFailed:
+            "Could not save the diagnostic report."
+        case .samplingFailed:
+            "Could not collect a performance sample."
+        case .missedDiagnosticDeadline:
+            "The diagnostic could not keep its one-second sampling schedule."
+        }
+    }
+}
+
 public struct PerformanceMachineInformation: Equatable, Sendable {
     public let chip: PerformanceChip
     public let physicalMemoryBytes: UInt64
@@ -92,8 +109,11 @@ public struct PerformanceDiagnosticsSnapshot: Equatable, Sendable {
     public let diagnosticSampleCount: Int
     public let diagnosticSampleLimit: Int
     public let completedReport: PerformanceDiagnosticReport?
-    public let reportSaveErrorDescription: String?
-    public let diagnosticErrorDescription: String?
+    public let reportSaveError: PerformanceDiagnosticsUserError?
+    public let diagnosticError: PerformanceDiagnosticsUserError?
+
+    public var reportSaveErrorDescription: String? { reportSaveError?.userVisibleDescription }
+    public var diagnosticErrorDescription: String? { diagnosticError?.userVisibleDescription }
 
     public init(
         realtimeSummary: PerformanceSummary,
@@ -104,8 +124,8 @@ public struct PerformanceDiagnosticsSnapshot: Equatable, Sendable {
         diagnosticSampleCount: Int,
         diagnosticSampleLimit: Int,
         completedReport: PerformanceDiagnosticReport?,
-        reportSaveErrorDescription: String?,
-        diagnosticErrorDescription: String?
+        reportSaveError: PerformanceDiagnosticsUserError?,
+        diagnosticError: PerformanceDiagnosticsUserError?
     ) {
         self.realtimeSummary = realtimeSummary
         self.runtime = runtime
@@ -115,8 +135,8 @@ public struct PerformanceDiagnosticsSnapshot: Equatable, Sendable {
         self.diagnosticSampleCount = diagnosticSampleCount
         self.diagnosticSampleLimit = diagnosticSampleLimit
         self.completedReport = completedReport
-        self.reportSaveErrorDescription = reportSaveErrorDescription
-        self.diagnosticErrorDescription = diagnosticErrorDescription
+        self.reportSaveError = reportSaveError
+        self.diagnosticError = diagnosticError
     }
 }
 
@@ -139,10 +159,11 @@ public actor PerformanceDiagnosticsService {
     private var diagnosticScenario: PerformanceDiagnosticScenario?
     private var diagnosticSamples: [PerformanceSample] = []
     private var completedReport: PerformanceDiagnosticReport?
-    private var reportSaveErrorDescription: String?
-    private var diagnosticErrorDescription: String?
+    private var reportSaveError: PerformanceDiagnosticsUserError?
+    private var diagnosticError: PerformanceDiagnosticsUserError?
 
     private var continuations = [UUID: AsyncStream<PerformanceDiagnosticsSnapshot>.Continuation]()
+    private var diagnosticStartContinuations = [UUID: CheckedContinuation<Void, Never>]()
     private var tasksBeingCancelled = [UUID: Task<Void, Never>]()
     private var isStopped = false
 
@@ -168,15 +189,15 @@ public actor PerformanceDiagnosticsService {
             diagnosticSampleCount: diagnosticSamples.count,
             diagnosticSampleLimit: Self.diagnosticSampleLimit,
             completedReport: completedReport,
-            reportSaveErrorDescription: reportSaveErrorDescription,
-            diagnosticErrorDescription: diagnosticErrorDescription
+            reportSaveError: reportSaveError,
+            diagnosticError: diagnosticError
         )
     }
 
     public func events() -> AsyncStream<PerformanceDiagnosticsSnapshot> {
         let id = UUID()
         let current = snapshot
-        return AsyncStream { continuation in
+        return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             continuation.yield(current)
             guard !isStopped else {
                 continuation.finish()
@@ -216,46 +237,38 @@ public actor PerformanceDiagnosticsService {
         guard !isStopped,
               diagnosticID == nil,
               tasksBeingCancelled.isEmpty,
-              reportSaveErrorDescription == nil else { return }
+              reportSaveError == nil else { return }
         let id = UUID()
         diagnosticID = id
         diagnosticScenario = scenario
         diagnosticSamples = []
         completedReport = nil
-        reportSaveErrorDescription = nil
-        diagnosticErrorDescription = nil
+        reportSaveError = nil
+        diagnosticError = nil
         publish()
-        await cancelRealtimeSampling()
-        guard !isStopped, diagnosticID == id else {
-            startRealtimeSamplingIfNeeded()
-            return
-        }
-        let startedAt = await clock.now()
-        guard !isStopped, diagnosticID == id else {
-            startRealtimeSamplingIfNeeded()
-            return
-        }
         diagnosticTask = Task { [weak self] in
-            await self?.runDiagnostic(id: id, scenario: scenario, startedAt: startedAt)
+            await self?.runDiagnostic(id: id, scenario: scenario)
         }
+        await waitForDiagnosticStart(id: id)
     }
 
     public func cancelDiagnostic() async {
-        guard diagnosticID != nil else { return }
+        guard let id = diagnosticID else { return }
         let task = diagnosticTask
         diagnosticID = nil
         diagnosticTask = nil
         diagnosticScenario = nil
         diagnosticSamples = []
-        diagnosticErrorDescription = nil
+        diagnosticError = nil
         publish()
+        resumeDiagnosticStartWaiter(id: id)
         if let task { await cancelAndWait(task) }
         startRealtimeSamplingIfNeeded()
     }
 
     public func retrySaveCompletedReport() {
         guard !isStopped,
-              reportSaveErrorDescription != nil,
+              reportSaveError != nil,
               let completedReport else { return }
         save(completedReport)
         publish()
@@ -266,6 +279,7 @@ public actor PerformanceDiagnosticsService {
         isStopped = true
         isRealtimeActive = false
         realtimeTaskID = nil
+        let activeDiagnosticID = diagnosticID
         diagnosticID = nil
         diagnosticScenario = nil
         diagnosticSamples = []
@@ -275,6 +289,7 @@ public actor PerformanceDiagnosticsService {
         self.realtimeTask = nil
         self.diagnosticTask = nil
         publish()
+        if let activeDiagnosticID { resumeDiagnosticStartWaiter(id: activeDiagnosticID) }
         realtimeTask?.cancel()
         diagnosticTask?.cancel()
         for task in cancellingTasks { task.cancel() }
@@ -294,6 +309,8 @@ public actor PerformanceDiagnosticsService {
                 try Task.checkCancellation()
                 guard realtimeTaskID == id, isRealtimeActive else { return }
                 let sampledAt = await clock.now()
+                try Task.checkCancellation()
+                guard realtimeTaskID == id, isRealtimeActive else { return }
                 if sampledAt >= deadline.addingTimeInterval(1) {
                     deadline = sampledAt.addingTimeInterval(1)
                     continue
@@ -317,18 +334,29 @@ public actor PerformanceDiagnosticsService {
         }
     }
 
-    private func runDiagnostic(
-        id: UUID,
-        scenario: PerformanceDiagnosticScenario,
-        startedAt: Date
-    ) async {
+    private func runDiagnostic(id: UUID, scenario: PerformanceDiagnosticScenario) async {
         do {
+            await cancelRealtimeSampling()
+            try Task.checkCancellation()
+            guard !isStopped, diagnosticID == id else {
+                startRealtimeSamplingIfNeeded()
+                return
+            }
+            let startedAt = await clock.now()
+            resumeDiagnosticStartWaiter(id: id)
+            try Task.checkCancellation()
+            guard !isStopped, diagnosticID == id else {
+                startRealtimeSamplingIfNeeded()
+                return
+            }
             for sampleIndex in 1...Self.diagnosticSampleLimit {
                 let deadline = startedAt.addingTimeInterval(TimeInterval(sampleIndex))
                 try await clock.sleep(until: deadline)
                 try Task.checkCancellation()
                 guard diagnosticID == id else { return }
                 let sampledAt = await clock.now()
+                try Task.checkCancellation()
+                guard diagnosticID == id else { return }
                 guard sampledAt < deadline.addingTimeInterval(1) else {
                     throw PerformanceDiagnosticsServiceError.missedDiagnosticDeadline
                 }
@@ -369,7 +397,7 @@ public actor PerformanceDiagnosticsService {
         diagnosticTask = nil
         diagnosticScenario = scenario
         completedReport = report
-        diagnosticErrorDescription = nil
+        diagnosticError = nil
         save(report)
         publish()
         startRealtimeSamplingIfNeeded()
@@ -381,17 +409,29 @@ public actor PerformanceDiagnosticsService {
         diagnosticTask = nil
         diagnosticScenario = nil
         diagnosticSamples = []
-        diagnosticErrorDescription = String(describing: error)
+        diagnosticError = Self.userError(for: error)
+        resumeDiagnosticStartWaiter(id: id)
         publish()
         startRealtimeSamplingIfNeeded()
+    }
+
+    private func waitForDiagnosticStart(id: UUID) async {
+        guard diagnosticID == id, diagnosticTask != nil else { return }
+        await withCheckedContinuation { continuation in
+            diagnosticStartContinuations[id] = continuation
+        }
+    }
+
+    private func resumeDiagnosticStartWaiter(id: UUID) {
+        diagnosticStartContinuations.removeValue(forKey: id)?.resume()
     }
 
     private func save(_ report: PerformanceDiagnosticReport) {
         do {
             try reportStore.save(report)
-            reportSaveErrorDescription = nil
+            reportSaveError = nil
         } catch {
-            reportSaveErrorDescription = String(describing: error)
+            reportSaveError = .reportSaveFailed
         }
     }
 
@@ -431,8 +471,16 @@ public actor PerformanceDiagnosticsService {
         await task.value
         tasksBeingCancelled.removeValue(forKey: id)
     }
+
+    private static func userError(for error: any Error) -> PerformanceDiagnosticsUserError {
+        if let serviceError = error as? PerformanceDiagnosticsServiceError,
+           serviceError == .missedDiagnosticDeadline {
+            return .missedDiagnosticDeadline
+        }
+        return .samplingFailed
+    }
 }
 
-private enum PerformanceDiagnosticsServiceError: Error {
+private enum PerformanceDiagnosticsServiceError: Error, Equatable {
     case missedDiagnosticDeadline
 }

@@ -281,6 +281,46 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
         XCTAssertEqual(reports.saveCallCount, 0)
     }
 
+    func testRealtimeDoesNotSampleAfterCancellationDuringClockRead() async throws {
+        let clock = ManualPerformanceClock(now: Date(timeIntervalSince1970: 150))
+        let sampler = SequencePerformanceMetricSampler()
+        let service = makeService(clock: clock, sampler: sampler)
+
+        await service.beginRealtime()
+        try await waitUntil { await clock.pendingSleepCount == 1 }
+        await clock.blockNextNow()
+        await clock.advanceToNextDeadline()
+        try await waitUntil { await clock.pendingNowCount == 1 }
+
+        let ending = Task { await service.endRealtime() }
+        try await waitUntil { !(await service.snapshot.isRealtimeActive) }
+        await clock.releaseNow()
+        await ending.value
+
+        let sampleCount = await sampler.sampleCount
+        XCTAssertEqual(sampleCount, 0)
+    }
+
+    func testDiagnosticDoesNotSampleAfterCancellationDuringClockRead() async throws {
+        let clock = ManualPerformanceClock(now: Date(timeIntervalSince1970: 175))
+        let sampler = SequencePerformanceMetricSampler()
+        let service = makeService(clock: clock, sampler: sampler)
+
+        await service.startDiagnostic(scenario: .singleDisplay)
+        try await waitUntil { await clock.pendingSleepCount == 1 }
+        await clock.blockNextNow()
+        await clock.advanceToNextDeadline()
+        try await waitUntil { await clock.pendingNowCount == 1 }
+
+        let cancellation = Task { await service.cancelDiagnostic() }
+        try await waitUntil { !(await service.snapshot.isDiagnosticRunning) }
+        await clock.releaseNow()
+        await cancellation.value
+
+        let sampleCount = await sampler.sampleCount
+        XCTAssertEqual(sampleCount, 0)
+    }
+
     func testRealtimeSummaryTrimsToLatestSixtyOneSecondSamples() async throws {
         let start = Date(timeIntervalSince1970: 1_000)
         let clock = ManualPerformanceClock(now: start)
@@ -487,6 +527,58 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
         await service.cancelDiagnostic()
     }
 
+    func testCancelDiagnosticCancelsPendingStartupWithoutReleasingClock() async throws {
+        let clock = ManualPerformanceClock(
+            now: Date(timeIntervalSince1970: 2_625),
+            shouldBlockNow: true
+        )
+        let service = makeService(clock: clock)
+        let completion = CompletionProbe()
+
+        let start = Task { await service.startDiagnostic(scenario: .singleDisplay) }
+        try await waitUntil { await clock.pendingNowCount == 1 }
+        let cancellation = Task {
+            await service.cancelDiagnostic()
+            await completion.markCompleted()
+        }
+        try await waitUntil { await completion.isCompleted }
+
+        let pendingNowCount = await clock.pendingNowCount
+        let snapshot = await service.snapshot
+        XCTAssertEqual(pendingNowCount, 0)
+        XCTAssertFalse(snapshot.isDiagnosticRunning)
+
+        await clock.releaseNow()
+        await start.value
+        await cancellation.value
+    }
+
+    func testStopCancelsPendingStartupWithoutReleasingClock() async throws {
+        let clock = ManualPerformanceClock(
+            now: Date(timeIntervalSince1970: 2_675),
+            shouldBlockNow: true
+        )
+        let service = makeService(clock: clock)
+        let completion = CompletionProbe()
+
+        let start = Task { await service.startDiagnostic(scenario: .singleDisplay) }
+        try await waitUntil { await clock.pendingNowCount == 1 }
+        let stopping = Task {
+            await service.stop()
+            await completion.markCompleted()
+        }
+        try await waitUntil { await completion.isCompleted }
+
+        let pendingNowCount = await clock.pendingNowCount
+        let snapshot = await service.snapshot
+        XCTAssertEqual(pendingNowCount, 0)
+        XCTAssertFalse(snapshot.isDiagnosticRunning)
+
+        await clock.releaseNow()
+        await start.value
+        await stopping.value
+    }
+
     func testStopCancelsDiagnosticWhileItsStartTimeIsPending() async throws {
         let clock = ManualPerformanceClock(
             now: Date(timeIntervalSince1970: 2_750),
@@ -657,9 +749,7 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
         let nextEvent = await events.next()
         let updated = try XCTUnwrap(nextEvent)
         XCTAssertTrue(updated.isDiagnosticRunning)
-        let nextRuntimeEvent = await events.next()
-        let runtimeEvent = try XCTUnwrap(nextRuntimeEvent)
-        XCTAssertEqual(runtimeEvent.runtime, PerformanceRuntimeContext(snapshot: runtime))
+        XCTAssertEqual(updated.runtime, PerformanceRuntimeContext(snapshot: runtime))
 
         try await completeDiagnostic(service: service, clock: clock)
         let finalSnapshot = await service.snapshot
@@ -669,6 +759,35 @@ final class PerformanceDiagnosticsServiceTests: XCTestCase {
         XCTAssertEqual(report.activeResourceCount, 1)
         XCTAssertEqual(report.resourceCreationCount, 7)
         XCTAssertEqual(report.pauseReasons, [.thermalPressure])
+    }
+
+    func testEventsKeepOnlyNewestPendingSnapshot() async throws {
+        let clock = ManualPerformanceClock(now: Date(timeIntervalSince1970: 6_250))
+        let service = makeService(clock: clock)
+        var events = await service.events().makeAsyncIterator()
+        _ = await events.next()
+
+        await service.update(runtime: populatedRuntimeSnapshot(resourceCreationCount: 1))
+        await service.update(runtime: populatedRuntimeSnapshot(resourceCreationCount: 2))
+
+        let nextEvent = await events.next()
+        let latest = try XCTUnwrap(nextEvent)
+        XCTAssertEqual(latest.runtime.resourceCreationCount, 2)
+    }
+
+    func testDiagnosticErrorDoesNotExposeUnderlyingAbsolutePath() async throws {
+        let clock = ManualPerformanceClock(now: Date(timeIntervalSince1970: 6_500))
+        let sampler = PathLeakingPerformanceMetricSampler()
+        let service = makeService(clock: clock, sampler: sampler)
+
+        await service.startDiagnostic(scenario: .singleDisplay)
+        try await waitUntil { await clock.pendingSleepCount == 1 }
+        await clock.advanceToNextDeadline()
+        try await waitUntil { !(await service.snapshot.isDiagnosticRunning) }
+
+        let snapshot = await service.snapshot
+        XCTAssertEqual(snapshot.diagnosticError, .samplingFailed)
+        XCTAssertFalse(snapshot.diagnosticErrorDescription?.contains("/Users/example/Secret.mov") ?? false)
     }
 }
 
@@ -800,6 +919,16 @@ private actor BlockingFirstPerformanceMetricSampler: PerformanceMetricSampling {
     }
 }
 
+private actor PathLeakingPerformanceMetricSampler: PerformanceMetricSampling {
+    func sample(at timestamp: Date) async throws -> PerformanceSample {
+        throw PathLeakingPerformanceMetricSamplerError.failure("/Users/example/Secret.mov")
+    }
+}
+
+private enum PathLeakingPerformanceMetricSamplerError: Error {
+    case failure(String)
+}
+
 private actor CompletionProbe {
     private(set) var isCompleted = false
 
@@ -809,6 +938,11 @@ private actor CompletionProbe {
 }
 
 private actor ManualPerformanceClock: PerformanceClock {
+    private struct NowSleeper {
+        let id: UUID
+        let continuation: CheckedContinuation<Date, Never>
+    }
+
     private struct Sleeper {
         let id: UUID
         let deadline: Date
@@ -817,7 +951,8 @@ private actor ManualPerformanceClock: PerformanceClock {
 
     private var currentDate: Date
     private let shouldBlockNow: Bool
-    private var nowContinuations: [CheckedContinuation<Date, Never>] = []
+    private var blockedNowCalls = 0
+    private var nowSleepers: [NowSleeper] = []
     private var sleepers: [Sleeper] = []
     private(set) var requestedDeadlines: [Date] = []
 
@@ -826,20 +961,34 @@ private actor ManualPerformanceClock: PerformanceClock {
         self.shouldBlockNow = shouldBlockNow
     }
 
-    var pendingNowCount: Int { nowContinuations.count }
+    var pendingNowCount: Int { nowSleepers.count }
     var pendingSleepCount: Int { sleepers.count }
 
     func now() async -> Date {
-        guard shouldBlockNow else { return currentDate }
-        return await withCheckedContinuation { continuation in
-            nowContinuations.append(continuation)
+        guard shouldBlockNow || blockedNowCalls > 0 else { return currentDate }
+        if blockedNowCalls > 0 { blockedNowCalls -= 1 }
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                if Task.isCancelled {
+                    continuation.resume(returning: currentDate)
+                } else {
+                    nowSleepers.append(NowSleeper(id: id, continuation: continuation))
+                }
+            }
+        } onCancel: {
+            Task { await self.cancelNow(id: id) }
         }
     }
 
+    func blockNextNow() {
+        blockedNowCalls += 1
+    }
+
     func releaseNow() {
-        let pending = nowContinuations
-        nowContinuations.removeAll()
-        for continuation in pending { continuation.resume(returning: currentDate) }
+        let pending = nowSleepers
+        nowSleepers.removeAll()
+        for sleeper in pending { sleeper.continuation.resume(returning: currentDate) }
     }
 
     func sleep(until deadline: Date) async throws {
@@ -887,6 +1036,12 @@ private actor ManualPerformanceClock: PerformanceClock {
         let sleeper = sleepers.remove(at: index)
         sleeper.continuation.resume(throwing: CancellationError())
     }
+
+    private func cancelNow(id: UUID) {
+        guard let index = nowSleepers.firstIndex(where: { $0.id == id }) else { return }
+        let sleeper = nowSleepers.remove(at: index)
+        sleeper.continuation.resume(returning: currentDate)
+    }
 }
 
 private final class RecordingPerformanceReportStore: PerformanceReportSaving, @unchecked Sendable {
@@ -920,7 +1075,7 @@ private enum RecordingReportError: Error {
     case writeFailed
 }
 
-private func populatedRuntimeSnapshot() -> WallpaperRuntimeSnapshot {
+private func populatedRuntimeSnapshot(resourceCreationCount: Int = 7) -> WallpaperRuntimeSnapshot {
     let mediaID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
     let resourceID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
     return WallpaperRuntimeSnapshot(
@@ -935,7 +1090,7 @@ private func populatedRuntimeSnapshot() -> WallpaperRuntimeSnapshot {
             resourceReferenceCounts: [resourceID: 1],
             pauseReasons: [.thermalPressure],
             failures: [],
-            resourceCreationCount: 7
+            resourceCreationCount: resourceCreationCount
         ),
         surfaceFailures: []
     )
