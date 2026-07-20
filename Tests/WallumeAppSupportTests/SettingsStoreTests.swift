@@ -87,6 +87,16 @@ final class SettingsStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testDismissErrorClearsLoginSettingFailureForTheSettingsPage() {
+        let store = SettingsStore(defaults: defaults, loginItem: FakeLoginItem(isEnabled: false, registerError: RawSystemError()))
+        store.setLaunchAtLogin(true)
+
+        store.dismissError()
+
+        XCTAssertNil(store.errorMessage)
+    }
+
+    @MainActor
     func testUnregisterFailureKeepsPreviousLaunchAtLoginValueAndUsesSafeError() {
         let store = SettingsStore(defaults: defaults, loginItem: FakeLoginItem(isEnabled: true, unregisterError: RawSystemError()))
 

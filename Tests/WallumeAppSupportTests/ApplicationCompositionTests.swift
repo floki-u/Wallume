@@ -8,6 +8,23 @@ final class ApplicationCompositionTests: XCTestCase {
         XCTAssertEqual(TerminationPolicy.decision(queueActive: true), .requestConfirmation)
     }
 
+    @MainActor
+    func testLowPowerToggleImmediatelyPropagatesTheRuntimePolicy() {
+        let suiteName = "ApplicationCompositionTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var observedValues: [Bool] = []
+        let store = SettingsStore(
+            defaults: defaults,
+            loginItem: CompositionLoginItem(),
+            onPauseInLowPowerModeChanged: { observedValues.append($0) }
+        )
+
+        store.setPauseInLowPowerMode(false)
+
+        XCTAssertEqual(observedValues, [false])
+    }
+
     func testImmediatePostEnqueueTerminationDecisionUsesAuthoritativeQueue() async {
         let importer = CompositionImporter()
         let queue = ImportQueue(importer: importer, scanner: CompositionScanner())
@@ -147,6 +164,12 @@ private struct CompositionLockScreenClient: LockScreenSystemClient {
 private enum CompositionError: Error {
     case expected
     case unexpectedWrite
+}
+
+private struct CompositionLoginItem: LoginItemControlling {
+    func isEnabled() throws -> Bool { false }
+    func register() throws {}
+    func unregister() throws {}
 }
 
 private struct CompositionScanner: ImportScanning {

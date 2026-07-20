@@ -8,13 +8,19 @@ public final class SettingsStore {
 
     private let defaults: UserDefaults
     private let loginItem: any LoginItemControlling
+    private let onSettingsChanged: @MainActor (ApplicationSettings) -> Void
+    private let onPauseInLowPowerModeChanged: @MainActor (Bool) -> Void
 
     public init(
         defaults: UserDefaults = .standard,
-        loginItem: any LoginItemControlling = MainAppLoginItemController()
+        loginItem: any LoginItemControlling = MainAppLoginItemController(),
+        onSettingsChanged: @escaping @MainActor (ApplicationSettings) -> Void = { _ in },
+        onPauseInLowPowerModeChanged: @escaping @MainActor (Bool) -> Void = { _ in }
     ) {
         self.defaults = defaults
         self.loginItem = loginItem
+        self.onSettingsChanged = onSettingsChanged
+        self.onPauseInLowPowerModeChanged = onPauseInLowPowerModeChanged
 
         let launchAtLogin: Bool
         do {
@@ -44,6 +50,7 @@ public final class SettingsStore {
             settings.launchAtLogin = try loginItem.isEnabled()
             defaults.set(settings.launchAtLogin, forKey: Keys.launchAtLogin)
             errorMessage = nil
+            onSettingsChanged(settings)
         } catch {
             settings.launchAtLogin = previous
             errorMessage = Self.loginItemErrorMessage
@@ -54,11 +61,18 @@ public final class SettingsStore {
         settings.openGalleryAtLaunch = enabled
         defaults.set(enabled, forKey: Keys.openGalleryAtLaunch)
         errorMessage = nil
+        onSettingsChanged(settings)
     }
 
     public func setPauseInLowPowerMode(_ enabled: Bool) {
         settings.pauseInLowPowerMode = enabled
         defaults.set(enabled, forKey: Keys.pauseInLowPowerMode)
+        errorMessage = nil
+        onSettingsChanged(settings)
+        onPauseInLowPowerModeChanged(enabled)
+    }
+
+    public func dismissError() {
         errorMessage = nil
     }
 

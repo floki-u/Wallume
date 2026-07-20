@@ -13,11 +13,15 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private let assignmentStore: DisplayAssignmentStore
     private let displayStore: DisplayFeatureStore
     private let screens: AppKitScreenProvider
+    private let environmentMonitor: RuntimeEnvironmentMonitor
     private let runtimeService: WallpaperRuntimeService
     private let lockScreenService: LockScreenSyncService
     private let lockScreenStore: LockScreenFeatureStore
     private let performanceService: PerformanceDiagnosticsService
     private let performanceStore: PerformanceFeatureStore
+    private let settingsStore: SettingsStore
+    private let diagnosticsExportService: DiagnosticsExportService
+    private let lockScreenDiagnosticsSnapshot: LockScreenDiagnosticsSnapshot
     private let navigation = ApplicationNavigation()
     private let panels = ImportPanelController()
     private let notifier: any CompletionNotifying
@@ -37,6 +41,15 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         let files = LocalFileStore()
         let jsonStore = AtomicJSONStore(files: files)
         let paths = MediaPaths(homeDirectory: home, cacheDirectory: cache)
+        let settingsSnapshot = ApplicationSettingsSnapshot()
+        let lockScreenDiagnosticsSnapshot = LockScreenDiagnosticsSnapshot()
+        let environmentMonitor = RuntimeEnvironmentMonitor()
+        let settingsStore = SettingsStore(
+            onSettingsChanged: { settingsSnapshot.update($0) },
+            onPauseInLowPowerModeChanged: { environmentMonitor.setLowPowerPauseEnabled($0) }
+        )
+        settingsSnapshot.update(settingsStore.settings)
+        environmentMonitor.setLowPowerPauseEnabled(settingsStore.settings.pauseInLowPowerMode)
         let library = MediaLibrary(paths: paths, files: files, jsonStore: jsonStore)
         let importer = MediaImporter(
             paths: paths, files: files, library: library,
@@ -59,7 +72,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         let windows = DesktopWindowController(factory: AppKitDesktopSurfaceFactory(registry: registry))
         let runtimeService = WallpaperRuntimeService(
             screens: screens,
-            environmentMonitor: RuntimeEnvironmentMonitor(),
+            environmentMonitor: environmentMonitor,
             occlusionMonitor: WindowOcclusionMonitor(),
             runtime: runtimeCoordinator,
             windows: windows,
@@ -80,6 +93,18 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             }
         )
         let performanceComposition = PerformanceApplicationComposition()
+        let diagnosticsExportService = DiagnosticsExportService(
+            settings: { settingsSnapshot.value },
+            lockScreenSummary: { lockScreenDiagnosticsSnapshot.value },
+            recentTransactionSummary: { .unavailable },
+            performanceReportStore: PerformanceReportStore(
+                homeDirectory: home,
+                files: files,
+                jsonStore: jsonStore
+            ),
+            buildSystemInfo: Self.diagnosticsBuildSystemInfo(),
+            files: files
+        )
         let displayStore = DisplayFeatureStore(commands: DisplayFeatureCommands(
             assign: { mediaID, displayIDs in
                 let targets = await MainActor.run {
@@ -103,11 +128,15 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         self.assignmentStore = assignmentStore
         self.displayStore = displayStore
         self.screens = screens
+        self.environmentMonitor = environmentMonitor
         self.runtimeService = runtimeService
         lockScreenService = lockScreenComposition.service
         lockScreenStore = lockScreenComposition.store
         performanceService = performanceComposition.service
         performanceStore = performanceComposition.store
+        self.settingsStore = settingsStore
+        self.diagnosticsExportService = diagnosticsExportService
+        self.lockScreenDiagnosticsSnapshot = lockScreenDiagnosticsSnapshot
         gallery = GalleryStore(
             library: library,
             usage: PersistedMediaUsageChecker(url: paths.displayAssignments, files: files, store: jsonStore)
@@ -115,13 +144,20 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         notifier = UserCompletionNotifier()
         super.init()
 
-        window = MainWindowController { [gallery, taskStore, displayStore, lockScreenStore, performanceStore, navigation, panels, queue] in
+        window = MainWindowController { [gallery, taskStore, displayStore, lockScreenStore, performanceStore, settingsStore, diagnosticsExportService, navigation, panels, queue, paths] in
             AnyView(ApplicationShellView(
                 gallery: gallery,
                 tasks: taskStore,
                 displays: displayStore,
                 lockScreen: lockScreenStore,
                 performance: performanceStore,
+                settings: settingsStore,
+                settingsBuildInfo: Self.settingsBuildInfo(),
+                settingsDataDirectory: paths.displayAssignments.deletingLastPathComponent(),
+                settingsDiagnosticsDirectory: paths.displayAssignments.deletingLastPathComponent().appending(path: "Diagnostics"),
+                openInFinder: { NSWorkspace.shared.activateFileViewerSelecting([$0]) },
+                chooseDiagnosticsExportDestination: Self.chooseDiagnosticsExportDestination,
+                exportDiagnostics: { try await diagnosticsExportService.export(to: $0) },
                 navigation: navigation,
                 openSystemWallpaperSettings: {
                     guard let url = URL(string: "x-apple.systempreferences:com.apple.Wallpaper-Settings.extension"),
@@ -157,7 +193,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         startDisplayRuntime()
         let state = ApplicationState(
             hasLaunchedBefore: defaults.bool(forKey: "hasLaunchedBefore"),
-            openGalleryAtLaunch: defaults.bool(forKey: "openGalleryAtLaunch")
+            openGalleryAtLaunch: settingsStore.settings.openGalleryAtLaunch
         )
         defaults.set(true, forKey: "hasLaunchedBefore")
         if state.shouldOpenWindowAtLaunch { window.show() }
@@ -269,6 +305,9 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             screens: currentScreens,
             media: media
         ))
+        lockScreenDiagnosticsSnapshot.update(
+            LockScreenDiagnosticsSummary(state: await lockScreenService.snapshot())
+        )
     }
 
     private func observeQueue() {
@@ -301,6 +340,65 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
 
     private static func summaryText(_ summary: ImportQueueSummary) -> String {
         "成功 \(summary.imported)，重复 \(summary.duplicate)，失败 \(summary.failed)，取消 \(summary.cancelled)"
+    }
+
+    private static func settingsBuildInfo() -> SettingsBuildInfo {
+        let bundle = Bundle.main
+        return SettingsBuildInfo(
+            productVersion: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unavailable",
+            buildNumber: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unavailable"
+        )
+    }
+
+    private static func diagnosticsBuildSystemInfo() -> DiagnosticsBuildSystemInfo {
+        let build = settingsBuildInfo()
+        #if arch(arm64)
+        let architecture = "arm64"
+        #elseif arch(x86_64)
+        let architecture = "x86_64"
+        #else
+        let architecture = "unknown"
+        #endif
+        let systemVersion = ProcessInfo.processInfo.operatingSystemVersion
+        return DiagnosticsBuildSystemInfo(
+            productVersion: build.productVersion,
+            buildNumber: build.buildNumber,
+            systemVersion: "macOS \(systemVersion.majorVersion).\(systemVersion.minorVersion).\(systemVersion.patchVersion)",
+            architecture: architecture
+        )
+    }
+
+    private static func chooseDiagnosticsExportDestination() -> URL? {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Wallume-diagnostics.json"
+        panel.allowedContentTypes = [.json]
+        return panel.runModal() == .OK ? panel.url : nil
+    }
+}
+
+private final class ApplicationSettingsSnapshot: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = ApplicationSettings(launchAtLogin: false, openGalleryAtLaunch: false, pauseInLowPowerMode: true)
+
+    var value: ApplicationSettings {
+        lock.withLock { storage }
+    }
+
+    func update(_ value: ApplicationSettings) {
+        lock.withLock { storage = value }
+    }
+}
+
+private final class LockScreenDiagnosticsSnapshot: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = LockScreenDiagnosticsSummary.unavailable
+
+    var value: LockScreenDiagnosticsSummary {
+        lock.withLock { storage }
+    }
+
+    func update(_ value: LockScreenDiagnosticsSummary) {
+        lock.withLock { storage = value }
     }
 }
 

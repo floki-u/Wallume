@@ -6,13 +6,15 @@ public enum ApplicationShellRoute: Equatable, Sendable {
     case displays
     case lockScreen
     case performance
+    case settings
     case unavailable
 
     public static func resolve(
         selection: WallumeFeatureID,
         hasDisplayStore: Bool,
         hasLockScreenStore: Bool,
-        hasPerformanceStore: Bool = false
+        hasPerformanceStore: Bool = false,
+        hasSettingsStore: Bool = false
     ) -> Self {
         switch selection {
         case .gallery:
@@ -23,6 +25,8 @@ public enum ApplicationShellRoute: Equatable, Sendable {
             .lockScreen
         case .performance where hasPerformanceStore:
             .performance
+        case .settings where hasSettingsStore:
+            .settings
         case .displays, .lockScreen, .performance, .settings:
             .unavailable
         }
@@ -137,18 +141,59 @@ public struct ApplicationShellView: View {
     private let displays: DisplayFeatureStore?
     private let lockScreen: LockScreenFeatureStore?
     private let performance: PerformanceFeatureStore?
+    private let settings: SettingsStore?
+    private let settingsBuildInfo: SettingsBuildInfo
+    private let settingsDataDirectory: URL
+    private let settingsDiagnosticsDirectory: URL
+    private let openInFinder: (URL) -> Void
+    private let chooseDiagnosticsExportDestination: () -> URL?
+    private let exportDiagnostics: (URL) async throws -> Void
     private let openSystemWallpaperSettings: () -> Void
     private let onImportFiles: () -> Void
     private let onImportFolder: () -> Void
     private let onDrop: ([URL]) -> Void
 
-    public init(gallery: GalleryStore, tasks: ImportTaskStore, displays: DisplayFeatureStore? = nil, lockScreen: LockScreenFeatureStore? = nil, performance: PerformanceFeatureStore? = nil, navigation: ApplicationNavigation = ApplicationNavigation(), openSystemWallpaperSettings: @escaping () -> Void = {}, onImportFiles: @escaping () -> Void, onImportFolder: @escaping () -> Void, onDrop: @escaping ([URL]) -> Void) {
-        self.gallery = gallery; self.tasks = tasks; self.displays = displays; self.lockScreen = lockScreen; self.performance = performance; self.navigation = navigation; self.openSystemWallpaperSettings = openSystemWallpaperSettings; self.onImportFiles = onImportFiles; self.onImportFolder = onImportFolder; self.onDrop = onDrop
+    public init(
+        gallery: GalleryStore,
+        tasks: ImportTaskStore,
+        displays: DisplayFeatureStore? = nil,
+        lockScreen: LockScreenFeatureStore? = nil,
+        performance: PerformanceFeatureStore? = nil,
+        settings: SettingsStore? = nil,
+        settingsBuildInfo: SettingsBuildInfo = .unavailable,
+        settingsDataDirectory: URL = URL(fileURLWithPath: "/"),
+        settingsDiagnosticsDirectory: URL = URL(fileURLWithPath: "/"),
+        openInFinder: @escaping (URL) -> Void = { _ in },
+        chooseDiagnosticsExportDestination: @escaping () -> URL? = { nil },
+        exportDiagnostics: @escaping (URL) async throws -> Void = { _ in },
+        navigation: ApplicationNavigation = ApplicationNavigation(),
+        openSystemWallpaperSettings: @escaping () -> Void = {},
+        onImportFiles: @escaping () -> Void,
+        onImportFolder: @escaping () -> Void,
+        onDrop: @escaping ([URL]) -> Void
+    ) {
+        self.gallery = gallery
+        self.tasks = tasks
+        self.displays = displays
+        self.lockScreen = lockScreen
+        self.performance = performance
+        self.settings = settings
+        self.settingsBuildInfo = settingsBuildInfo
+        self.settingsDataDirectory = settingsDataDirectory
+        self.settingsDiagnosticsDirectory = settingsDiagnosticsDirectory
+        self.openInFinder = openInFinder
+        self.chooseDiagnosticsExportDestination = chooseDiagnosticsExportDestination
+        self.exportDiagnostics = exportDiagnostics
+        self.navigation = navigation
+        self.openSystemWallpaperSettings = openSystemWallpaperSettings
+        self.onImportFiles = onImportFiles
+        self.onImportFolder = onImportFolder
+        self.onDrop = onDrop
     }
 
     public var body: some View {
         NavigationSplitView {
-            List(FeatureRegistry.features, selection: $navigation.selection) { feature in
+            List(FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil), selection: $navigation.selection) { feature in
                 Label(feature.title, systemImage: feature.systemImage).tag(feature.id)
             }.navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
@@ -156,7 +201,8 @@ public struct ApplicationShellView: View {
                 selection: navigation.selection,
                 hasDisplayStore: displays != nil,
                 hasLockScreenStore: lockScreen != nil,
-                hasPerformanceStore: performance != nil
+                hasPerformanceStore: performance != nil,
+                hasSettingsStore: settings != nil
             ) {
             case .gallery:
                 GalleryView(
@@ -183,6 +229,18 @@ public struct ApplicationShellView: View {
             case .performance:
                 if let performance {
                     PerformanceView(store: performance)
+                }
+            case .settings:
+                if let settings {
+                    SettingsView(
+                        store: settings,
+                        buildInfo: settingsBuildInfo,
+                        dataDirectory: settingsDataDirectory,
+                        diagnosticsDirectory: settingsDiagnosticsDirectory,
+                        openInFinder: openInFinder,
+                        chooseExportDestination: chooseDiagnosticsExportDestination,
+                        exportDiagnostics: exportDiagnostics
+                    )
                 }
             case .unavailable:
                 ContentUnavailableView("将在后续批次开放", systemImage: FeatureRegistry.features.first { $0.id == navigation.selection }?.systemImage ?? "hammer")
