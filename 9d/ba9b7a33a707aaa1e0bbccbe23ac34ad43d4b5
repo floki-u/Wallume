@@ -1,0 +1,79 @@
+docs/phase-four-status.md
+  8696c979740de9f4 91
+Sources/WallumeAppSupport/UI/SettingsView.swift
+  8696c979740de9f4 111-114,134,143-146,178-179,186,205,225,278-279,285
+Tests/WallumeAppSupportTests/SettingsViewTests.swift
+  8696c979740de9f4 128-177,188-193
+docs/progress-status.md
+  8696c979740de9f4 18
+Tests/WallumeAppSupportTests/DiagnosticsExportServiceTests.swift
+  8696c979740de9f4 173
+Sources/WallumeAppSupport/Settings/DiagnosticsExportService.swift
+  8696c979740de9f4 9,38-39,42-43,45-59,63
+docs/superpowers/plans/2026-07-20-settings-page.md
+  8696c979740de9f4 153
+.superpowers/sdd/task-4-report.md
+  8696c979740de9f4 46-47,49-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "9dba9b7a33a707aaa1e0bbccbe23ac34ad43d4b5",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 157,
+      "total_deletions": 81,
+      "accepted_lines": 108,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        ".superpowers/sdd/task-4-report.md": {
+          "additions": 8,
+          "deletions": 2,
+          "accepted_lines": 8
+        },
+        "docs/progress-status.md": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        "Tests/WallumeAppSupportTests/SettingsViewTests.swift": {
+          "additions": 107,
+          "deletions": 50,
+          "accepted_lines": 58
+        },
+        "Sources/WallumeAppSupport/Settings/DiagnosticsExportService.swift": {
+          "additions": 21,
+          "deletions": 1,
+          "accepted_lines": 21
+        },
+        "Sources/WallumeAppSupport/UI/SettingsView.swift": {
+          "additions": 17,
+          "deletions": 12,
+          "accepted_lines": 17
+        },
+        "Tests/WallumeAppSupportTests/DiagnosticsExportServiceTests.swift": {
+          "additions": 1,
+          "deletions": 13,
+          "accepted_lines": 1
+        },
+        "docs/superpowers/plans/2026-07-20-settings-page.md": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        "docs/phase-four-status.md": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        }
+      }
+    }
+  }
+}
