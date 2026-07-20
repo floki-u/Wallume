@@ -4,6 +4,7 @@ import Foundation
 public enum AtomicFileStoreError: Error, Equatable {
     case exchangeRecoveryFailed(URL)
     case unsafeReplacementTarget(URL)
+    case durabilityUncertain(URL)
 }
 
 public struct FileIdentity: Equatable, Sendable {
@@ -34,19 +35,23 @@ public protocol FileStore: Sendable {
 
 public struct LocalFileStore: FileStore {
     private let synchronizeDirectory: @Sendable (URL) throws -> Void
+    private let synchronizeCommittedDirectories: @Sendable (Int32, Int32) throws -> Void
     private let beforeAtomicReplacement: @Sendable (URL, URL) throws -> Void
     private var manager: FileManager { .default }
 
     public init() {
         synchronizeDirectory = Self.synchronizeDirectoryEntry
+        synchronizeCommittedDirectories = Self.synchronizeDirectoryDescriptors
         beforeAtomicReplacement = { _, _ in }
     }
 
     init(
         synchronizeDirectory: @escaping @Sendable (URL) throws -> Void,
+        synchronizeCommittedDirectories: @escaping @Sendable (Int32, Int32) throws -> Void = Self.synchronizeDirectoryDescriptors,
         beforeAtomicReplacement: @escaping @Sendable (URL, URL) throws -> Void = { _, _ in }
     ) {
         self.synchronizeDirectory = synchronizeDirectory
+        self.synchronizeCommittedDirectories = synchronizeCommittedDirectories
         self.beforeAtomicReplacement = beforeAtomicReplacement
     }
 
@@ -200,14 +205,7 @@ public struct LocalFileStore: FileStore {
         try validateReplacementTarget(target)
         try synchronizeDirectories(for: target, and: preparedFile)
         try beforeAtomicReplacement(target, preparedFile)
-        try Self.renameNoFollow(preparedFile, target, exclusively: false)
-
-        // The rename is the commit point. Throwing after it would report failure
-        // after the previous bytes have already ceased to be addressable. Directory
-        // synchronization is therefore preflighted above; after commit it is retried
-        // best-effort without violating the all-reported-errors-preserve-old-bytes
-        // contract.
-        try? Self.synchronizeDirectoryDescriptors(for: target, and: preparedFile)
+        try renameNoFollow(preparedFile, target, exclusively: false)
     }
 
     public func exchange(_ target: URL, with preparedFile: URL) throws {
@@ -228,8 +226,7 @@ public struct LocalFileStore: FileStore {
     public func installExclusively(_ target: URL, from preparedFile: URL) throws {
         try validateRegularPreparedFile(preparedFile)
         try synchronizeDirectories(for: target, and: preparedFile)
-        try Self.renameNoFollow(preparedFile, target, exclusively: true)
-        try? Self.synchronizeDirectoryDescriptors(for: target, and: preparedFile)
+        try renameNoFollow(preparedFile, target, exclusively: true)
     }
 
     public func remove(_ url: URL) throws {
@@ -326,14 +323,14 @@ public struct LocalFileStore: FileStore {
         }
     }
 
-    private static func renameNoFollow(
+    private func renameNoFollow(
         _ source: URL,
         _ destination: URL,
         exclusively: Bool
     ) throws {
-        guard let sourceDirectory = try openDirectoryNoFollow(source.deletingLastPathComponent()),
-              let destinationDirectory = try openDirectoryNoFollow(destination.deletingLastPathComponent()) else {
-            throw posixError(ELOOP)
+        guard let sourceDirectory = try Self.openDirectoryNoFollow(source.deletingLastPathComponent()),
+              let destinationDirectory = try Self.openDirectoryNoFollow(destination.deletingLastPathComponent()) else {
+            throw Self.posixError(ELOOP)
         }
         defer {
             _ = Darwin.close(sourceDirectory)
@@ -358,7 +355,14 @@ public struct LocalFileStore: FileStore {
                 )
             }
         }
-        guard result == 0 else { throw posixError() }
+        guard result == 0 else { throw Self.posixError() }
+        // Keep the directory descriptors that performed `renameat` open through
+        // the sync. Reopening either path here could sync a replacement directory.
+        do {
+            try synchronizeCommittedDirectories(sourceDirectory, destinationDirectory)
+        } catch {
+            throw AtomicFileStoreError.durabilityUncertain(destination)
+        }
     }
 
     private static func renameItem(_ source: URL, _ destination: URL, flags: UInt32) throws {
@@ -398,22 +402,9 @@ public struct LocalFileStore: FileStore {
         }
     }
 
-    private static func synchronizeDirectoryDescriptors(
-        for first: URL,
-        and second: URL
-    ) throws {
-        let firstDirectory = first.deletingLastPathComponent()
-        let secondDirectory = second.deletingLastPathComponent()
-        guard let firstDescriptor = try openDirectoryNoFollow(firstDirectory) else {
-            throw posixError(ELOOP)
-        }
-        defer { _ = Darwin.close(firstDescriptor) }
+    private static func synchronizeDirectoryDescriptors(_ firstDescriptor: Int32, _ secondDescriptor: Int32) throws {
         guard Darwin.fsync(firstDescriptor) == 0 else { throw posixError() }
-        if secondDirectory != firstDirectory {
-            guard let secondDescriptor = try openDirectoryNoFollow(secondDirectory) else {
-                throw posixError(ELOOP)
-            }
-            defer { _ = Darwin.close(secondDescriptor) }
+        if secondDescriptor != firstDescriptor {
             guard Darwin.fsync(secondDescriptor) == 0 else { throw posixError() }
         }
     }

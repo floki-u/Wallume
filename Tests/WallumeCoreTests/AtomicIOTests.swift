@@ -86,6 +86,49 @@ final class AtomicIOTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: preparedFile), Data("new".utf8))
     }
 
+    func testPostRenameSynchronizationFailureMustNotReportSuccess() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appending(path: "target")
+        let protectedDirectory = root.appending(path: "protected-directory")
+        let protectedLink = root.appending(path: "protected-link")
+        try Data("old".utf8).write(to: target)
+        try FileManager.default.createDirectory(at: protectedDirectory, withIntermediateDirectories: false)
+        try Data("keep".utf8).write(to: protectedDirectory.appending(path: "sentinel"))
+        try FileManager.default.createSymbolicLink(at: protectedLink, withDestinationURL: protectedDirectory)
+        let files = LocalFileStore(
+            synchronizeDirectory: { _ in },
+            synchronizeCommittedDirectories: { _, _ in throw InjectedFailure.synchronizeDirectory }
+        )
+
+        XCTAssertThrowsError(try files.writeAtomically(Data("new".utf8), to: target)) {
+            XCTAssertEqual($0 as? AtomicFileStoreError, .durabilityUncertain(target))
+        }
+
+        XCTAssertEqual(try Data(contentsOf: target), Data("new".utf8))
+        XCTAssertEqual(try Data(contentsOf: protectedDirectory.appending(path: "sentinel")), Data("keep".utf8))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: protectedLink.path))
+    }
+
+    func testAtomicJSONDurabilityUncertainLeavesNewDocumentReadable() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appending(path: "journal.json")
+        let files = LocalFileStore(
+            synchronizeDirectory: { _ in },
+            synchronizeCommittedDirectories: { _, _ in throw InjectedFailure.synchronizeDirectory }
+        )
+        let store = AtomicJSONStore(files: files)
+        let document = JournalFixture(phase: "committed", count: 1)
+
+        XCTAssertThrowsError(try store.write(document, to: target)) {
+            XCTAssertEqual($0 as? AtomicFileStoreError, .durabilityUncertain(target))
+        }
+        XCTAssertEqual(try store.read(JournalFixture.self, from: target), document)
+    }
+
     func testReplaceRejectsDirectoryTargetWithoutDeletingItsContents() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

@@ -14,6 +14,10 @@ public struct AtomicJSONStore: Sendable {
         decoder.dateDecodingStrategy = .iso8601
     }
 
+    /// Writes a complete JSON document or throws. A thrown
+    /// `AtomicFileStoreError.durabilityUncertain` means the replacement is already
+    /// visible but its directory entry could not be durably synchronized; callers
+    /// must inspect the destination before retrying.
     public func write<Value: Encodable>(_ value: Value, to url: URL) throws {
         try files.writeAtomically(encoder.encode(value), to: url)
     }

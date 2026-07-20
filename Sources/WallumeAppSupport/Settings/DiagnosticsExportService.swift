@@ -193,12 +193,15 @@ public struct DiagnosticsExportDocument: Codable, Equatable, Sendable {
 
 public enum DiagnosticsExportUserError: Error, Equatable, LocalizedError, Sendable {
     case writeFailed
+    case destinationMayContainExport
     case cancelled
 
     public var errorDescription: String? {
         switch self {
         case .writeFailed:
             "Unable to export diagnostics. Please try again."
+        case .destinationMayContainExport:
+            "Diagnostics export may already be written. Inspect the destination before retrying."
         case .cancelled:
             "Diagnostics export was cancelled."
         }
@@ -253,6 +256,11 @@ public struct DiagnosticsExportService: Sendable {
             try jsonStore.write(document, to: destination)
         } catch is CancellationError {
             throw DiagnosticsExportUserError.cancelled
+        } catch let error as AtomicFileStoreError {
+            if case .durabilityUncertain = error {
+                throw DiagnosticsExportUserError.destinationMayContainExport
+            }
+            throw DiagnosticsExportUserError.writeFailed
         } catch {
             throw DiagnosticsExportUserError.writeFailed
         }

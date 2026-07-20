@@ -125,6 +125,27 @@ final class DiagnosticsExportServiceTests: XCTestCase {
         XCTAssertEqual(document.performance.report, makeReport())
     }
 
+    func testExportReportsCommittedDestinationUncertaintyWithoutClaimingOldBytesSurvived() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let files = FailingDiagnosticsFileStore()
+        let destination = root.appending(path: "diagnostics.json")
+        try files.writeAtomically(Data("old export".utf8), to: destination)
+        files.durabilityUncertainAfterWrite = true
+        let service = makeService(files: files)
+
+        do {
+            try await service.export(to: destination)
+            XCTFail("Expected durability uncertainty")
+        } catch {
+            XCTAssertEqual(error as? DiagnosticsExportUserError, .destinationMayContainExport)
+            XCTAssertTrue(error.localizedDescription.contains("Inspect the destination"))
+        }
+
+        let document = try decode(DiagnosticsExportDocument.self, from: files.read(destination))
+        XCTAssertEqual(document.performance.status, .available)
+    }
+
     func testTerminationAdmissionRejectsARealExportThatHasNotReachedAtomicWrite() async throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -360,6 +381,7 @@ private final class TestPerformanceReportReader: PerformanceReportReading, @unch
 private final class FailingDiagnosticsFileStore: FileStore, @unchecked Sendable {
     private let local = LocalFileStore()
     var failWrites = false
+    var durabilityUncertainAfterWrite = false
 
     func exists(_ url: URL) -> Bool { local.exists(url) }
     func read(_ url: URL) throws -> Data { try local.read(url) }
@@ -374,6 +396,9 @@ private final class FailingDiagnosticsFileStore: FileStore, @unchecked Sendable 
     func writeAtomically(_ data: Data, to target: URL) throws {
         guard !failWrites else { throw DiagnosticsFixtureError.writeFailed }
         try local.writeAtomically(data, to: target)
+        if durabilityUncertainAfterWrite {
+            throw AtomicFileStoreError.durabilityUncertain(target)
+        }
     }
     func writeExclusively(_ data: Data, to target: URL) throws {
         try local.writeExclusively(data, to: target)
