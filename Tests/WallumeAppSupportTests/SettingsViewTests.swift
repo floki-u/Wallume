@@ -125,7 +125,56 @@ final class SettingsViewTests: XCTestCase {
             exportDiagnostics: { _ in }
         )
 
-        XCTAssertGreaterThan(NSHostingView(rootView: view).fittingSize.width, 0)
+        let host = NSHostingView(rootView: view)
+        host.frame = NSRect(origin: .zero, size: host.fittingSize)
+        host.layoutSubtreeIfNeeded()
+
+        XCTAssertGreaterThan(host.fittingSize.width, 0)
+        XCTAssertEqual(subviewCount(in: host, typeNameContaining: "Checkbox"), 3)
+    }
+
+    func testRenderedFailureSurfaceContainsRetryAndChooseAnotherDestinationActions() async {
+        let controller = SettingsDiagnosticsExportController(
+            chooseExportDestination: { URL(fileURLWithPath: "/tmp/diagnostics.json") },
+            exportDiagnostics: { _ in throw SettingsViewExportError.expected }
+        )
+        await controller.exportToSelectedDestination()
+        let store = SettingsStore(defaults: ephemeralDefaults(), loginItem: SettingsViewLoginItem())
+        let view = SettingsView(
+            store: store,
+            buildInfo: .init(productVersion: "1.2.3", buildNumber: "45"),
+            dataDirectory: URL(fileURLWithPath: "/tmp/Wallume"),
+            diagnosticsDirectory: URL(fileURLWithPath: "/tmp/Wallume/Diagnostics"),
+            openInFinder: { _ in },
+            chooseExportDestination: { nil },
+            exportDiagnostics: { _ in },
+            exportController: controller
+        )
+        let host = NSHostingView(rootView: view)
+        host.frame = NSRect(origin: .zero, size: host.fittingSize)
+        host.layoutSubtreeIfNeeded()
+        let failedActionSurfaceCount = subviewCount(in: host, typeNameContaining: "_FocusRingView")
+
+        let readyController = SettingsDiagnosticsExportController(
+            chooseExportDestination: { nil },
+            exportDiagnostics: { _ in }
+        )
+        let readyView = SettingsView(
+            store: store,
+            buildInfo: .init(productVersion: "1.2.3", buildNumber: "45"),
+            dataDirectory: URL(fileURLWithPath: "/tmp/Wallume"),
+            diagnosticsDirectory: URL(fileURLWithPath: "/tmp/Wallume/Diagnostics"),
+            openInFinder: { _ in },
+            chooseExportDestination: { nil },
+            exportDiagnostics: { _ in },
+            exportController: readyController
+        )
+        let readyHost = NSHostingView(rootView: readyView)
+        readyHost.frame = NSRect(origin: .zero, size: readyHost.fittingSize)
+        readyHost.layoutSubtreeIfNeeded()
+        let readyActionSurfaceCount = subviewCount(in: readyHost, typeNameContaining: "_FocusRingView")
+
+        XCTAssertEqual(failedActionSurfaceCount, readyActionSurfaceCount + 1)
     }
 
     private func ephemeralDefaults() -> UserDefaults {
@@ -133,6 +182,14 @@ final class SettingsViewTests: XCTestCase {
         let defaults = UserDefaults(suiteName: name)!
         addTeardownBlock { defaults.removePersistentDomain(forName: name) }
         return defaults
+    }
+}
+
+@MainActor
+private func subviewCount(in view: NSView, typeNameContaining fragment: String) -> Int {
+    let ownCount = String(describing: type(of: view)).contains(fragment) ? 1 : 0
+    return ownCount + view.subviews.reduce(0) {
+        $0 + subviewCount(in: $1, typeNameContaining: fragment)
     }
 }
 

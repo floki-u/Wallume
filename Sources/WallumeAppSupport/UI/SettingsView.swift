@@ -108,6 +108,10 @@ public struct SettingsPageViewState: Equatable, Sendable {
     public var exportErrorMessage: String? {
         if case let .failed(message) = exportState { message } else { nil }
     }
+
+    public var exportSuccessMessage: String? {
+        exportState == .succeeded ? "诊断信息已导出。" : nil
+    }
 }
 
 @MainActor @Observable
@@ -127,9 +131,7 @@ public final class SettingsDiagnosticsExportController {
     }
 
     public func exportToSelectedDestination() async {
-        guard let destination = chooseExportDestination() else { return }
-        retryDestination = destination
-        await export(to: destination)
+        await selectDestinationAndExport()
     }
 
     public func retry() async {
@@ -138,6 +140,10 @@ public final class SettingsDiagnosticsExportController {
     }
 
     public func chooseAnotherDestination() async {
+        await selectDestinationAndExport()
+    }
+
+    private func selectDestinationAndExport() async {
         guard let destination = chooseExportDestination() else { return }
         retryDestination = destination
         await export(to: destination)
@@ -160,8 +166,6 @@ public struct SettingsView: View {
     private let dataDirectory: URL
     private let diagnosticsDirectory: URL
     private let openInFinder: (URL) -> Void
-    private let chooseExportDestination: () -> URL?
-    private let exportDiagnostics: (URL) async throws -> Void
     @State private var exportController: SettingsDiagnosticsExportController
 
     public init(
@@ -171,16 +175,15 @@ public struct SettingsView: View {
         diagnosticsDirectory: URL,
         openInFinder: @escaping (URL) -> Void,
         chooseExportDestination: @escaping () -> URL?,
-        exportDiagnostics: @escaping (URL) async throws -> Void
+        exportDiagnostics: @escaping (URL) async throws -> Void,
+        exportController: SettingsDiagnosticsExportController? = nil
     ) {
         self.store = store
         self.buildInfo = buildInfo
         self.dataDirectory = dataDirectory
         self.diagnosticsDirectory = diagnosticsDirectory
         self.openInFinder = openInFinder
-        self.chooseExportDestination = chooseExportDestination
-        self.exportDiagnostics = exportDiagnostics
-        _exportController = State(initialValue: SettingsDiagnosticsExportController(
+        _exportController = State(initialValue: exportController ?? SettingsDiagnosticsExportController(
             chooseExportDestination: chooseExportDestination,
             exportDiagnostics: exportDiagnostics
         ))
@@ -199,7 +202,7 @@ public struct SettingsView: View {
                 preferencesCard(page)
                 directoriesCard(page)
                 diagnosticsCard(page)
-                Text(buildInfo.displayText).foregroundStyle(.secondary)
+                Text(page.buildInfo.displayText).foregroundStyle(.secondary)
             }
             .frame(maxWidth: 720, alignment: .leading)
             .padding()
@@ -219,6 +222,7 @@ public struct SettingsView: View {
             Text("启动与播放").font(.title3.bold())
             ForEach(page.preferenceControls) { control in
                 Toggle(control.title, isOn: preferenceBinding(for: control))
+                    .accessibilityIdentifier("settings.preference.\(control.rawValue)")
             }
         }
         .settingsCardStyle()
@@ -271,13 +275,14 @@ public struct SettingsView: View {
                 .foregroundStyle(.secondary)
             if let message = page.exportErrorMessage {
                 Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
-            } else if exportController.state == .succeeded {
-                Label("诊断信息已导出。", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            } else if let message = page.exportSuccessMessage {
+                Label(message, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
             }
             HStack {
                 ForEach(page.diagnosticsActions) { action in
                     Button(action.title) { performDiagnosticsAction(action.id) }
                         .disabled(!action.isEnabled)
+                        .accessibilityIdentifier("settings.diagnostics.\(action.id.rawValue)")
                 }
             }
         }

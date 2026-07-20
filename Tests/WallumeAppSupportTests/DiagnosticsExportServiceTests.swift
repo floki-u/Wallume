@@ -170,9 +170,8 @@ final class DiagnosticsExportServiceTests: XCTestCase {
             await owner.cancelAndWait()
             await termination.markCompleted()
         }
-        let admissionIsTerminal = await waitUntilAdmissionIsTerminal(admission)
+        await admission.waitUntilTerminated()
         let completedBeforeRelease = await termination.isCompleted
-        XCTAssertTrue(admissionIsTerminal)
         XCTAssertFalse(completedBeforeRelease)
 
         files.releaseWrite()
@@ -327,17 +326,6 @@ private func makeService(
         ),
         files: files
     )
-}
-
-private func waitUntilAdmissionIsTerminal(
-    _ admission: DiagnosticsExportCommitAdmission
-) async -> Bool {
-    for _ in 0..<1_000 {
-        if !admission.beginCommit() { return true }
-        admission.finishCommit()
-        await Task.yield()
-    }
-    return false
 }
 
 private enum DiagnosticsFixtureError: Error, LocalizedError {

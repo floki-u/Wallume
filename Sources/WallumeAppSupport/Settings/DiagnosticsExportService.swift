@@ -6,6 +6,7 @@ public final class DiagnosticsExportCommitAdmission: @unchecked Sendable {
     private var terminated = false
     private var activeCommits = 0
     private var drainWaiters: [CheckedContinuation<Void, Never>] = []
+    private var terminationWaiters: [CheckedContinuation<Void, Never>] = []
 
     public init() {}
 
@@ -34,13 +35,32 @@ public final class DiagnosticsExportCommitAdmission: @unchecked Sendable {
 
     public func terminateAndWait() async {
         await withCheckedContinuation { continuation in
+            let observers: [CheckedContinuation<Void, Never>]
+            let canResumeImmediately: Bool
             lock.lock()
             terminated = true
+            observers = terminationWaiters
+            terminationWaiters.removeAll()
             if activeCommits == 0 {
+                canResumeImmediately = true
+            } else {
+                canResumeImmediately = false
+                drainWaiters.append(continuation)
+            }
+            lock.unlock()
+            observers.forEach { $0.resume() }
+            if canResumeImmediately { continuation.resume() }
+        }
+    }
+
+    func waitUntilTerminated() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if terminated {
                 lock.unlock()
                 continuation.resume()
             } else {
-                drainWaiters.append(continuation)
+                terminationWaiters.append(continuation)
                 lock.unlock()
             }
         }
