@@ -110,6 +110,34 @@ final class ApplicationCompositionTests: XCTestCase {
     }
 
     @MainActor
+    func testTerminationRejectsAnExportThatArrivesAfterCancellingAnInFlightExport() async {
+        let owner = SettingsDiagnosticsExportTerminationOwner()
+        let inFlightExport = CompositionSettingsExport()
+        let inFlightTask = Task {
+            try? await owner.perform { try await inFlightExport.run() }
+        }
+        await inFlightExport.waitUntilStarted()
+
+        await owner.cancelAndWait()
+        await inFlightTask.value
+
+        let rejectedExport = CompositionExportAttempt()
+        do {
+            try await owner.perform { await rejectedExport.run() }
+            XCTFail("An export must not begin after termination starts.")
+        } catch is CancellationError {
+            // Expected: termination permanently owns the export lifecycle.
+        } catch {
+            XCTFail("Expected cancellation, got \(error).")
+        }
+
+        let initialExportWasCancelled = await inFlightExport.wasCancelled()
+        let rejectedExportStarted = await rejectedExport.didStart()
+        XCTAssertTrue(initialExportWasCancelled)
+        XCTAssertFalse(rejectedExportStarted)
+    }
+
+    @MainActor
     func testLockScreenCompositionBuildsOneServiceAndStoreFromInjectedClient() async throws {
         let fixture = try LockScreenCompositionFixture()
         defer { fixture.cleanup() }
@@ -270,6 +298,13 @@ private actor CompositionSettingsExport {
         cancellationContinuation?.resume()
         cancellationContinuation = nil
     }
+}
+
+private actor CompositionExportAttempt {
+    private var started = false
+
+    func run() { started = true }
+    func didStart() -> Bool { started }
 }
 
 private func populatedRuntimeSnapshot() -> WallpaperRuntimeSnapshot {

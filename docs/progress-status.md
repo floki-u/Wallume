@@ -15,7 +15,7 @@ Updated: 2026-07-20
 
 ## Current position
 
-Performance diagnostics is locally merged. Settings lifecycle completion is engineering-complete and verified: the full suite passed 399 tests, all four release products built successfully, and termination now cancels and awaits an incomplete Settings diagnostics export without changing persisted preferences or the lock-screen → diagnostics → runtime shutdown order. The current diagnostics reference machine is Apple M4 with 51,539,607,552 bytes physical memory on macOS 26; this is not M1 data or target-hardware certification. Phase 4 itself remains in progress.
+Performance diagnostics is locally merged. Settings lifecycle completion is engineering-complete and verified: the initial full suite passed 399 tests and all four release products built successfully; after the terminal-export ownership remediation, the full suite passed 400 tests and `git diff --check` passed. Termination now cancels and awaits an incomplete Settings diagnostics export, then permanently rejects new export work without changing persisted preferences or the lock-screen → diagnostics → runtime shutdown order. The current diagnostics reference machine is Apple M4 with 51,539,607,552 bytes physical memory on macOS 26; this is not M1 data or target-hardware certification. Phase 4 itself remains in progress.
 
 ## Next work
 

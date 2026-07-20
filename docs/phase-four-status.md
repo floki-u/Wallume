@@ -48,7 +48,7 @@ Implementation status: engineering and automated verification complete; real-mac
 
 Delivered:
 
-- A Lock Screen page, enabled in navigation while Performance and Settings remain unavailable.
+- A Lock Screen page, enabled in navigation. At this batch's completion, Performance and Settings were intentionally unavailable; both are now enabled.
 - Explicit Aerial-slot selection and a separate risk-confirmation gate before any lock-screen installation.
 - Serial, main-display-driven synchronization with read-only startup reconciliation, idempotent same-media handling, restore-before-reinstall transitions, and conflict-safe disable/recovery behavior.
 - Fail-closed configuration persistence and a narrow production system-client boundary that leaves desktop wallpaper runtime construction isolated from lock-screen failures.
@@ -68,7 +68,7 @@ Delivered:
 - Page-scoped, in-memory one-per-second realtime process metrics with a 60-sample cap.
 - User-triggered serial 30-second diagnostic with cancellation, local atomic persistence, retry-save, and anonymous JSON export.
 - Count-only wallpaper runtime context; no media identifiers, paths, URLs, thumbnails, backup data, uploads, or runtime-control side effects.
-- One application-owned diagnostics service/store; Performance is enabled and Settings remains unavailable. Runtime snapshots are forwarded to diagnostics, and application termination stops diagnostics before the desktop runtime.
+- One application-owned diagnostics service/store; Performance is enabled. Settings remained unavailable at this batch's completion and is now enabled. Runtime snapshots are forwarded to diagnostics, and application termination stops diagnostics before the desktop runtime.
 
 Verification: `swift test` passed 378 tests with zero failures; release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed. A production-service reference diagnostic completed on the current machine with exactly 30 samples over 30 seconds and was retained at `~/Library/Application Support/Wallume/Diagnostics/report.json`. Reference environment only (not M1 certification): Apple M4, 51,539,607,552 bytes physical memory, macOS 26, `single-display` scenario.
 
@@ -83,7 +83,7 @@ Delivered:
 - The established shutdown order remains lock-screen, diagnostics, then desktop runtime; export cancellation completes before that sequence.
 - No Settings controls, routes, or direct system/filesystem/runtime side effects were added.
 
-Verification: `swift test` passed 399 tests with zero failures; release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed. The focused composition suite includes cancellation, preference-preservation, and exact shutdown-order coverage.
+Initial completion verification: `swift test` passed 399 tests with zero failures; release builds of `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore` passed; `git diff --check` passed. Review-remediation verification: `swift test` passed 400 tests with zero failures; focused composition, Settings view, and diagnostics-export suites plus `git diff --check` passed. The focused composition suite includes cancellation, preference-preservation, exact shutdown-order, and post-termination export-rejection coverage.
 
 ## Remaining phase-four work
 

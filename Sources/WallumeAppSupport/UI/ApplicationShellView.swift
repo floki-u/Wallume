@@ -83,11 +83,12 @@ public actor SettingsDiagnosticsExportTerminationOwner {
     }
 
     private var inFlightExport: InFlightExport?
+    private var isTerminating = false
 
     public init() {}
 
     public func perform(_ operation: @escaping @Sendable () async throws -> Void) async throws {
-        guard inFlightExport == nil else { throw CancellationError() }
+        guard !isTerminating, inFlightExport == nil else { throw CancellationError() }
 
         let export = InFlightExport(
             id: UUID(),
@@ -99,6 +100,7 @@ public actor SettingsDiagnosticsExportTerminationOwner {
     }
 
     public func cancelAndWait() async {
+        isTerminating = true
         guard let export = inFlightExport else { return }
         export.task.cancel()
         _ = try? await export.task.value

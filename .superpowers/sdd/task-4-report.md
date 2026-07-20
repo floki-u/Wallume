@@ -25,3 +25,10 @@
 ## Status and concerns
 
 Performance is already locally merged. Settings engineering and automated verification are complete. Manual localization, application state-restoration, Settings/whole-app UI acceptance, and real-system Lock Screen installation, lock/unlock, and restoration acceptance remain pending. No remote push was performed.
+
+## Review remediation — terminal export ownership
+
+- RED: `swift test --filter ApplicationCompositionTests` proved that, after cancelling an in-flight export, the prior coordinator still started a newly submitted export.
+- GREEN: termination now marks the coordinator terminal before examining the in-flight task. It cancels and awaits any started export, while every later or crossing `perform` request rejects before its operation is invoked.
+- Regression coverage holds one export in flight, terminates it, attempts another export, and proves the attempted operation never starts. The existing composition test continues to prove persisted preference values and lock-screen → diagnostics → runtime ordering.
+- Verification: `swift test --filter ApplicationCompositionTests` (9 tests), `swift test --filter SettingsViewTests` (4 tests), `swift test --filter DiagnosticsExportServiceTests` (4 tests), full `swift test` (400 tests), and `git diff --check` all passed.
