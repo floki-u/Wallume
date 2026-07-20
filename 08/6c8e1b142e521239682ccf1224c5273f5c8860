@@ -1,0 +1,73 @@
+Sources/WallumeCore/IO/FileStore.swift
+  8696c979740de9f4 37,42,46-47,50,174-176,199-210,229,231-232,242-245,248-252,262-264,297-298,300,302-320,329-359,361,389,401-426,428-435,441-448
+Tests/WallumeAppSupportTests/SettingsViewTests.swift
+  8696c979740de9f4 15,17-19,25-26,39,41-42,106-107,111,114-120,123-124,128,131-135
+Tests/WallumeCoreTests/AtomicIOTests.swift
+  8696c979740de9f4 57-62,64-88,320,334-335,357,373-374,390-392,395-397
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  8696c979740de9f4 4-35
+.superpowers/sdd/task-4-report.md
+  8696c979740de9f4 55-63
+Tests/WallumeAppSupportTests/ApplicationCompositionTests.swift
+  8696c979740de9f4 6-17
+Sources/WallumeAppSupport/UI/SettingsView.swift
+  8696c979740de9f4 50-61,63,65,86-95,98-99,101,103,106-107,110-117,253-258,315-320
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "086c8e1b142e521239682ccf1224c5273f5c8860",
+  "prompts": {
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 323,
+      "total_deletions": 237,
+      "accepted_lines": 315,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/UI/SettingsView.swift": {
+          "additions": 51,
+          "deletions": 53,
+          "accepted_lines": 51
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "deletions": 27
+        },
+        "Tests/WallumeAppSupportTests/SettingsViewTests.swift": {
+          "additions": 29,
+          "deletions": 78,
+          "accepted_lines": 29
+        },
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 37,
+          "deletions": 5,
+          "accepted_lines": 32
+        },
+        "Tests/WallumeCoreTests/AtomicIOTests.swift": {
+          "additions": 47,
+          "deletions": 24,
+          "accepted_lines": 44
+        },
+        "Tests/WallumeAppSupportTests/ApplicationCompositionTests.swift": {
+          "additions": 12,
+          "accepted_lines": 12
+        },
+        "Sources/WallumeCore/IO/FileStore.swift": {
+          "additions": 138,
+          "deletions": 50,
+          "accepted_lines": 138
+        },
+        ".superpowers/sdd/task-4-report.md": {
+          "additions": 9,
+          "accepted_lines": 9
+        }
+      }
+    }
+  }
+}
