@@ -28,3 +28,16 @@
 ## Concerns
 
 - None within Task 3. In-flight diagnostics-export cancellation during termination is intentionally left for Task 4.
+
+## Review follow-up
+
+- Failed diagnostic exports now retain a direct retry action and also expose “选择其他位置”. The latter invokes the same injected destination chooser, replaces the retry target, and immediately attempts export to the newly selected destination.
+- Added a controller-level interaction test covering first-destination failure followed by second-destination selection and successful export; no native panel or direct filesystem side effect is used in the test or view.
+
+### Follow-up verification
+
+- `swift test --filter SettingsViewTests`: 4 tests, 0 failures.
+- `swift test --filter ApplicationShellViewTests`: 7 tests, 0 failures.
+- `swift test --filter ApplicationCompositionTests`: 7 tests, 0 failures.
+- `swift test`: 398 tests, 0 failures.
+- `git diff --check`: passed.

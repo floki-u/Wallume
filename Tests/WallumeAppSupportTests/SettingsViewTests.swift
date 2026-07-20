@@ -30,7 +30,38 @@ final class SettingsViewTests: XCTestCase {
         )
 
         XCTAssertTrue(state.canRetryExport)
+        XCTAssertTrue(state.canChooseAnotherDestination)
         XCTAssertEqual(state.exportErrorMessage, "Unable to export diagnostics. Please try again.")
+    }
+
+    func testChoosingAnotherDestinationAfterFailureReplacesRetryTargetAndSucceeds() async {
+        let firstDestination = URL(fileURLWithPath: "/tmp/first-diagnostics.json")
+        let secondDestination = URL(fileURLWithPath: "/tmp/second-diagnostics.json")
+        var destinations = [firstDestination, secondDestination]
+        var chooserCallCount = 0
+        var exportedDestinations: [URL] = []
+        let controller = SettingsDiagnosticsExportController(
+            chooseExportDestination: {
+                chooserCallCount += 1
+                return destinations.removeFirst()
+            },
+            exportDiagnostics: { destination in
+                exportedDestinations.append(destination)
+                if exportedDestinations.count == 1 {
+                    throw SettingsViewExportError.expected
+                }
+            }
+        )
+
+        await controller.exportToSelectedDestination()
+        XCTAssertEqual(controller.state, .failed(SettingsViewExportError.expected.localizedDescription))
+
+        await controller.chooseAnotherDestination()
+
+        XCTAssertEqual(chooserCallCount, 2)
+        XCTAssertEqual(exportedDestinations, [firstDestination, secondDestination])
+        XCTAssertEqual(controller.retryDestination, secondDestination)
+        XCTAssertEqual(controller.state, .succeeded)
     }
 
     func testViewHasNonzeroFittingSizeWithInjectedSideEffectCommands() {
@@ -60,4 +91,9 @@ private struct SettingsViewLoginItem: LoginItemControlling {
     func isEnabled() throws -> Bool { false }
     func register() throws {}
     func unregister() throws {}
+}
+
+private enum SettingsViewExportError: LocalizedError {
+    case expected
+    var errorDescription: String? { "expected export failure" }
 }

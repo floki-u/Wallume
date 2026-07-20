@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftUI
 
 public struct SettingsBuildInfo: Equatable, Sendable {
@@ -46,6 +47,7 @@ public struct SettingsPageViewState: Equatable, Sendable {
     public var canRetryExport: Bool {
         if case .failed = exportState { true } else { false }
     }
+    public var canChooseAnotherDestination: Bool { canRetryExport }
     public var exportErrorMessage: String? {
         if case let .failed(message) = exportState { message } else { nil }
     }
@@ -58,6 +60,50 @@ public struct SettingsPageViewState: Equatable, Sendable {
     }
 }
 
+@MainActor @Observable
+public final class SettingsDiagnosticsExportController {
+    public private(set) var state: SettingsDiagnosticsExportState = .ready
+    public private(set) var retryDestination: URL?
+
+    private let chooseExportDestination: () -> URL?
+    private let exportDiagnostics: (URL) async throws -> Void
+
+    public init(
+        chooseExportDestination: @escaping () -> URL?,
+        exportDiagnostics: @escaping (URL) async throws -> Void
+    ) {
+        self.chooseExportDestination = chooseExportDestination
+        self.exportDiagnostics = exportDiagnostics
+    }
+
+    public func exportToSelectedDestination() async {
+        guard let destination = chooseExportDestination() else { return }
+        retryDestination = destination
+        await export(to: destination)
+    }
+
+    public func retry() async {
+        guard let retryDestination else { return }
+        await export(to: retryDestination)
+    }
+
+    public func chooseAnotherDestination() async {
+        guard let destination = chooseExportDestination() else { return }
+        retryDestination = destination
+        await export(to: destination)
+    }
+
+    private func export(to destination: URL) async {
+        state = .exporting
+        do {
+            try await exportDiagnostics(destination)
+            state = .succeeded
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+    }
+}
+
 public struct SettingsView: View {
     @Bindable private var store: SettingsStore
     private let buildInfo: SettingsBuildInfo
@@ -66,8 +112,7 @@ public struct SettingsView: View {
     private let openInFinder: (URL) -> Void
     private let chooseExportDestination: () -> URL?
     private let exportDiagnostics: (URL) async throws -> Void
-    @State private var exportState: SettingsDiagnosticsExportState = .ready
-    @State private var retryDestination: URL?
+    @State private var exportController: SettingsDiagnosticsExportController
 
     public init(
         store: SettingsStore,
@@ -85,6 +130,10 @@ public struct SettingsView: View {
         self.openInFinder = openInFinder
         self.chooseExportDestination = chooseExportDestination
         self.exportDiagnostics = exportDiagnostics
+        _exportController = State(initialValue: SettingsDiagnosticsExportController(
+            chooseExportDestination: chooseExportDestination,
+            exportDiagnostics: exportDiagnostics
+        ))
     }
 
     public var body: some View {
@@ -92,7 +141,7 @@ public struct SettingsView: View {
             buildInfo: buildInfo,
             dataDirectory: dataDirectory,
             diagnosticsDirectory: diagnosticsDirectory,
-            exportState: exportState
+            exportState: exportController.state
         )
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -161,32 +210,20 @@ public struct SettingsView: View {
                 .foregroundStyle(.secondary)
             if let message = page.exportErrorMessage {
                 Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
-            } else if exportState == .succeeded {
+            } else if exportController.state == .succeeded {
                 Label("诊断信息已导出。", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
             }
-            Button(page.exportActionTitle) {
-                if let retryDestination, page.canRetryExport {
-                    startExport(to: retryDestination)
-                } else if let destination = chooseExportDestination() {
-                    retryDestination = destination
-                    startExport(to: destination)
+            if page.canRetryExport {
+                HStack {
+                    Button("重试导出") { Task { await exportController.retry() } }
+                    Button("选择其他位置") { Task { await exportController.chooseAnotherDestination() } }
                 }
+            } else {
+                Button(page.exportActionTitle) { Task { await exportController.exportToSelectedDestination() } }
+                    .disabled(exportController.state == .exporting)
             }
-            .disabled(exportState == .exporting)
         }
         .settingsCardStyle()
-    }
-
-    private func startExport(to destination: URL) {
-        exportState = .exporting
-        Task {
-            do {
-                try await exportDiagnostics(destination)
-                exportState = .succeeded
-            } catch {
-                exportState = .failed(error.localizedDescription)
-            }
-        }
     }
 }
 
