@@ -1,6 +1,10 @@
 import Foundation
 import WallumeCore
 
+public protocol PerformanceReportReading: Sendable {
+    func latest() throws -> PerformanceDiagnosticReport?
+}
+
 public struct PerformanceReportStore: Sendable {
     public let url: URL
 
@@ -43,3 +47,5 @@ public struct PerformanceReportStore: Sendable {
         return try jsonStore.read(PerformanceDiagnosticReport.self, from: url)
     }
 }
+
+extension PerformanceReportStore: PerformanceReportReading {}

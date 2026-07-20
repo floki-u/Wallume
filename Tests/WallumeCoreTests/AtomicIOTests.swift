@@ -33,6 +33,19 @@ private final class LockedURLs: @unchecked Sendable {
     var values: [URL] { lock.withLock { urls } }
 }
 
+private final class FailFirstDirectorySynchronization: @unchecked Sendable {
+    private let lock = NSLock()
+    private var shouldFail = true
+
+    func synchronize(_ directory: URL) throws {
+        let failure = lock.withLock {
+            defer { shouldFail = false }
+            return shouldFail
+        }
+        if failure { throw InjectedFailure.synchronizeDirectory }
+    }
+}
+
 private func itemNames(in directory: URL) throws -> Set<String> {
     Set(
         try FileManager.default
@@ -270,14 +283,38 @@ final class AtomicIOTests: XCTestCase {
         let old = Data("old".utf8)
         try old.write(to: target)
         let files = LocalFileStore(
-            replaceItem: { _, _ in throw InjectedFailure.replace },
-            synchronizeDirectory: { _ in }
+            replaceItem: { source, destination in
+                try FileManager.default.moveItem(at: source, to: destination)
+            },
+            synchronizeDirectory: { _ in throw InjectedFailure.synchronizeDirectory }
         )
 
         XCTAssertThrowsError(try files.writeAtomically(Data("new".utf8), to: target))
 
         XCTAssertEqual(try Data(contentsOf: target), old)
         XCTAssertEqual(try itemNames(in: root), ["target"])
+    }
+
+    func testFailedAtomicOverwriteAfterReplacementRestoresOldBytesAndCanRetry() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appending(path: "target")
+        let old = Data("old".utf8)
+        try old.write(to: target)
+        let synchronization = FailFirstDirectorySynchronization()
+        let files = LocalFileStore(
+            replaceItem: { source, destination in
+                try FileManager.default.moveItem(at: source, to: destination)
+            },
+            synchronizeDirectory: { try synchronization.synchronize($0) }
+        )
+
+        XCTAssertThrowsError(try files.writeAtomically(Data("new".utf8), to: target))
+        XCTAssertEqual(try files.read(target), old)
+
+        try files.writeAtomically(Data("new".utf8), to: target)
+        XCTAssertEqual(try files.read(target), Data("new".utf8))
     }
 
     func testFailedCopyPreservesDestinationAndCleansTemporaryFile() throws {
@@ -290,8 +327,10 @@ final class AtomicIOTests: XCTestCase {
         try Data("new".utf8).write(to: source)
         try old.write(to: destination)
         let files = LocalFileStore(
-            replaceItem: { _, _ in throw InjectedFailure.replace },
-            synchronizeDirectory: { _ in }
+            replaceItem: { source, destination in
+                try FileManager.default.moveItem(at: source, to: destination)
+            },
+            synchronizeDirectory: { _ in throw InjectedFailure.synchronizeDirectory }
         )
 
         XCTAssertThrowsError(try files.copy(source, to: destination))

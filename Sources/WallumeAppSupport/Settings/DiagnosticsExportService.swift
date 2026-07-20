@@ -134,7 +134,7 @@ public struct DiagnosticsExportService: Sendable {
     private let settings: @Sendable () -> ApplicationSettings
     private let lockScreenSummary: @Sendable () throws -> LockScreenDiagnosticsSummary
     private let recentTransactionSummary: @Sendable () throws -> DiagnosticsRecentTransactionSummary
-    private let latestPerformanceReport: @Sendable () throws -> PerformanceDiagnosticReport?
+    private let performanceReportStore: any PerformanceReportReading
     private let buildSystemInfo: DiagnosticsBuildSystemInfo
     private let jsonStore: AtomicJSONStore
 
@@ -142,14 +142,14 @@ public struct DiagnosticsExportService: Sendable {
         settings: @escaping @Sendable () -> ApplicationSettings,
         lockScreenSummary: @escaping @Sendable () throws -> LockScreenDiagnosticsSummary,
         recentTransactionSummary: @escaping @Sendable () throws -> DiagnosticsRecentTransactionSummary,
-        latestPerformanceReport: @escaping @Sendable () throws -> PerformanceDiagnosticReport?,
+        performanceReportStore: any PerformanceReportReading,
         buildSystemInfo: DiagnosticsBuildSystemInfo,
         files: any FileStore
     ) {
         self.settings = settings
         self.lockScreenSummary = lockScreenSummary
         self.recentTransactionSummary = recentTransactionSummary
-        self.latestPerformanceReport = latestPerformanceReport
+        self.performanceReportStore = performanceReportStore
         self.buildSystemInfo = buildSystemInfo
         jsonStore = AtomicJSONStore(files: files)
     }
@@ -175,7 +175,7 @@ public struct DiagnosticsExportService: Sendable {
 
     private func performanceSummary() -> DiagnosticsPerformanceSummary {
         do {
-            guard let report = try latestPerformanceReport() else {
+            guard let report = try performanceReportStore.latest() else {
                 return DiagnosticsPerformanceSummary(status: .unavailable, report: nil)
             }
             return DiagnosticsPerformanceSummary(

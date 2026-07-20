@@ -192,8 +192,13 @@ public struct LocalFileStore: FileStore {
     }
 
     public func replace(_ target: URL, with preparedFile: URL) throws {
-        try replaceItem(preparedFile, target)
-        try synchronizeDirectory(target.deletingLastPathComponent())
+        guard exists(target) else {
+            try replaceItem(preparedFile, target)
+            try synchronizeDirectory(target.deletingLastPathComponent())
+            return
+        }
+        try exchange(target, with: preparedFile)
+        try? remove(preparedFile)
     }
 
     public func exchange(_ target: URL, with preparedFile: URL) throws {

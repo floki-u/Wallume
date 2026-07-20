@@ -25,3 +25,14 @@
 ## Concerns
 
 - None within Task 2. Task 3 must provide the local user-selected destination and wire `PerformanceReportStore.latest()` into the injected performance reader; Task 4 owns in-flight export cancellation during application termination.
+
+## Review follow-up
+
+- Replaced the arbitrary performance closure with the narrow `PerformanceReportReading` protocol; `PerformanceReportStore` conforms and `DiagnosticsExportService` now calls `latest()` internally. Reader errors and missing reports continue to encode only `unavailable` and no raw error text.
+- Reworked `LocalFileStore.replace` for an existing target to use atomic exchange. If the directory sync after swapping fails, `exchange` swaps the original bytes back and synchronizes the rollback before returning the failure. Old prepared bytes are cleaned up best-effort only after a durable successful replacement, so cleanup trouble cannot turn a completed commit into a reported failure.
+- Added a post-replacement directory-sync failure regression proving the old destination bytes survive and a subsequent retry writes the new bytes.
+
+### Review verification
+
+- `swift test --filter DiagnosticsExportServiceTests`: 4 tests, 0 failures.
+- `swift test --filter AtomicIOTests`: 16 tests, 0 failures.

@@ -45,6 +45,7 @@ final class DiagnosticsExportServiceTests: XCTestCase {
             lastError: privateFixtures[2]
         )
         let report = makeReport()
+        let reportReader = TestPerformanceReportReader(report: report)
         let service = DiagnosticsExportService(
             settings: { ApplicationSettings(
                 launchAtLogin: true,
@@ -59,7 +60,7 @@ final class DiagnosticsExportServiceTests: XCTestCase {
                     failedCount: 1
                 )
             },
-            latestPerformanceReport: { report },
+            performanceReportStore: reportReader,
             buildSystemInfo: DiagnosticsBuildSystemInfo(
                 productVersion: "1.2.3",
                 buildNumber: "456",
@@ -83,6 +84,7 @@ final class DiagnosticsExportServiceTests: XCTestCase {
         XCTAssertEqual(document.recentTransactions.failedCount, 1)
         XCTAssertEqual(document.performance.status, .available)
         XCTAssertEqual(document.performance.report, report)
+        XCTAssertEqual(reportReader.latestCallCount, 1)
         XCTAssertEqual(document.buildSystem.productVersion, "1.2.3")
         XCTAssertEqual(document.buildSystem.architecture, "arm64")
 
@@ -138,7 +140,7 @@ final class DiagnosticsExportServiceTests: XCTestCase {
             },
             lockScreenSummary: { throw DiagnosticsFixtureError.privateProviderFailure },
             recentTransactionSummary: { throw DiagnosticsFixtureError.privateProviderFailure },
-            latestPerformanceReport: { nil },
+            performanceReportStore: TestPerformanceReportReader(error: .privateProviderFailure),
             buildSystemInfo: DiagnosticsBuildSystemInfo(
                 productVersion: "1.0",
                 buildNumber: "1",
@@ -224,7 +226,10 @@ private func makeReport() -> PerformanceDiagnosticReport {
     )
 }
 
-private func makeService(files: any FileStore) -> DiagnosticsExportService {
+private func makeService(
+    files: any FileStore,
+    reportReader: any PerformanceReportReading = TestPerformanceReportReader(report: makeReport())
+) -> DiagnosticsExportService {
     DiagnosticsExportService(
         settings: {
             ApplicationSettings(
@@ -249,7 +254,7 @@ private func makeService(files: any FileStore) -> DiagnosticsExportService {
                 failedCount: 0
             )
         },
-        latestPerformanceReport: { makeReport() },
+        performanceReportStore: reportReader,
         buildSystemInfo: DiagnosticsBuildSystemInfo(
             productVersion: "1.0",
             buildNumber: "1",
@@ -269,6 +274,23 @@ private enum DiagnosticsFixtureError: Error, LocalizedError {
         case .writeFailed: "diagnostics write failure"
         case .privateProviderFailure: "/Users/example/Secret.mov"
         }
+    }
+}
+
+private final class TestPerformanceReportReader: PerformanceReportReading, @unchecked Sendable {
+    private let report: PerformanceDiagnosticReport?
+    private let error: DiagnosticsFixtureError?
+    private(set) var latestCallCount = 0
+
+    init(report: PerformanceDiagnosticReport? = nil, error: DiagnosticsFixtureError? = nil) {
+        self.report = report
+        self.error = error
+    }
+
+    func latest() throws -> PerformanceDiagnosticReport? {
+        latestCallCount += 1
+        if let error { throw error }
+        return report
     }
 }
 
