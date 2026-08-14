@@ -274,13 +274,25 @@ public struct ApplicationShellView: View {
     public var body: some View {
         NavigationSplitView {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Wallume").font(.title.bold())
-                    Text("动态壁纸工作台").font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 10) {
+                    WallumeMark(size: 34)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Wallume").font(.headline.weight(.semibold))
+                        Text("动态壁纸").font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.horizontal, 14)
-                List(FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil), selection: $navigation.selection) { feature in
-                    Label(feature.title, systemImage: feature.systemImage).tag(feature.id)
+                List(selection: $navigation.selection) {
+                    Section("工作区") {
+                        ForEach(FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil).filter { $0.id != .settings }) { feature in
+                            Label(feature.title, systemImage: feature.systemImage).tag(feature.id)
+                        }
+                    }
+                    if FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil).contains(where: { $0.id == .settings }) {
+                        Section {
+                            Label("设置", systemImage: "gearshape").tag(WallumeFeatureID.settings)
+                        }
+                    }
                 }
                 .listStyle(.sidebar)
             }
@@ -351,9 +363,10 @@ public struct ApplicationShellView: View {
                     if let status = playback.statusText {
                         Label(status, systemImage: "pause.circle.fill")
                     }
-                    Button(playback.actionTitle) {
+                    Button(playback.actionTitle, systemImage: displays.userPaused ? "play.fill" : "pause.fill") {
                         Task { await displays.setUserPaused(!displays.userPaused) }
                     }
+                    .help(playback.actionTitle)
                 }
             }
         }

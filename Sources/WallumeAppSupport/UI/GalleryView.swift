@@ -20,35 +20,46 @@ public struct GalleryView: View {
         self.onImportFiles = onImportFiles; self.onImportFolder = onImportFolder; self.onDrop = onDrop
     }
 
-    private let columns = [GridItem(.adaptive(minimum: 180), spacing: 16)]
+    private let columns = [GridItem(.adaptive(minimum: 220, maximum: 280), spacing: 14)]
     public var body: some View {
         VStack(spacing: 0) {
-            WallumePageHeader("我的壁纸", subtitle: "导入、管理并分配你的动态壁纸") {
+            WallumePageHeader("图库", subtitle: "选择视频并分配给你的显示器") {
                 HStack {
-                Button("导入文件", systemImage: "plus", action: onImportFiles)
-                Button("导入文件夹", systemImage: "folder.badge.plus", action: onImportFolder)
+                    Button("导入视频", systemImage: "plus", action: onImportFiles)
+                    Button("导入文件夹", systemImage: "folder.badge.plus", action: onImportFolder)
                 }
             }
-            if let error = gallery.loadError { ContentUnavailableView("无法读取图库", systemImage: "exclamationmark.triangle", description: Text(error)) }
-            else if gallery.filteredItems.isEmpty { ContentUnavailableView("图库为空", systemImage: "film", description: Text("导入 MOV 或 MP4 视频开始使用")) }
+            if let error = gallery.loadError {
+                ContentUnavailableView("无法读取图库", systemImage: "exclamationmark.triangle", description: Text(error))
+            } else if gallery.filteredItems.isEmpty {
+                ContentUnavailableView("导入第一段动态画面", systemImage: "film.stack", description: Text("支持 MOV 和 MP4；导入后可直接分配到显示器"))
+            }
             else {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 16) {
                         ForEach(gallery.filteredItems) { item in
                             Button { gallery.selectedItem = item } label: {
-                                VStack(alignment: .leading) {
+                                VStack(alignment: .leading, spacing: 10) {
                                     if let image = NSImage(contentsOf: item.thumbnailURL) {
-                                        Image(nsImage: image).resizable().scaledToFill().frame(height: 126).clipped()
-                                            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                                        Image(nsImage: image).resizable().scaledToFill().frame(height: 142).clipped()
+                                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                                     }
-                                    Text(item.displayName).font(.headline).lineLimit(1)
-                                    Text("\(item.pixelWidth)×\(item.pixelHeight) · \(item.codec)").font(.caption).foregroundStyle(.secondary)
+                                    HStack(spacing: 8) {
+                                        Text(item.displayName).font(.headline).lineLimit(1)
+                                        Spacer(minLength: 0)
+                                        Image(systemName: "play.fill").font(.caption).foregroundStyle(WallumeDesign.accent)
+                                    }
+                                    Text("\(item.pixelWidth) × \(item.pixelHeight)  ·  \(item.codec)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .wallumeCard()
                             }.buttonStyle(.plain)
                         }
-                    }.padding()
+                    }
+                    .frame(maxWidth: WallumeDesign.contentWidth, alignment: .leading)
+                    .padding(24)
                 }
             }
         }

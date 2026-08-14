@@ -26,7 +26,7 @@ public struct DisplaysView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            WallumePageHeader("显示器", subtitle: "为每块屏幕独立管理动态壁纸") {
+            WallumePageHeader("显示器", subtitle: "为每块屏幕分配和预览动态壁纸") {
                 playbackStatus
             }
 
@@ -41,7 +41,8 @@ public struct DisplaysView: View {
                     LazyVStack(spacing: 14) {
                         ForEach(store.cards) { card in displayCard(card) }
                     }
-                    .padding()
+                    .frame(maxWidth: WallumeDesign.contentWidth, alignment: .leading)
+                    .padding(24)
                 }
             }
         }
@@ -90,7 +91,7 @@ public struct DisplaysView: View {
                         ZStack { Color.secondary.opacity(0.12); Image(systemName: "photo") }
                     }
                 }
-                .frame(width: 150, height: 86).clipped().clipShape(RoundedRectangle(cornerRadius: 8))
+                .frame(width: 180, height: 102).clipped().clipShape(RoundedRectangle(cornerRadius: 6))
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(card.wallpaperTitle).font(.headline)

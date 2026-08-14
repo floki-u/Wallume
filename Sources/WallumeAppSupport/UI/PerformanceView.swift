@@ -37,15 +37,17 @@ public struct PerformanceView: View {
     public var body: some View {
         let page = PerformancePageViewState(snapshot: store.snapshot)
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                WallumePageHeader("性能诊断", subtitle: "实时观察资源占用，必要时导出匿名报告") { EmptyView() }
+            VStack(alignment: .leading, spacing: 24) {
+                WallumePageHeader("性能", subtitle: "观察 Wallume 的实时资源占用") {
+                    WallumeStatusBadge(statusBadgeText(page.mode), systemImage: statusBadgeIcon(page.mode), tint: statusBadgeTint(page.mode))
+                }
                 statusCard(page)
                 metricsCard
                 runtimeCard
                 diagnosticCard(page)
             }
-            .frame(maxWidth: 720, alignment: .leading)
-            .padding()
+            .frame(maxWidth: WallumeDesign.contentWidth, alignment: .leading)
+            .padding(24)
         }
         .wallumePageBackground()
         .task { await store.pageAppeared() }
@@ -120,6 +122,35 @@ public struct PerformanceView: View {
         case .completed: "诊断已完成，本地报告可导出。"
         case .saveFailed: "诊断已完成，但本地保存失败；可重试或直接导出。"
         case .failed: "性能采样遇到问题，请重试。"
+        }
+    }
+
+    private func statusBadgeText(_ mode: PerformancePageViewState.Mode) -> String {
+        switch mode {
+        case .idle: "空闲"
+        case .realtime: "正在采样"
+        case .running: "正在诊断"
+        case .completed: "已完成"
+        case .saveFailed, .failed: "需要处理"
+        }
+    }
+
+    private func statusBadgeIcon(_ mode: PerformancePageViewState.Mode) -> String {
+        switch mode {
+        case .idle: "circle"
+        case .realtime: "waveform.path.ecg"
+        case .running: "gauge.with.dots.needle.67percent"
+        case .completed: "checkmark.circle.fill"
+        case .saveFailed, .failed: "exclamationmark.triangle.fill"
+        }
+    }
+
+    private func statusBadgeTint(_ mode: PerformancePageViewState.Mode) -> Color {
+        switch mode {
+        case .completed: .green
+        case .saveFailed, .failed: .red
+        case .realtime, .running: WallumeDesign.accent
+        case .idle: .secondary
         }
     }
     private func scenarioTitle(_ scenario: PerformanceDiagnosticScenario) -> String { switch scenario { case .singleDisplay: "单显示器"; case .twoDisplays: "双显示器"; case .paused: "暂停状态" } }

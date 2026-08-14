@@ -138,65 +138,129 @@ public struct LockScreenView: View {
 
     private func nativeProviderBody(_ provider: NativeWallpaperProviderStore) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                WallumePageHeader("锁屏同步", subtitle: "使用 Wallume 的原生动态壁纸提供者") { EmptyView() }
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(nativeStatusText(provider.status), systemImage: nativeStatusIcon(provider.status))
-                        .font(.headline)
-                    Text("Wallume 不直接改写系统壁纸数据库。准备完成后，请在系统“壁纸”中选择 Wallume 的视频；macOS 会同时接管桌面和锁屏播放。")
-                        .foregroundStyle(.secondary)
-                    if let media = provider.media {
-                        Text("当前主显示器媒体：\(media.displayName)")
-                    }
+            VStack(alignment: .leading, spacing: 0) {
+                WallumePageHeader("锁屏与桌面", subtitle: "原生动态壁纸通过 macOS 同时应用到桌面和锁屏") {
+                    WallumeStatusBadge(
+                        nativeShortStatus(provider.status),
+                        systemImage: nativeStatusIcon(provider.status),
+                        tint: nativeStatusTint(provider.status)
+                    )
                 }
-                .wallumeCard()
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("动态壁纸").font(.title3.bold())
-                    Button("准备当前视频") { Task { await provider.prepareCurrentMedia() } }
-                        .disabled(provider.media == nil || provider.status == .activeInSystem)
-                    Button("打开系统壁纸设置") { openSystemWallpaperSettings() }
-                        .disabled(provider.deployment == nil)
-                    Button("检查系统选择") { Task { await provider.refreshSystemSelection() } }
-                        .disabled(provider.deployment == nil)
-                    if provider.status == .preparedForSystemSelection {
-                        Text("在系统设置的 Wallume 分类中选中该视频后，回到这里检查状态；Wallume 会自动停用自己的桌面叠加层。")
-                            .foregroundStyle(.secondary)
+                    Text(nativeStatusText(provider.status)).font(.title3.weight(.semibold))
+                    Text("Wallume 只准备属于自己的视频素材。选择和应用始终由系统“壁纸”完成，不会直接修改 macOS 的壁纸数据库。")
+                        .foregroundStyle(.secondary)
+                    if let media = provider.media {
+                        Label(media.displayName, systemImage: "film")
+                            .font(.subheadline.weight(.medium))
                     }
                 }
-                .wallumeCard()
+                .wallumePanel()
+
+                VStack(alignment: .leading, spacing: 0) {
+                    nativeStep(
+                        number: "1",
+                        title: "准备视频",
+                        detail: provider.media == nil ? "先在显示器页为主显示器分配一个视频。" : "创建供系统壁纸提供者读取的视频与静态封面。",
+                        actionTitle: "准备当前视频",
+                        actionIcon: "arrow.down.circle",
+                        isEnabled: provider.media != nil && provider.status != .activeInSystem
+                    ) { Task { await provider.prepareCurrentMedia() } }
+
+                    nativeStep(
+                        number: "2",
+                        title: "在系统中选择",
+                        detail: "打开系统设置，在 Wallume 分类中选择刚准备的视频。",
+                        actionTitle: "打开系统壁纸设置",
+                        actionIcon: "gearshape",
+                        isEnabled: provider.deployment != nil
+                    ) { openSystemWallpaperSettings() }
+
+                    nativeStep(
+                        number: "3",
+                        title: "确认已生效",
+                        detail: provider.status == .activeInSystem ? "系统已报告 Wallume 视频正在使用。" : "选择完成后检查状态；桌面和锁屏会由 macOS 接管。",
+                        actionTitle: "检查状态",
+                        actionIcon: "arrow.clockwise",
+                        isEnabled: provider.deployment != nil
+                    ) { Task { await provider.refreshSystemSelection() } }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous)
+                        .strokeBorder(.primary.opacity(0.1))
+                }
+                .padding(.vertical, 24)
 
                 if let imageURL = provider.media?.coverURL {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("静态图片降级").font(.title3.bold())
-                        Text("若系统未能加载动态壁纸，可手动在系统壁纸设置中选择 Wallume 为此视频生成的静态封面。此操作由你确认，Wallume 不会自动替换系统壁纸。")
+                    HStack(alignment: .center, spacing: 14) {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.title2)
                             .foregroundStyle(.secondary)
-                        HStack {
-                            Button("显示静态封面") { revealStaticFallback(imageURL) }
-                            Button("打开系统壁纸设置") { openSystemWallpaperSettings() }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("动态视频无法加载？").font(.headline)
+                            Text("可以改用当前视频生成的静态封面；Wallume 不会替你自动更换系统壁纸。")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
+                        Spacer(minLength: 16)
+                        Button("查看封面", systemImage: "eye") { revealStaticFallback(imageURL) }
                     }
                     .wallumeCard()
                 }
 
                 if provider.deployment != nil {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("重置与清理").font(.title3.bold())
-                        Text("先在系统壁纸设置中改用其他壁纸，确认动态视频已不再选中，再确认重置。确认后才能清理 Wallume 的提供者缓存；你的媒体库不会被删除。")
-                            .foregroundStyle(.secondary)
-                        Button("我已在系统中重置") { Task { await provider.confirmSystemReset() } }
-                        Button("清理 Wallume 动态壁纸资源", role: .destructive) {
-                            Task { await provider.cleanupAfterReset() }
+                    DisclosureGroup("重置 Provider 资源") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("先在系统壁纸设置中选择其他壁纸，再确认重置。你的 Wallume 媒体库不会被删除。")
+                                .foregroundStyle(.secondary)
+                            HStack {
+                                Button("确认系统已重置") { Task { await provider.confirmSystemReset() } }
+                                Button("清理资源", systemImage: "trash", role: .destructive) {
+                                    Task { await provider.cleanupAfterReset() }
+                                }
+                                .disabled(provider.status != .resetConfirmed)
+                            }
                         }
-                        .disabled(provider.status != .resetConfirmed)
+                        .padding(.top, 8)
                     }
-                    .wallumeCard()
+                    .font(.subheadline)
                 }
             }
-            .frame(maxWidth: 720, alignment: .leading)
-            .padding()
+            .frame(maxWidth: WallumeDesign.contentWidth, alignment: .leading)
+            .padding(24)
         }
         .wallumePageBackground()
+    }
+
+    private func nativeStep(
+        number: String,
+        title: String,
+        detail: String,
+        actionTitle: String,
+        actionIcon: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        HStack(alignment: .center, spacing: 16) {
+            Text(number)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(WallumeDesign.accent)
+                .frame(width: 24, height: 24)
+                .background(WallumeDesign.accent.opacity(0.12), in: Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.headline)
+                Text(detail).font(.subheadline).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 16)
+            Button(actionTitle, systemImage: actionIcon, action: action)
+                .labelStyle(.titleAndIcon)
+                .disabled(!isEnabled)
+        }
+        .padding(18)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     private var legacyLockScreenBody: some View {
@@ -415,6 +479,27 @@ public struct LockScreenView: View {
         case .activeInSystem: "系统已选中 Wallume 动态壁纸，桌面和锁屏由 macOS 原生播放。"
         case .resetConfirmed: "系统重置已确认，现在可以清理 Wallume 的提供者资源。"
         case let .failure(message): message
+        }
+    }
+
+    private func nativeShortStatus(_ status: NativeWallpaperProviderStatus) -> String {
+        switch status {
+        case .unavailable: "不可用"
+        case .needsMedia: "需要视频"
+        case .readyToPrepare: "可以准备"
+        case .preparedForSystemSelection: "等待系统选择"
+        case .activeInSystem: "已生效"
+        case .resetConfirmed: "可以清理"
+        case .failure: "需要处理"
+        }
+    }
+
+    private func nativeStatusTint(_ status: NativeWallpaperProviderStatus) -> Color {
+        switch status {
+        case .activeInSystem: .green
+        case .failure, .unavailable: .red
+        case .preparedForSystemSelection, .readyToPrepare: WallumeDesign.accent
+        case .needsMedia, .resetConfirmed: .secondary
         }
     }
 

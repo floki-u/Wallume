@@ -240,15 +240,15 @@ public struct SettingsView: View {
             exportState: exportController.state
         )
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                WallumePageHeader("设置", subtitle: "管理启动、播放与本地诊断偏好") { EmptyView() }
+            VStack(alignment: .leading, spacing: 24) {
+                WallumePageHeader("设置", subtitle: "启动、播放与本地数据") { EmptyView() }
                 preferencesCard(page)
                 directoriesCard(page)
                 diagnosticsCard(page)
-                Text(page.buildInfo.displayText).foregroundStyle(.secondary)
+                Text(page.buildInfo.displayText).font(.caption).foregroundStyle(.secondary)
             }
-            .frame(maxWidth: 720, alignment: .leading)
-            .padding()
+            .frame(maxWidth: WallumeDesign.contentWidth, alignment: .leading)
+            .padding(24)
         }
         .wallumePageBackground()
         .alert("设置操作失败", isPresented: Binding(
@@ -263,7 +263,7 @@ public struct SettingsView: View {
 
     private func preferencesCard(_ page: SettingsPageViewState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("启动与播放").font(.title3.bold())
+            Text("启动与播放").font(.headline)
             ForEach(page.preferenceControls) { presentation in
                 if case let .setPreference(control) = presentation.action {
                     Toggle(presentation.title, isOn: preferenceBinding(for: control))
@@ -297,7 +297,7 @@ public struct SettingsView: View {
 
     private func directoriesCard(_ page: SettingsPageViewState) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("本地数据").font(.title3.bold())
+            Text("本地数据").font(.headline)
             directoryRow(title: "Wallume 数据", path: page.dataDirectoryPath, url: dataDirectory)
             directoryRow(title: "诊断数据", path: page.diagnosticsDirectoryPath, url: diagnosticsDirectory)
         }
@@ -311,13 +311,13 @@ public struct SettingsView: View {
                 Text(path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }
             Spacer()
-            Button("在访达中显示") { openInFinder(url) }
+            Button("在访达中显示", systemImage: "folder") { openInFinder(url) }
         }
     }
 
     private func diagnosticsCard(_ page: SettingsPageViewState) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("诊断信息").font(.title3.bold())
+            Text("诊断信息").font(.headline)
             Text("导出仅包含设置、锁屏状态和匿名性能汇总，不包含媒体路径或缩略图。")
                 .foregroundStyle(.secondary)
             if let message = page.exportErrorMessage {

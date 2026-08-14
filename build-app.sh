@@ -52,6 +52,7 @@ mkdir -p "$CONTENTS/Extensions"
 
 cp "$BUILD_DIR/WallumeApp" "$MACOS/WallumeApp"
 cp "$BUILD_DIR/wallume-provider-cleanup" "$RESOURCES/wallume-provider-cleanup"
+cp "$PWD/Assets/Wallume.icns" "$RESOURCES/Wallume.icns"
 cp -R "$NATIVE_EXTENSION" "$CONTENTS/Extensions/"
 cp "$PWD/uninstall-wallume.sh" "$BUILD_DIR/uninstall-wallume.sh"
 chmod +x "$BUILD_DIR/uninstall-wallume.sh"
@@ -69,6 +70,8 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
     <key>CFBundleIdentifier</key>
     <string>com.wallume.app</string>
     <key>CFBundleName</key>
+    <string>Wallume</string>
+    <key>CFBundleIconFile</key>
     <string>Wallume</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
