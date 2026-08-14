@@ -58,7 +58,7 @@
 		};
 		AA9B91CB2E900B9E008812A9 /* WallumeProviderHost */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = WallumeProviderHost;
+			path = WallumeProviderHostMinimal;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -414,10 +414,8 @@
 		AA9B91D62E900B9F008812A9 /* Release configuration for PBXNativeTarget "WallumeProviderHost" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = WallumeProviderHost;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_WARN_SUSPICIOUS_IMPLICIT_CONVERSION = YES_ERROR;
-				CODE_SIGN_ENTITLEMENTS = WallumeProviderHost/WallumeProviderHost.entitlements;
+				CODE_SIGN_ENTITLEMENTS = WallumeProviderHostMinimal/WallumeProviderHost.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -463,9 +461,8 @@
 		AA9B928E2E9057E5008812A9 /* Debug configuration for PBXNativeTarget "WallumeProviderHost" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = WallumeProviderHost;
 				CLANG_WARN_SUSPICIOUS_IMPLICIT_CONVERSION = YES_ERROR;
-				CODE_SIGN_ENTITLEMENTS = WallumeProviderHost/WallumeProviderHost.entitlements;
+				CODE_SIGN_ENTITLEMENTS = WallumeProviderHostMinimal/WallumeProviderHost.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;

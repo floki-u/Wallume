@@ -53,6 +53,8 @@ mkdir -p "$CONTENTS/Extensions"
 cp "$BUILD_DIR/WallumeApp" "$MACOS/WallumeApp"
 cp "$BUILD_DIR/wallume-provider-cleanup" "$RESOURCES/wallume-provider-cleanup"
 cp -R "$NATIVE_EXTENSION" "$CONTENTS/Extensions/"
+cp "$PWD/uninstall-wallume.sh" "$BUILD_DIR/uninstall-wallume.sh"
+chmod +x "$BUILD_DIR/uninstall-wallume.sh"
 # Xcode registers its temporary build product while compiling. The shippable extension is the
 # one embedded in Wallume.app, so keep the temporary path out of System Settings.
 pluginkit -r "$NATIVE_EXTENSION" >/dev/null 2>&1 || true
@@ -90,6 +92,9 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
 EOF
 codesign --force --deep --sign "$SIGNING_IDENTITY" "$APP_PATH" >/dev/null
 codesign --verify --deep --strict "$APP_PATH"
+# Register the signed, embedded copy. System Settings must never point to Xcode's DerivedData
+# product, which disappears on the next clean build.
+pluginkit -a "$CONTENTS/Extensions/WallumeNativeWallpaperExtension.appex" >/dev/null
 
 echo "Creating $SAVER_NAME bundle..."
 rm -rf "$SAVER_PATH"

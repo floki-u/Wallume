@@ -31,3 +31,10 @@ resources. The main Wallume media library is retained.
 
 The native provider currently uses macOS 26 private framework behavior and is intended for local
 development validation while compatibility and distribution support are assessed.
+
+## Uninstalling
+
+Before removing Wallume, select a non-Wallume wallpaper in System Settings > Wallpaper. Then run
+`./.build/arm64-apple-macosx/debug/uninstall-wallume.sh --remove-app` after `./build-app.sh`.
+The helper clears only Wallume's native-provider cache and unregisters the embedded extension; it
+does not remove videos from Wallume's main library.
