@@ -57,7 +57,7 @@ public final class StatusItemController {
 
     private func render() {
         let snapshot = state.imports
-        item.button?.title = state.imports.isActive || state.activeDisplayCount > 0 ? " \(Self.title(for: state))" : ""
+        item.button?.title = Self.statusBarButtonTitle(for: state)
         let menu = NSMenu()
         menu.addItem(withTitle: Self.title(for: state), action: nil, keyEquivalent: "")
         if let current = snapshot.items.first(where: { $0.attempts.last?.status == .running }), let attempt = current.attempts.last {
@@ -103,6 +103,9 @@ public final class StatusItemController {
             ? "播放中 · \(state.activeDisplayCount) 台显示器"
             : "已暂停 · \(state.activeDisplayCount) 台显示器"
     }
+
+    /// The menu bar stays compact; live status is available after opening the icon menu.
+    public nonisolated static func statusBarButtonTitle(for state: StatusItemState) -> String { "" }
 
     private func actionItem(_ title: String, action: Selector) -> NSMenuItem {
         let value = NSMenuItem(title: title, action: action, keyEquivalent: "")

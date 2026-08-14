@@ -149,7 +149,8 @@ public struct LockScreenTransaction: Sendable {
         let installedIndex = try patcher.apply(mutations, to: currentIndex)
         let preparedIndex = siblingPreparation(of: paths.wallpaperIndex, id: id)
         try files.writeAtomically(installedIndex, to: preparedIndex)
-        guard try files.read(paths.wallpaperIndex) == originalIndex else {
+        let preExchangeIndex = try files.read(paths.wallpaperIndex)
+        guard preExchangeIndex == originalIndex else {
             throw LockScreenTransactionError.targetChanged(paths.wallpaperIndex)
         }
         try guardedExchange(

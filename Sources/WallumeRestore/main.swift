@@ -38,7 +38,7 @@ func currentGeneratedUID(homeDirectory: URL) throws -> String {
     return String(value)
 }
 
-final class ProcessRecovery: LockScreenRecovering {
+final class ProcessRecovery: LockScreenRecovering, TahoeAerialRecovering {
     private let homeDirectory: URL
     private var coordinator: RecoveryCoordinator?
 
@@ -58,6 +58,14 @@ final class ProcessRecovery: LockScreenRecovering {
         try recovery().restore(id: id)
     }
 
+    func inspectTahoe() throws -> [TahoeAerialRecoveryCandidate] {
+        try tahoeTransaction().inspectRecovery()
+    }
+
+    func resetTahoe(id: UUID) throws -> TahoeAerialResetReport {
+        try tahoeTransaction().reset(id: id)
+    }
+
     private func recovery() throws -> RecoveryCoordinator {
         if let coordinator { return coordinator }
         let paths = AerialPaths(
@@ -75,6 +83,26 @@ final class ProcessRecovery: LockScreenRecovering {
         )
         self.coordinator = coordinator
         return coordinator
+    }
+
+    private func tahoeTransaction() throws -> TahoeAerialTransaction {
+        let paths = AerialPaths(
+            homeDirectory: homeDirectory,
+            userGeneratedID: try currentGeneratedUID(homeDirectory: homeDirectory)
+        )
+        let files = LocalFileStore()
+        return TahoeAerialTransaction(
+            paths: paths,
+            files: files,
+            digester: SHA256Digester(),
+            journals: AtomicJSONStore(files: files),
+            registrations: TahoeAerialRegistrationStore(
+                directory: paths.tahoeRegistrationsDirectory,
+                files: files,
+                journals: AtomicJSONStore(files: files)
+            ),
+            refresher: ProcessWallpaperRefresher()
+        )
     }
 }
 
@@ -105,5 +133,5 @@ let homeDirectory = URL(
 )
 let recovery = ProcessRecovery(homeDirectory: homeDirectory)
 let probe = ProcessProbe(homeDirectory: homeDirectory)
-let command = RestoreCommand(recovery: recovery, probe: probe, output: output)
+let command = RestoreCommand(recovery: recovery, probe: probe, tahoeRecovery: recovery, output: output)
 exit(command.run(arguments: Array(CommandLine.arguments.dropFirst())))

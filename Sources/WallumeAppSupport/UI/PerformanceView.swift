@@ -38,7 +38,7 @@ public struct PerformanceView: View {
         let page = PerformancePageViewState(snapshot: store.snapshot)
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("性能诊断").font(.largeTitle.bold())
+                WallumePageHeader("性能诊断", subtitle: "实时观察资源占用，必要时导出匿名报告") { EmptyView() }
                 statusCard(page)
                 metricsCard
                 runtimeCard
@@ -47,6 +47,7 @@ public struct PerformanceView: View {
             .frame(maxWidth: 720, alignment: .leading)
             .padding()
         }
+        .wallumePageBackground()
         .task { await store.pageAppeared() }
         .onDisappear { Task { await store.pageDisappeared() } }
         .alert("性能诊断操作失败", isPresented: Binding(get: { store.pageError != nil }, set: { if !$0 { store.dismissPageError() } })) {
@@ -62,7 +63,7 @@ public struct PerformanceView: View {
             Text(statusText(page.mode)).font(.headline)
             Text("实时采样仅保存在内存中，最多保留最近 60 项。诊断会连续采样 30 秒并只保存匿名汇总数据。")
                 .foregroundStyle(.secondary)
-        }.cardStyle()
+        }.wallumeCard()
     }
 
     private var metricsCard: some View {
@@ -74,7 +75,7 @@ public struct PerformanceView: View {
                 GridRow { Text("CPU"); Text(percent(metrics.currentCPUPercent)); Text(percent(metrics.averageCPUPercent)); Text(percent(metrics.peakCPUPercent)) }
                 GridRow { Text("常驻内存"); Text(bytes(metrics.currentResidentBytes)); Text(bytes(metrics.averageResidentBytes)); Text(bytes(metrics.peakResidentBytes)) }
             }
-        }.cardStyle()
+        }.wallumeCard()
     }
 
     private var runtimeCard: some View {
@@ -85,7 +86,7 @@ public struct PerformanceView: View {
             Text("共享资源 \(runtime.sharedResourceCount)（引用 \(runtime.sharedResourceReferenceCount)）· 已创建资源 \(runtime.resourceCreationCount)")
             Text(runtime.pauseReasons.isEmpty ? "暂停原因：无" : "暂停原因：\(runtime.pauseReasons.map(\.rawValue).joined(separator: "、"))")
                 .foregroundStyle(.secondary)
-        }.cardStyle()
+        }.wallumeCard()
     }
 
     private func diagnosticCard(_ page: PerformancePageViewState) -> some View {
@@ -108,7 +109,7 @@ public struct PerformanceView: View {
                     catch { store.reportPageError(error.localizedDescription) }
                 }
             }
-        }.cardStyle()
+        }.wallumeCard()
     }
 
     private func statusText(_ mode: PerformancePageViewState.Mode) -> String {
@@ -124,10 +125,6 @@ public struct PerformanceView: View {
     private func scenarioTitle(_ scenario: PerformanceDiagnosticScenario) -> String { switch scenario { case .singleDisplay: "单显示器"; case .twoDisplays: "双显示器"; case .paused: "暂停状态" } }
     private func percent(_ value: Double) -> String { String(format: "%.1f%%", value) }
     private func bytes(_ value: UInt64) -> String { ByteCountFormatter.string(fromByteCount: Int64(clamping: value), countStyle: .memory) }
-}
-
-private extension View {
-    func cardStyle() -> some View { padding(16).background(.background.secondary, in: RoundedRectangle(cornerRadius: 12)) }
 }
 
 public struct PerformanceDiagnosticDocument: FileDocument {

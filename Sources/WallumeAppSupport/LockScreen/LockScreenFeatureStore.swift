@@ -7,6 +7,7 @@ import WallumeCore
 public struct LockScreenFeatureCommands: Sendable {
     public var refreshProbe: @Sendable () async throws -> LockScreenCommandTicket?
     public var selectAerialSlot: @Sendable (String) async throws -> LockScreenCommandTicket?
+    public var selectTahoeCompatibility: @Sendable () async throws -> LockScreenCommandTicket?
     public var confirmEnable: @Sendable () async throws -> LockScreenCommandTicket?
     public var disableAndRestore: @Sendable () async throws -> LockScreenCommandTicket?
     public var retry: @Sendable () async throws -> LockScreenCommandTicket?
@@ -15,6 +16,7 @@ public struct LockScreenFeatureCommands: Sendable {
     public init(
         refreshProbe: @escaping @Sendable () async throws -> LockScreenCommandTicket?,
         selectAerialSlot: @escaping @Sendable (String) async throws -> LockScreenCommandTicket?,
+        selectTahoeCompatibility: (@Sendable () async throws -> LockScreenCommandTicket?)? = nil,
         confirmEnable: @escaping @Sendable () async throws -> LockScreenCommandTicket?,
         disableAndRestore: @escaping @Sendable () async throws -> LockScreenCommandTicket?,
         retry: @escaping @Sendable () async throws -> LockScreenCommandTicket?,
@@ -22,6 +24,7 @@ public struct LockScreenFeatureCommands: Sendable {
     ) {
         self.refreshProbe = refreshProbe
         self.selectAerialSlot = selectAerialSlot
+        self.selectTahoeCompatibility = selectTahoeCompatibility ?? { nil }
         self.confirmEnable = confirmEnable
         self.disableAndRestore = disableAndRestore
         self.retry = retry
@@ -32,6 +35,7 @@ public struct LockScreenFeatureCommands: Sendable {
         Self(
             refreshProbe: { await service.refreshProbe() },
             selectAerialSlot: { await service.selectAerialSlot($0) },
+            selectTahoeCompatibility: { await service.selectTahoeCompatibility() },
             confirmEnable: { await service.confirmEnable() },
             disableAndRestore: { await service.disableAndRestore() },
             retry: { await service.retry() },
@@ -79,6 +83,10 @@ public final class LockScreenFeatureStore {
 
     public func selectAerialSlot(_ aerialID: String) async {
         await perform(command: .selectAerialSlot) { try await commands.selectAerialSlot(aerialID) }
+    }
+
+    public func selectTahoeCompatibility() async {
+        await perform(command: .selectAerialSlot) { try await commands.selectTahoeCompatibility() }
     }
 
     public func confirmEnable() async {

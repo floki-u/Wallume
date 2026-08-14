@@ -38,6 +38,20 @@ public struct LockScreenSyncedMediaSummary: Equatable, Sendable {
     }
 }
 
+/// A locally generated still image that can be offered when dynamic lock-screen playback is not
+/// available. This is a user-controlled fallback; Wallume never selects it in System Settings.
+public struct LockScreenStaticFallbackSummary: Equatable, Sendable {
+    public let mediaID: UUID
+    public let displayName: String?
+    public let imageURL: URL
+
+    public init(mediaID: UUID, displayName: String?, imageURL: URL) {
+        self.mediaID = mediaID
+        self.displayName = displayName
+        self.imageURL = imageURL
+    }
+}
+
 /// A value-only diagnostic view of lock-screen sync state. It deliberately omits
 /// media identity, names, paths, URLs, and transaction identifiers.
 public enum LockScreenDiagnosticsStatus: String, Codable, Equatable, Sendable {
@@ -143,6 +157,7 @@ public struct LockScreenSyncState: Equatable, Sendable {
     public let probe: LockScreenProbeReport?
     public let activeTransactionID: UUID?
     public let syncedMedia: LockScreenSyncedMediaSummary?
+    public let staticFallback: LockScreenStaticFallbackSummary?
     public let lastSyncedAt: Date?
     public let lastResult: LockScreenConfigurationResult?
     public let lastError: String?
@@ -159,6 +174,7 @@ public struct LockScreenSyncState: Equatable, Sendable {
         probe: LockScreenProbeReport? = nil,
         activeTransactionID: UUID? = nil,
         syncedMedia: LockScreenSyncedMediaSummary? = nil,
+        staticFallback: LockScreenStaticFallbackSummary? = nil,
         lastSyncedAt: Date? = nil,
         lastResult: LockScreenConfigurationResult? = nil,
         lastError: String? = nil,
@@ -174,6 +190,7 @@ public struct LockScreenSyncState: Equatable, Sendable {
         self.probe = probe
         self.activeTransactionID = activeTransactionID
         self.syncedMedia = syncedMedia
+        self.staticFallback = staticFallback
         self.lastSyncedAt = lastSyncedAt
         self.lastResult = lastResult
         self.lastError = lastError

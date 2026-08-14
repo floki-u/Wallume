@@ -23,12 +23,12 @@ public struct GalleryView: View {
     private let columns = [GridItem(.adaptive(minimum: 180), spacing: 16)]
     public var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("我的壁纸").font(.largeTitle.bold())
-                Spacer()
+            WallumePageHeader("我的壁纸", subtitle: "导入、管理并分配你的动态壁纸") {
+                HStack {
                 Button("导入文件", systemImage: "plus", action: onImportFiles)
                 Button("导入文件夹", systemImage: "folder.badge.plus", action: onImportFolder)
-            }.padding()
+                }
+            }
             if let error = gallery.loadError { ContentUnavailableView("无法读取图库", systemImage: "exclamationmark.triangle", description: Text(error)) }
             else if gallery.filteredItems.isEmpty { ContentUnavailableView("图库为空", systemImage: "film", description: Text("导入 MOV 或 MP4 视频开始使用")) }
             else {
@@ -37,16 +37,23 @@ public struct GalleryView: View {
                         ForEach(gallery.filteredItems) { item in
                             Button { gallery.selectedItem = item } label: {
                                 VStack(alignment: .leading) {
-                                    if let image = NSImage(contentsOf: item.thumbnailURL) { Image(nsImage: image).resizable().scaledToFill().frame(height: 110).clipped() }
+                                    if let image = NSImage(contentsOf: item.thumbnailURL) {
+                                        Image(nsImage: image).resizable().scaledToFill().frame(height: 126).clipped()
+                                            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                                    }
                                     Text(item.displayName).font(.headline).lineLimit(1)
                                     Text("\(item.pixelWidth)×\(item.pixelHeight) · \(item.codec)").font(.caption).foregroundStyle(.secondary)
-                                }.frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .wallumeCard()
                             }.buttonStyle(.plain)
                         }
                     }.padding()
                 }
             }
         }
+        .wallumePageBackground()
+        .animation(.easeInOut(duration: 0.18), value: gallery.filteredItems.map(\.id))
         .searchable(text: $gallery.searchText, prompt: "搜索壁纸")
         .dropDestination(for: URL.self) { urls, _ in onDrop(urls); return !urls.isEmpty }
         .safeAreaInset(edge: .bottom) {

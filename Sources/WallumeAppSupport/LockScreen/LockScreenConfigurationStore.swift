@@ -64,15 +64,52 @@ public actor LockScreenConfigurationStore {
             persistedFile = loaded.file
             loadState = .loaded
         } catch {
+            recordDiagnostic("initial load rejected", error: error)
             transitionToFailed()
             throw error
         }
 
+        recordDiagnostic("initial load accepted")
         publish()
         return value
     }
 
     public func snapshot() -> LockScreenConfiguration { value }
+
+    /// Re-establishes trust from the current on-disk document without writing it.
+    ///
+    /// This is used after an ordinary inode/byte change is detected. The replacement must still
+    /// pass the same strict schema, path-safety, and semantic validation as an initial load.
+    @discardableResult
+    public func reloadTrustedConfiguration() throws -> LockScreenConfiguration {
+        do {
+            let token = try advisoryLock.acquire()
+            defer { withExtendedLifetime(token) {} }
+            let loaded = try readValidatedFile()
+            value = loaded.configuration
+            persistedFile = loaded.file
+            loadState = .loaded
+            recordDiagnostic("trusted reload accepted")
+            publish()
+            return value
+        } catch {
+            recordDiagnostic("trusted reload rejected", error: error)
+            transitionToFailed()
+            throw error
+        }
+    }
+
+    /// Explicitly retries a failed initial read without writing the document.
+    ///
+    /// The app only calls this from a user-requested retry. It retains fail-closed semantics for
+    /// malformed or unsafe documents, but avoids trapping a user in a stale failure after a
+    /// valid atomic replacement (for example, a completed recovery) is now present on disk.
+    @discardableResult
+    public func recoverAfterFailure() throws -> LockScreenConfiguration {
+        guard loadState == .failed else { return try load() }
+        recordDiagnostic("explicit recovery requested")
+        return try reloadTrustedConfiguration()
+    }
 
     /// Confirms the source accepted by `load()` or the latest `update(_:)` is still unchanged.
     ///
@@ -92,6 +129,7 @@ public actor LockScreenConfigurationStore {
         do {
             try verifyPersistedFileIsUnchanged()
         } catch {
+            recordDiagnostic("trusted source verification rejected", error: error)
             transitionToFailed()
             throw error
         }
@@ -112,27 +150,42 @@ public actor LockScreenConfigurationStore {
         do {
             try verifyPersistedFileIsUnchanged()
         } catch {
+            recordDiagnostic("configuration update preflight rejected", error: error)
             transitionToFailed()
             throw error
         }
 
         do {
             try jsonStore.write(configuration, to: url)
+        } catch let error as AtomicFileStoreError {
+            // A durability uncertainty is reported after the rename may already be visible.
+            // Treat it as committed only when a guarded reread proves the exact intended
+            // document won; otherwise keep the original fail-closed behavior.
+            guard case .durabilityUncertain = error,
+                  let reloaded = try? readValidatedFile(),
+                  reloaded.configuration == configuration else {
+                recordDiagnostic("configuration update write rejected", error: error)
+                transitionToFailed()
+                throw error
+            }
+            persistedFile = reloaded.file
+            value = configuration
+            publish()
+            return
         } catch {
+            recordDiagnostic("configuration update write rejected", error: error)
             transitionToFailed()
             throw error
         }
         do {
-            let reloaded = try readValidatedFile()
-            guard reloaded.configuration == configuration else {
-                throw LockScreenConfigurationStoreError.configurationChangedExternally
-            }
-            persistedFile = reloaded.file
+            let written = try readBackWrittenConfiguration(configuration)
+            persistedFile = written.file
+            value = written.configuration
         } catch {
+            recordDiagnostic("configuration update postflight rejected", error: error)
             transitionToFailed()
             throw error
         }
-        value = configuration
         publish()
     }
 
@@ -240,11 +293,87 @@ public actor LockScreenConfigurationStore {
         }
     }
 
+    /// Confirms the document that we just atomically wrote. This intentionally does not require
+    /// two identical inode observations: on Tahoe/APFS, the second no-follow stat may observe a
+    /// transient replacement view even though the exact document from this write is present.
+    /// Subsequent irreversible work still uses `verifyPersistedFileIsUnchanged()` with the saved
+    /// identity and bytes, so an actual later replacement remains fail-closed.
+    private func readBackWrittenConfiguration(
+        _ expected: LockScreenConfiguration
+    ) throws -> (configuration: LockScreenConfiguration, file: PersistedConfigurationFile) {
+        guard try files.hasNoSymlinkComponents(url) else {
+            throw LockScreenConfigurationStoreError.unsafeConfigurationFile
+        }
+        let data = try files.read(url)
+        guard try files.hasNoSymlinkComponents(url) else {
+            throw LockScreenConfigurationStoreError.unsafeConfigurationFile
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let reloaded = try decoder.decode(LockScreenConfiguration.self, from: data)
+        try validate(reloaded)
+        guard representsSamePersistedConfiguration(reloaded, as: expected) else {
+            throw LockScreenConfigurationStoreError.configurationChangedExternally
+        }
+        let identity = try files.identity(of: url)
+        guard identity.isRegularFile else {
+            throw LockScreenConfigurationStoreError.unsafeConfigurationFile
+        }
+        return (reloaded, .existing(identity: identity, data: data))
+    }
+
+    /// `JSONEncoder.DateEncodingStrategy.iso8601` persists whole seconds. The in-memory `Date`
+    /// supplied by `now()` may contain fractional seconds, so direct `Equatable` comparison would
+    /// reject our own correctly written document. All non-date fields remain exact.
+    private func representsSamePersistedConfiguration(
+        _ persisted: LockScreenConfiguration,
+        as expected: LockScreenConfiguration
+    ) -> Bool {
+        persisted.schemaVersion == expected.schemaVersion
+            && persisted.isEnabled == expected.isEnabled
+            && persisted.selectedAerialID == expected.selectedAerialID
+            && persisted.activeTransactionID == expected.activeTransactionID
+            && persisted.lastSyncedMediaID == expected.lastSyncedMediaID
+            && persisted.lastResult == expected.lastResult
+            && samePersistedDate(persisted.lastSyncedAt, expected.lastSyncedAt)
+    }
+
+    private func samePersistedDate(_ lhs: Date?, _ rhs: Date?) -> Bool {
+        switch (lhs, rhs) {
+        case (nil, nil): true
+        case let (.some(left), .some(right)):
+            Int(left.timeIntervalSince1970) == Int(right.timeIntervalSince1970)
+        default: false
+        }
+    }
+
     private func transitionToFailed() {
         value = .disabled
         persistedFile = nil
         loadState = .failed
         publish()
+    }
+
+    /// A small, local-only diagnostic trail for user-reported lock-screen failures. Do not log
+    /// configuration contents, video paths, hashes, or system-manifest contents here.
+    private func recordDiagnostic(_ event: String, error: Error? = nil) {
+        let directory = url.deletingLastPathComponent().appending(path: "Diagnostics", directoryHint: .isDirectory)
+        let logURL = directory.appending(path: "lock-screen-debug.log")
+        let message = error.map { " error=\(String(describing: $0))" } ?? ""
+        let line = "\(ISO8601DateFormatter().string(from: Date())) event=\(event)\(message)\n"
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            if FileManager.default.fileExists(atPath: logURL.path) {
+                let handle = try FileHandle(forWritingTo: logURL)
+                defer { try? handle.close() }
+                try handle.seekToEnd()
+                try handle.write(contentsOf: Data(line.utf8))
+            } else {
+                try Data(line.utf8).write(to: logURL, options: [.atomic])
+            }
+        } catch {
+            // Diagnostics must never affect the lock-screen recovery path.
+        }
     }
 
     private func publish() {

@@ -20,8 +20,11 @@ public struct LockScreenPageViewState: Equatable, Sendable {
     public let syncedMediaName: String?
     public let syncedAt: Date?
     public let syncTimeText: String?
+    public let staticFallbackName: String?
+    public let staticFallbackImageURL: URL?
     public let errorText: String?
     public let isAwaitingDetection: Bool
+    public let isTahoeCompatibilityAvailable: Bool
     public let showsSystemWallpaperSettings: Bool
     public let canRefresh: Bool
     public let canChooseSlot: Bool
@@ -34,22 +37,28 @@ public struct LockScreenPageViewState: Equatable, Sendable {
     public let nextAction: NextAction
 
     public init(state: LockScreenSyncState) {
+        let isUnsupported = state.phase == .unsupported
         let slots = state.probe?.availableSlots ?? []
-        selectedSlotName = slots.first(where: { $0.id == state.selectedAerialID })?.displayName
-            ?? state.selectedAerialID
+        let isTahoe = state.probe?.generation == .tahoe
+        selectedSlotName = isTahoe && state.selectedAerialID != nil
+            ? "Wallume 专属动态资源"
+            : slots.first(where: { $0.id == state.selectedAerialID })?.displayName ?? state.selectedAerialID
         syncedMediaName = state.syncedMedia?.displayName
         syncedAt = state.lastSyncedAt
         syncTimeText = state.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened)
+        staticFallbackName = state.staticFallback?.displayName
+        staticFallbackImageURL = state.staticFallback?.imageURL
         errorText = state.lastError
         isAwaitingDetection = state.probe == nil
-        showsSystemWallpaperSettings = state.probe != nil && slots.isEmpty
-        canRefresh = state.capabilities.canRefreshProbe || state.phase == .unconfigured
-        canChooseSlot = state.capabilities.canSelectAerialSlot
-        canRequestEnable = state.capabilities.canConfirmEnable
-        canRestore = state.capabilities.canDisableAndRestore
-        canRetry = state.capabilities.canRetry
+        isTahoeCompatibilityAvailable = false
+        showsSystemWallpaperSettings = isUnsupported || (state.probe != nil && slots.isEmpty && !isTahoeCompatibilityAvailable)
+        canRefresh = !isUnsupported && (state.capabilities.canRefreshProbe || state.phase == .unconfigured)
+        canChooseSlot = !isUnsupported && state.capabilities.canSelectAerialSlot
+        canRequestEnable = !isUnsupported && state.capabilities.canConfirmEnable
+        canRestore = !isUnsupported && state.capabilities.canDisableAndRestore
+        canRetry = !isUnsupported && state.capabilities.canRetry
         let isBusy = state.phase == .probing || state.phase == .syncing || state.phase == .restoring
-        canResynchronize = state.phase != .unconfigured && !isBusy
+        canResynchronize = !isUnsupported && state.phase != .unconfigured && !isBusy
         canExportDiagnostics = true
         showsRiskConfirmation = state.capabilities.canConfirmEnable && state.selectedAerialID != nil
 
@@ -79,7 +88,7 @@ public struct LockScreenPageViewState: Equatable, Sendable {
             slotGuidance = nil
             nextAction = .none
         case .synced:
-            statusText = "锁屏已与主显示器壁纸同步。"
+            statusText = "已写入系统锁屏注册；请锁屏确认视频已播放。"
             slotGuidance = nil
             nextAction = canRestore ? .restore : .none
         case .restoring:
@@ -100,33 +109,112 @@ public struct LockScreenPageViewState: Equatable, Sendable {
 
 public struct LockScreenView: View {
     @Bindable private var store: LockScreenFeatureStore
+    private let nativeProvider: NativeWallpaperProviderStore?
     private let openSystemWallpaperSettings: () -> Void
+    private let revealStaticFallback: (URL) -> Void
     @State private var presentsConfirmation = false
     @State private var presentsDiagnosticExporter = false
     @State private var diagnosticDocument: LockScreenDiagnosticDocument?
 
     public init(
         store: LockScreenFeatureStore,
-        openSystemWallpaperSettings: @escaping () -> Void = {}
+        nativeProvider: NativeWallpaperProviderStore? = nil,
+        openSystemWallpaperSettings: @escaping () -> Void = {},
+        revealStaticFallback: @escaping (URL) -> Void = { _ in }
     ) {
         self.store = store
+        self.nativeProvider = nativeProvider
         self.openSystemWallpaperSettings = openSystemWallpaperSettings
+        self.revealStaticFallback = revealStaticFallback
     }
 
     public var body: some View {
-        let page = LockScreenPageViewState(state: store.state)
+        if let nativeProvider {
+            nativeProviderBody(nativeProvider)
+        } else {
+            legacyLockScreenBody
+        }
+    }
+
+    private func nativeProviderBody(_ provider: NativeWallpaperProviderStore) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("锁屏同步").font(.largeTitle.bold())
+                WallumePageHeader("锁屏同步", subtitle: "使用 Wallume 的原生动态壁纸提供者") { EmptyView() }
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(nativeStatusText(provider.status), systemImage: nativeStatusIcon(provider.status))
+                        .font(.headline)
+                    Text("Wallume 不直接改写系统壁纸数据库。准备完成后，请在系统“壁纸”中选择 Wallume 的视频；macOS 会同时接管桌面和锁屏播放。")
+                        .foregroundStyle(.secondary)
+                    if let media = provider.media {
+                        Text("当前主显示器媒体：\(media.displayName)")
+                    }
+                }
+                .wallumeCard()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("动态壁纸").font(.title3.bold())
+                    Button("准备当前视频") { Task { await provider.prepareCurrentMedia() } }
+                        .disabled(provider.media == nil || provider.status == .activeInSystem)
+                    Button("打开系统壁纸设置") { openSystemWallpaperSettings() }
+                        .disabled(provider.deployment == nil)
+                    Button("检查系统选择") { Task { await provider.refreshSystemSelection() } }
+                        .disabled(provider.deployment == nil)
+                    if provider.status == .preparedForSystemSelection {
+                        Text("在系统设置的 Wallume 分类中选中该视频后，回到这里检查状态；Wallume 会自动停用自己的桌面叠加层。")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .wallumeCard()
+
+                if let imageURL = provider.media?.coverURL {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("静态图片降级").font(.title3.bold())
+                        Text("若系统未能加载动态壁纸，可手动在系统壁纸设置中选择 Wallume 为此视频生成的静态封面。此操作由你确认，Wallume 不会自动替换系统壁纸。")
+                            .foregroundStyle(.secondary)
+                        HStack {
+                            Button("显示静态封面") { revealStaticFallback(imageURL) }
+                            Button("打开系统壁纸设置") { openSystemWallpaperSettings() }
+                        }
+                    }
+                    .wallumeCard()
+                }
+
+                if provider.deployment != nil {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("重置与清理").font(.title3.bold())
+                        Text("先在系统壁纸设置中改用其他壁纸，确认动态视频已不再选中，再确认重置。确认后才能清理 Wallume 的提供者缓存；你的媒体库不会被删除。")
+                            .foregroundStyle(.secondary)
+                        Button("我已在系统中重置") { Task { await provider.confirmSystemReset() } }
+                        Button("清理 Wallume 动态壁纸资源", role: .destructive) {
+                            Task { await provider.cleanupAfterReset() }
+                        }
+                        .disabled(provider.status != .resetConfirmed)
+                    }
+                    .wallumeCard()
+                }
+            }
+            .frame(maxWidth: 720, alignment: .leading)
+            .padding()
+        }
+        .wallumePageBackground()
+    }
+
+    private var legacyLockScreenBody: some View {
+        let page = LockScreenPageViewState(state: store.state)
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                WallumePageHeader("锁屏同步", subtitle: "仅在系统安全支持时写入锁屏配置") { EmptyView() }
                 statusCard(page)
                 probeCard(page)
                 slotsCard(page)
                 recoveryCard(page)
+                staticFallbackCard(page)
                 actionRow(page)
             }
             .frame(maxWidth: 720, alignment: .leading)
             .padding()
         }
+        .wallumePageBackground()
         .alert("锁屏操作失败", isPresented: Binding(
             get: { store.pageError != nil },
             set: { if !$0 { store.dismissPageError() } }
@@ -165,8 +253,7 @@ public struct LockScreenView: View {
                 Text(guidance).foregroundStyle(.secondary)
             }
         }
-        .padding(16)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+        .wallumeCard()
     }
 
     private func probeCard(_ page: LockScreenPageViewState) -> some View {
@@ -186,8 +273,7 @@ public struct LockScreenView: View {
                 Button("刷新检测") { Task { await store.refreshProbe() } }
             }
         }
-        .padding(16)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+        .wallumeCard()
     }
 
     private func slotsCard(_ page: LockScreenPageViewState) -> some View {
@@ -220,8 +306,7 @@ public struct LockScreenView: View {
                 Button("查看启用确认") { presentsConfirmation = true }
             }
         }
-        .padding(16)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+        .wallumeCard()
     }
 
     private func recoveryCard(_ page: LockScreenPageViewState) -> some View {
@@ -256,8 +341,27 @@ public struct LockScreenView: View {
                 }
             }
         }
-        .padding(16)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+        .wallumeCard()
+    }
+
+    @ViewBuilder
+    private func staticFallbackCard(_ page: LockScreenPageViewState) -> some View {
+        if (store.state.phase == .unsupported || store.state.phase == .needsRepair),
+           let imageURL = page.staticFallbackImageURL {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("静态图片降级").font(.title3.bold())
+                Text("动态锁屏目前无法安全设置。Wallume 已为当前视频生成静态封面；你可以在系统壁纸设置中手动选择它，也可以先恢复或重置后再尝试动态锁屏。")
+                    .foregroundStyle(.secondary)
+                if let name = page.staticFallbackName {
+                    Text("封面来源：\(name)").foregroundStyle(.secondary)
+                }
+                HStack {
+                    Button("显示静态封面") { revealStaticFallback(imageURL) }
+                    Button("打开系统壁纸设置") { openSystemWallpaperSettings() }
+                }
+            }
+            .wallumeCard()
+        }
     }
 
     private func actionRow(_ page: LockScreenPageViewState) -> some View {
@@ -276,7 +380,7 @@ public struct LockScreenView: View {
     private var confirmationSheet: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("确认启用锁屏同步").font(.title2.bold())
-            Text("Wallume 将只修改你选择的专用 Aerial 视频槽、对应的 Index.plist 选择节点和锁屏封面；它会在每次修改前保存恢复材料。")
+            Text("Wallume 会在每次修改前保存恢复材料。")
             Text("启用后，锁屏会跟随主显示器的当前壁纸。切换媒体或关闭同步时，Wallume 会先恢复此前的系统内容。")
                 .foregroundStyle(.secondary)
             HStack {
@@ -298,6 +402,27 @@ public struct LockScreenView: View {
         case .synced: "checkmark.circle.fill"
         case .needsRepair, .unsupported: "exclamationmark.triangle.fill"
         case .syncing, .restoring, .probing: "arrow.triangle.2.circlepath"
+        default: "lock.display"
+        }
+    }
+
+    private func nativeStatusText(_ status: NativeWallpaperProviderStatus) -> String {
+        switch status {
+        case .unavailable: "当前 macOS 版本不支持 Wallume 原生动态锁屏。"
+        case .needsMedia: "请先在主显示器选择一个已导入的视频。"
+        case .readyToPrepare: "当前视频可准备为系统动态壁纸。"
+        case .preparedForSystemSelection: "视频已准备好，等待你在系统设置中选择。"
+        case .activeInSystem: "系统已选中 Wallume 动态壁纸，桌面和锁屏由 macOS 原生播放。"
+        case .resetConfirmed: "系统重置已确认，现在可以清理 Wallume 的提供者资源。"
+        case let .failure(message): message
+        }
+    }
+
+    private func nativeStatusIcon(_ status: NativeWallpaperProviderStatus) -> String {
+        switch status {
+        case .activeInSystem: "checkmark.circle.fill"
+        case .failure, .unavailable: "exclamationmark.triangle.fill"
+        case .preparedForSystemSelection: "gearshape.2"
         default: "lock.display"
         }
     }

@@ -2,3 +2,6 @@
 .superpowers/
 .build/
 .DS_Store
+.swiftpm/
+.vscode/
+NativeWallpaperProvider/build/

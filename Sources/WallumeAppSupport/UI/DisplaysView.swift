@@ -26,12 +26,9 @@ public struct DisplaysView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("显示器").font(.largeTitle.bold())
-                Spacer()
+            WallumePageHeader("显示器", subtitle: "为每块屏幕独立管理动态壁纸") {
                 playbackStatus
             }
-            .padding()
 
             if store.cards.isEmpty {
                 ContentUnavailableView(
@@ -48,6 +45,7 @@ public struct DisplaysView: View {
                 }
             }
         }
+        .wallumePageBackground()
         .alert("操作失败", isPresented: Binding(
             get: { store.pageError != nil },
             set: { if !$0 { store.dismissPageError() } }
@@ -73,8 +71,12 @@ public struct DisplaysView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(card.display.name).font(.title3.bold())
-                if card.display.isMain { badge("主显示器", color: .blue) }
-                badge(card.connection == .connected ? "在线" : "离线", color: card.connection == .connected ? .green : .secondary)
+                if card.display.isMain { WallumeStatusBadge("主显示器", systemImage: "star.fill", tint: .blue) }
+                WallumeStatusBadge(
+                    card.connection == .connected ? "在线" : "离线",
+                    systemImage: card.connection == .connected ? "checkmark.circle.fill" : "circle.slash",
+                    tint: card.connection == .connected ? .green : .secondary
+                )
                 Spacer()
                 Text("\(card.display.pixelWidth) × \(card.display.pixelHeight)")
                     .foregroundStyle(.secondary)
@@ -120,8 +122,7 @@ public struct DisplaysView: View {
                 }
             }
         }
-        .padding(16)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+        .wallumeCard()
     }
 
     private func modeBinding(_ card: DisplayCardState) -> Binding<WallpaperPresentationMode> {
@@ -129,10 +130,5 @@ public struct DisplaysView: View {
             get: { card.presentationMode },
             set: { mode in Task { await store.setPresentationMode(mode, displayID: card.id) } }
         )
-    }
-
-    private func badge(_ text: String, color: Color) -> some View {
-        Text(text).font(.caption.bold()).padding(.horizontal, 7).padding(.vertical, 3)
-            .foregroundStyle(color).background(color.opacity(0.12), in: Capsule())
     }
 }

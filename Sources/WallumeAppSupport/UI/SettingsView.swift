@@ -241,7 +241,7 @@ public struct SettingsView: View {
         )
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("设置").font(.largeTitle.bold())
+                WallumePageHeader("设置", subtitle: "管理启动、播放与本地诊断偏好") { EmptyView() }
                 preferencesCard(page)
                 directoriesCard(page)
                 diagnosticsCard(page)
@@ -250,6 +250,7 @@ public struct SettingsView: View {
             .frame(maxWidth: 720, alignment: .leading)
             .padding()
         }
+        .wallumePageBackground()
         .alert("设置操作失败", isPresented: Binding(
             get: { store.errorMessage != nil },
             set: { if !$0 { store.dismissError() } }
@@ -271,7 +272,7 @@ public struct SettingsView: View {
                 }
             }
         }
-        .settingsCardStyle()
+        .wallumeCard()
     }
 
     private func preferenceBinding(for control: SettingsPreferenceControl) -> Binding<Bool> {
@@ -300,7 +301,7 @@ public struct SettingsView: View {
             directoryRow(title: "Wallume 数据", path: page.dataDirectoryPath, url: dataDirectory)
             directoryRow(title: "诊断数据", path: page.diagnosticsDirectoryPath, url: diagnosticsDirectory)
         }
-        .settingsCardStyle()
+        .wallumeCard()
     }
 
     private func directoryRow(title: String, path: String, url: URL) -> some View {
@@ -334,7 +335,7 @@ public struct SettingsView: View {
                 }
             }
         }
-        .settingsCardStyle()
+        .wallumeCard()
     }
 
     private func performDiagnosticsAction(_ action: SettingsDiagnosticsAction) {
@@ -346,11 +347,5 @@ public struct SettingsView: View {
         case .chooseAnotherDestination:
             Task { await exportController.chooseAnotherDestination() }
         }
-    }
-}
-
-private extension View {
-    func settingsCardStyle() -> some View {
-        padding(16).background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
     }
 }

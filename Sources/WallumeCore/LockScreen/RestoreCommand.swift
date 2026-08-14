@@ -14,22 +14,32 @@ public protocol LockScreenProbing {
     func inspect() throws -> LockScreenProbeReport
 }
 
+/// Recovery surface for the macOS 26 compatibility registrations. It is separate from legacy
+/// slot recovery because Tahoe never owns or restores an Apple-provided video slot.
+public protocol TahoeAerialRecovering {
+    func inspectTahoe() throws -> [TahoeAerialRecoveryCandidate]
+    func resetTahoe(id: UUID) throws -> TahoeAerialResetReport
+}
+
 extension RecoveryCoordinator: LockScreenRecovering {}
 
 public struct RestoreCommand {
-    private static let usage = "usage: wallume-restore status | probe | restore <transaction-uuid> | restore-all\n"
+    private static let usage = "usage: wallume-restore status | probe | restore <transaction-uuid> | restore-all | tahoe-status | tahoe-reset <transaction-uuid> | tahoe-reset-all\n"
 
     private let recovery: any LockScreenRecovering
+    private let tahoeRecovery: (any TahoeAerialRecovering)?
     private let probe: (any LockScreenProbing)?
     private let output: any RestoreOutput
 
     public init(
         recovery: any LockScreenRecovering,
         probe: (any LockScreenProbing)? = nil,
+        tahoeRecovery: (any TahoeAerialRecovering)? = nil,
         output: any RestoreOutput
     ) {
         self.recovery = recovery
         self.probe = probe
+        self.tahoeRecovery = tahoeRecovery
         self.output = output
     }
 
@@ -65,6 +75,37 @@ public struct RestoreCommand {
                 var hadConflict = false
                 for candidate in try recovery.inspect() {
                     hadConflict = try !recovery.restore(id: candidate.id).conflicts.isEmpty || hadConflict
+                }
+                return hadConflict ? 2 : 0
+            case "tahoe-status" where arguments.count == 1:
+                guard let tahoeRecovery else {
+                    output.writeStderr("wallume-restore: Tahoe recovery is not configured\n")
+                    return 1
+                }
+                for candidate in try tahoeRecovery.inspectTahoe() {
+                    output.writeStdout(
+                        "\(candidate.id.uuidString) \(candidate.phase.rawValue) \(candidate.assetID)\n"
+                    )
+                }
+                return 0
+            case "tahoe-reset" where arguments.count == 2:
+                guard let tahoeRecovery else {
+                    output.writeStderr("wallume-restore: Tahoe recovery is not configured\n")
+                    return 1
+                }
+                guard let id = UUID(uuidString: arguments[1]) else {
+                    output.writeStderr(Self.usage)
+                    return 64
+                }
+                return try tahoeRecovery.resetTahoe(id: id).conflicts.isEmpty ? 0 : 2
+            case "tahoe-reset-all" where arguments.count == 1:
+                guard let tahoeRecovery else {
+                    output.writeStderr("wallume-restore: Tahoe recovery is not configured\n")
+                    return 1
+                }
+                var hadConflict = false
+                for candidate in try tahoeRecovery.inspectTahoe() {
+                    hadConflict = try !tahoeRecovery.resetTahoe(id: candidate.id).conflicts.isEmpty || hadConflict
                 }
                 return hadConflict ? 2 : 0
             default:

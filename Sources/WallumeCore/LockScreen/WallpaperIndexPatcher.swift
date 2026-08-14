@@ -17,18 +17,20 @@ public struct WallpaperIndexPatcher: Sendable {
         let root = try decode(indexData)
         let configuration = try PropertyListSerialization.data(
             fromPropertyList: [
-                "selectedID": aerialID,
-                "showAsScreenSaver": true,
+                // Tahoe's WallpaperAerialsExtension decodes this as `assetID`. The older
+                // selectedID/showAsScreenSaver shape can be written back to Index.plist but is
+                // ignored by the extension, producing a false “synced” state.
+                "assetID": aerialID,
             ],
             format: .binary,
             options: 0
         )
         let after = try fragment(for: configuration)
         var mutations: [PlistMutation] = []
-        try findAerialIdleChoices(
+        try findAerialChoices(
             in: root,
             path: [],
-            isBelowIdle: false,
+            isBelowWallpaperTarget: false,
             after: after,
             mutations: &mutations
         )
@@ -113,15 +115,15 @@ public struct WallpaperIndexPatcher: Sendable {
         )
     }
 
-    private func findAerialIdleChoices(
+    private func findAerialChoices(
         in value: Any,
         path: [PlistPathComponent],
-        isBelowIdle: Bool,
+        isBelowWallpaperTarget: Bool,
         after: Data,
         mutations: inout [PlistMutation]
     ) throws {
         if let dictionary = value as? [String: Any] {
-            if isBelowIdle,
+            if isBelowWallpaperTarget,
                dictionary["Provider"] as? String == Self.aerialProvider,
                let configuration = dictionary["Configuration"] as? Data {
                 let configurationPath = path + [.key("Configuration")]
@@ -137,20 +139,23 @@ public struct WallpaperIndexPatcher: Sendable {
 
             for key in dictionary.keys.sorted() {
                 guard let child = dictionary[key] else { continue }
-                try findAerialIdleChoices(
+                try findAerialChoices(
                     in: child,
                     path: path + [.key(key)],
-                    isBelowIdle: isBelowIdle || key == "Idle",
+                    // Tahoe consults linked Desktop entries for the lock-screen hand-off as
+                    // well as Idle entries for the screen-saver phase. Updating only Idle lets
+                    // Index.plist look correct while the real lock screen keeps its old asset.
+                    isBelowWallpaperTarget: isBelowWallpaperTarget || key == "Idle" || key == "Desktop",
                     after: after,
                     mutations: &mutations
                 )
             }
         } else if let array = value as? [Any] {
             for (index, child) in array.enumerated() {
-                try findAerialIdleChoices(
+                try findAerialChoices(
                     in: child,
                     path: path + [.index(index)],
-                    isBelowIdle: isBelowIdle,
+                    isBelowWallpaperTarget: isBelowWallpaperTarget,
                     after: after,
                     mutations: &mutations
                 )

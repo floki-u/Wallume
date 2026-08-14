@@ -217,6 +217,7 @@ public struct ApplicationShellView: View {
     private let tasks: ImportTaskStore
     private let displays: DisplayFeatureStore?
     private let lockScreen: LockScreenFeatureStore?
+    private let nativeWallpaperProvider: NativeWallpaperProviderStore?
     private let performance: PerformanceFeatureStore?
     private let settings: SettingsStore?
     private let settingsBuildInfo: SettingsBuildInfo
@@ -235,6 +236,7 @@ public struct ApplicationShellView: View {
         tasks: ImportTaskStore,
         displays: DisplayFeatureStore? = nil,
         lockScreen: LockScreenFeatureStore? = nil,
+        nativeWallpaperProvider: NativeWallpaperProviderStore? = nil,
         performance: PerformanceFeatureStore? = nil,
         settings: SettingsStore? = nil,
         settingsBuildInfo: SettingsBuildInfo = .unavailable,
@@ -253,6 +255,7 @@ public struct ApplicationShellView: View {
         self.tasks = tasks
         self.displays = displays
         self.lockScreen = lockScreen
+        self.nativeWallpaperProvider = nativeWallpaperProvider
         self.performance = performance
         self.settings = settings
         self.settingsBuildInfo = settingsBuildInfo
@@ -270,9 +273,19 @@ public struct ApplicationShellView: View {
 
     public var body: some View {
         NavigationSplitView {
-            List(FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil), selection: $navigation.selection) { feature in
-                Label(feature.title, systemImage: feature.systemImage).tag(feature.id)
-            }.navigationSplitViewColumnWidth(min: 160, ideal: 180)
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Wallume").font(.title.bold())
+                    Text("动态壁纸工作台").font(.caption).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+                List(FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil), selection: $navigation.selection) { feature in
+                    Label(feature.title, systemImage: feature.systemImage).tag(feature.id)
+                }
+                .listStyle(.sidebar)
+            }
+            .padding(.top, 16)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 205)
         } detail: {
             switch ApplicationShellRoute.resolve(
                 selection: navigation.selection,
@@ -300,7 +313,9 @@ public struct ApplicationShellView: View {
                 if let lockScreen {
                     LockScreenView(
                         store: lockScreen,
-                        openSystemWallpaperSettings: openSystemWallpaperSettings
+                        nativeProvider: nativeWallpaperProvider,
+                        openSystemWallpaperSettings: openSystemWallpaperSettings,
+                        revealStaticFallback: openInFinder
                     )
                 }
             case .performance:
@@ -324,6 +339,8 @@ public struct ApplicationShellView: View {
             }
         }
         .frame(minWidth: 820, minHeight: 560)
+        .navigationSplitViewStyle(.balanced)
+        .wallumePageBackground()
         .toolbar {
             if let displays {
                 let playback = PlaybackToolbarState(

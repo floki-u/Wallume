@@ -17,8 +17,8 @@ public enum MacOSGeneration: Equatable, Sendable {
 
     public var permitsWrites: Bool {
         switch self {
-        case .sonoma, .sequoia, .tahoe: true
-        case .unsupported: false
+        case .sonoma, .sequoia: true
+        case .tahoe, .unsupported: false
         }
     }
 }

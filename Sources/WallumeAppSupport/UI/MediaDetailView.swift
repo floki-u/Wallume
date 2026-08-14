@@ -3,6 +3,7 @@ import SwiftUI
 import WallumeCore
 
 public struct MediaDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     let item: MediaItem
     let onReveal: () -> Bool
     let onDelete: () -> Void
@@ -31,6 +32,7 @@ public struct MediaDetailView: View {
                 GridRow { Text("源文件"); Text(item.sourceURL.path).lineLimit(2) }
             }
             HStack {
+                Button("关闭") { dismiss() }
                 if let onSetWallpaper { Button("设为壁纸", systemImage: "display", action: onSetWallpaper) }
                 Button("播放预览") { preview.play(item.variantURL) }
                 Button("在 Finder 中显示") { if !onReveal() { revealError = "无法在 Finder 中显示源文件" } }

@@ -17,12 +17,14 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private let runtimeService: WallpaperRuntimeService
     private let lockScreenService: LockScreenSyncService
     private let lockScreenStore: LockScreenFeatureStore
+    private let nativeWallpaperProviderStore: NativeWallpaperProviderStore
     private let performanceService: PerformanceDiagnosticsService
     private let performanceStore: PerformanceFeatureStore
     private let settingsStore: SettingsStore
     private let diagnosticsExportService: DiagnosticsExportService
     private let settingsExportTerminationOwner: SettingsDiagnosticsExportTerminationOwner
     private let lockScreenDiagnosticsSnapshot: LockScreenDiagnosticsSnapshot
+    private let screenSaverConfigurationPublisher: ScreenSaverConfigurationPublisher
     private let navigation = ApplicationNavigation()
     private let panels = ImportPanelController()
     private let notifier: any CompletionNotifying
@@ -32,6 +34,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private var assignmentObservationTask: Task<Void, Never>?
     private var runtimeObservationTask: Task<Void, Never>?
     private var lockScreenObservationTask: Task<Void, Never>?
+    private var artworkRepairTask: Task<Void, Never>?
     private var latestAssignments = DisplayAssignmentSnapshot.empty
     private var latestRuntime = WallpaperRuntimeSnapshot.empty
     private var assignmentConfigurationLoaded = false
@@ -45,6 +48,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         let paths = MediaPaths(homeDirectory: home, cacheDirectory: cache)
         let settingsSnapshot = ApplicationSettingsSnapshot()
         let lockScreenDiagnosticsSnapshot = LockScreenDiagnosticsSnapshot()
+        let screenSaverConfigurationPublisher = ScreenSaverConfigurationPublisher(homeDirectory: home, files: files)
         let environmentMonitor = RuntimeEnvironmentMonitor()
         let settingsStore = SettingsStore(
             onSettingsChanged: { settingsSnapshot.update($0) },
@@ -94,6 +98,10 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 )
             }
         )
+        let nativeWallpaperProviderStore = NativeWallpaperProviderStore(
+            homeDirectory: home,
+            isSupported: ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26
+        )
         let performanceComposition = PerformanceApplicationComposition()
         let diagnosticsExportCommitAdmission = DiagnosticsExportCommitAdmission()
         let settingsExportTerminationOwner = SettingsDiagnosticsExportTerminationOwner(commitAdmission: diagnosticsExportCommitAdmission)
@@ -138,12 +146,14 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         self.runtimeService = runtimeService
         lockScreenService = lockScreenComposition.service
         lockScreenStore = lockScreenComposition.store
+        self.nativeWallpaperProviderStore = nativeWallpaperProviderStore
         performanceService = performanceComposition.service
         performanceStore = performanceComposition.store
         self.settingsStore = settingsStore
         self.diagnosticsExportService = diagnosticsExportService
         self.settingsExportTerminationOwner = settingsExportTerminationOwner
         self.lockScreenDiagnosticsSnapshot = lockScreenDiagnosticsSnapshot
+        self.screenSaverConfigurationPublisher = screenSaverConfigurationPublisher
         gallery = GalleryStore(
             library: library,
             usage: PersistedMediaUsageChecker(url: paths.displayAssignments, files: files, store: jsonStore)
@@ -151,12 +161,13 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         notifier = UserCompletionNotifier()
         super.init()
 
-        window = MainWindowController { [gallery, taskStore, displayStore, lockScreenStore, performanceStore, settingsStore, diagnosticsExportService, settingsExportTerminationOwner, navigation, panels, queue, paths] in
+        window = MainWindowController { [gallery, taskStore, displayStore, lockScreenStore, nativeWallpaperProviderStore, performanceStore, settingsStore, diagnosticsExportService, settingsExportTerminationOwner, navigation, panels, queue, paths] in
             AnyView(ApplicationShellView(
                 gallery: gallery,
                 tasks: taskStore,
                 displays: displayStore,
                 lockScreen: lockScreenStore,
+                nativeWallpaperProvider: nativeWallpaperProviderStore,
                 performance: performanceStore,
                 settings: settingsStore,
                 settingsBuildInfo: Self.settingsBuildInfo(),
@@ -182,6 +193,15 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 onDrop: { urls in Task { await queue.enqueue(urls) } }
             ))
         }
+        nativeWallpaperProviderStore.onSystemActivationChanged = { [weak self] active in
+            guard let self else { return }
+            if active {
+                Task { await self.runtimeService.stop() }
+            } else if self.assignmentConfigurationLoaded,
+                      ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 26 {
+                self.runtimeService.start(assignments: self.latestAssignments)
+            }
+        }
         status = StatusItemController(
             onOpen: { [weak window, navigation] in navigation.open(.gallery); window?.show() },
             onCancelCurrent: { [taskStore] in taskStore.cancelCurrent() },
@@ -199,6 +219,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
         gallery.reload()
+        repairMissingArtwork()
         taskStore.start()
         observeQueue()
         startDisplayRuntime()
@@ -208,6 +229,12 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         )
         defaults.set(true, forKey: "hasLaunchedBefore")
         if state.shouldOpenWindowAtLaunch { window.show() }
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard urls.contains(where: { $0.scheme == "wallume" }) else { return }
+        navigation.open(.gallery)
+        window.show()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -241,6 +268,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         assignmentObservationTask?.cancel()
         runtimeObservationTask?.cancel()
         lockScreenObservationTask?.cancel()
+        artworkRepairTask?.cancel()
     }
 
     private func startDisplayRuntime() {
@@ -254,8 +282,11 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 assignmentConfigurationLoaded = false
                 displayStore.reportPageError("显示器配置无法读取：\(error.localizedDescription)")
             }
-            runtimeService.start(assignments: latestAssignments)
             await refreshDisplayAndLockScreenState()
+            if ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 26,
+               nativeWallpaperProviderStore.status != .activeInSystem {
+                runtimeService.start(assignments: latestAssignments)
+            }
             await lockScreenService.start()
             observeLockScreen()
             observeAssignments()
@@ -279,7 +310,10 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             for await snapshot in stream {
                 guard let self else { return }
                 latestAssignments = snapshot
-                runtimeService.apply(assignments: snapshot)
+                if ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 26,
+                   nativeWallpaperProviderStore.status != .activeInSystem {
+                    runtimeService.apply(assignments: snapshot)
+                }
                 gallery.reload()
                 await refreshDisplayAndLockScreenState()
             }
@@ -317,6 +351,16 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             remembered: latestAssignments.records
         )
         let media = (try? library.list()) ?? []
+        let primaryAssignment = currentScreens.first(where: \.isMain).flatMap { mainScreen in
+            latestAssignments.records.first(where: { $0.displayID == mainScreen.id })
+        }
+        let primaryMedia = (primaryAssignment?.mediaID ?? latestAssignments.records.compactMap(\.mediaID).first)
+            .flatMap { selectedID in media.first(where: { $0.id == selectedID }) }
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 26,
+           let selectedID = primaryAssignment?.mediaID ?? latestAssignments.records.compactMap(\.mediaID).first,
+           let selectedMedia = media.first(where: { $0.id == selectedID }) {
+            try? screenSaverConfigurationPublisher.publish(media: selectedMedia)
+        }
         displayStore.update(
             catalog: catalog,
             assignments: latestAssignments,
@@ -329,7 +373,40 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             screens: currentScreens,
             media: media
         ))
+        await nativeWallpaperProviderStore.update(mainMedia: primaryMedia)
         lockScreenDiagnosticsSnapshot.update(await lockScreenService.snapshot())
+    }
+
+    private func repairMissingArtwork() {
+        artworkRepairTask?.cancel()
+        artworkRepairTask = Task { [library, gallery] in
+            let fileManager = FileManager.default
+            let generator = AVFoundationArtworkGenerator()
+            guard let media = try? library.list() else { return }
+
+            var repairedAnything = false
+            for item in media where !Task.isCancelled {
+                let thumbnailExists = fileManager.fileExists(atPath: item.thumbnailURL.path)
+                let coverExists = fileManager.fileExists(atPath: item.coverURL.path)
+                guard !thumbnailExists || !coverExists else { continue }
+
+                do {
+                    try await generator.generateArtwork(
+                        for: item.variantURL,
+                        thumbnail: item.thumbnailURL,
+                        cover: item.coverURL
+                    )
+                    repairedAnything = true
+                } catch {
+                    // A broken source must not prevent the rest of the gallery from recovering.
+                    continue
+                }
+            }
+
+            if repairedAnything, !Task.isCancelled {
+                gallery.reload()
+            }
+        }
     }
 
     private func observeQueue() {
