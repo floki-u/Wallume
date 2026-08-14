@@ -138,7 +138,7 @@ public struct LockScreenView: View {
 
     private func nativeProviderBody(_ provider: NativeWallpaperProviderStore) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 24) {
                 WallumePageHeader("锁屏与桌面", subtitle: "原生动态壁纸通过 macOS 同时应用到桌面和锁屏") {
                     WallumeStatusBadge(
                         nativeShortStatus(provider.status),
@@ -147,16 +147,7 @@ public struct LockScreenView: View {
                     )
                 }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(nativeStatusText(provider.status)).font(.title3.weight(.semibold))
-                    Text("Wallume 只准备属于自己的视频素材。选择和应用始终由系统“壁纸”完成，不会直接修改 macOS 的壁纸数据库。")
-                        .foregroundStyle(.secondary)
-                    if let media = provider.media {
-                        Label(media.displayName, systemImage: "film")
-                            .font(.subheadline.weight(.medium))
-                    }
-                }
-                .wallumePanel()
+                nativeCanvas(provider)
 
                 VStack(alignment: .leading, spacing: 0) {
                     nativeStep(
@@ -191,7 +182,6 @@ public struct LockScreenView: View {
                     RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous)
                         .strokeBorder(.primary.opacity(0.1))
                 }
-                .padding(.vertical, 24)
 
                 if let imageURL = provider.media?.coverURL {
                     HStack(alignment: .center, spacing: 14) {
@@ -232,6 +222,42 @@ public struct LockScreenView: View {
             .padding(24)
         }
         .wallumePageBackground()
+    }
+
+    private func nativeCanvas(_ provider: NativeWallpaperProviderStore) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            Group {
+                if let media = provider.media, let image = NSImage(contentsOf: media.coverURL) {
+                    Image(nsImage: image).resizable().scaledToFill()
+                } else {
+                    Color(nsColor: .underPageBackgroundColor)
+                        .overlay(Image(systemName: "lock.display").font(.system(size: 42)).foregroundStyle(.secondary))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 260)
+            .clipped()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(nativeStatusText(provider.status))
+                    .font(.title2.weight(.bold))
+                Text(provider.media == nil
+                    ? "先为主显示器选择视频，然后在这里准备原生动态壁纸。"
+                    : "系统将负责桌面与锁屏播放；Wallume 不会直接改写系统壁纸数据库。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                if let media = provider.media {
+                    Label(media.displayName, systemImage: "film")
+                        .font(.subheadline.weight(.medium))
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.ultraThinMaterial)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.primary.opacity(0.08)) }
+        .wallumeInteractiveSurface()
     }
 
     private func nativeStep(

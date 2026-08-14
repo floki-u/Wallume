@@ -40,7 +40,8 @@ public final class StatusItemController {
         self.onOpen = onOpen; self.onCancelCurrent = onCancelCurrent; self.onCancelAll = onCancelAll
         self.onOpenDisplays = onOpenDisplays; self.onSetUserPaused = onSetUserPaused
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: "film.stack", accessibilityDescription: "Wallume")
+        item.button?.image = WallumeStatusImage.make()
+        item.button?.imagePosition = .imageOnly
     }
 
     public func update(_ snapshot: ImportQueueSnapshot) {
@@ -118,4 +119,32 @@ public final class StatusItemController {
     @objc private func cancelCurrent() { onCancelCurrent() }
     @objc private func cancelAll() { onCancelAll() }
     @objc private func quit() { NSApplication.shared.terminate(nil) }
+}
+
+private enum WallumeStatusImage {
+    static func make() -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18))
+        image.lockFocus()
+        NSColor.black.setStroke()
+
+        let screen = NSBezierPath(roundedRect: NSRect(x: 2, y: 3, width: 14, height: 12), xRadius: 3, yRadius: 3)
+        screen.lineWidth = 1.6
+        screen.stroke()
+
+        let wave = NSBezierPath()
+        wave.move(to: NSPoint(x: 3.6, y: 8.1))
+        wave.curve(
+            to: NSPoint(x: 14.4, y: 9.2),
+            controlPoint1: NSPoint(x: 6.5, y: 11.4),
+            controlPoint2: NSPoint(x: 10.8, y: 5.3)
+        )
+        wave.lineWidth = 1.55
+        wave.lineCapStyle = .round
+        wave.stroke()
+
+        image.unlockFocus()
+        image.isTemplate = true
+        image.accessibilityDescription = "Wallume"
+        return image
+    }
 }

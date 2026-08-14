@@ -20,10 +20,10 @@ public struct GalleryView: View {
         self.onImportFiles = onImportFiles; self.onImportFolder = onImportFolder; self.onDrop = onDrop
     }
 
-    private let columns = [GridItem(.adaptive(minimum: 220, maximum: 280), spacing: 14)]
+    private let columns = [GridItem(.adaptive(minimum: 230, maximum: 320), spacing: 18)]
     public var body: some View {
         VStack(spacing: 0) {
-            WallumePageHeader("图库", subtitle: "选择视频并分配给你的显示器") {
+            WallumePageHeader("Wallume", subtitle: "让一段画面留在你的桌面上") {
                 HStack {
                     Button("导入视频", systemImage: "plus", action: onImportFiles)
                     Button("导入文件夹", systemImage: "folder.badge.plus", action: onImportFolder)
@@ -36,30 +36,40 @@ public struct GalleryView: View {
             }
             else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(gallery.filteredItems) { item in
-                            Button { gallery.selectedItem = item } label: {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    if let image = NSImage(contentsOf: item.thumbnailURL) {
-                                        Image(nsImage: image).resizable().scaledToFill().frame(height: 142).clipped()
-                                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                    }
-                                    HStack(spacing: 8) {
-                                        Text(item.displayName).font(.headline).lineLimit(1)
-                                        Spacer(minLength: 0)
-                                        Image(systemName: "play.fill").font(.caption).foregroundStyle(WallumeDesign.accent)
-                                    }
-                                    Text("\(item.pixelWidth) × \(item.pixelHeight)  ·  \(item.codec)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 30) {
+                        if let featured = gallery.filteredItems.first {
+                            Button { gallery.selectedItem = featured } label: {
+                                featuredCanvas(featured)
+                            }
+                            .buttonStyle(.plain)
+                            .wallumeInteractiveSurface()
+                        }
+
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("你的片段").font(.title2.weight(.semibold))
+                                Text("\(gallery.filteredItems.count) 段视频，点击即可预览或分配到显示器。")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "rectangle.grid.2x2")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        LazyVGrid(columns: columns, spacing: 18) {
+                            ForEach(gallery.filteredItems) { item in
+                                Button { gallery.selectedItem = item } label: {
+                                    WallumeMediaTile(item: item)
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .wallumeCard()
-                            }.buttonStyle(.plain)
+                                .buttonStyle(.plain)
+                                .wallumeInteractiveSurface()
+                            }
                         }
                     }
                     .frame(maxWidth: WallumeDesign.contentWidth, alignment: .leading)
-                    .padding(24)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 24)
                 }
             }
         }
@@ -121,6 +131,80 @@ public struct GalleryView: View {
             Button("知道了") { gallery.dismissDeletionBlock() }
         } message: {
             Text("请先在显示器页面更换壁纸：\(gallery.deletionBlock?.displays.map(\.name).joined(separator: "、") ?? "")")
+        }
+    }
+
+    private func featuredCanvas(_ item: MediaItem) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            Group {
+                if let image = NSImage(contentsOf: item.coverURL) {
+                    Image(nsImage: image).resizable().scaledToFill()
+                } else {
+                    Color(nsColor: .underPageBackgroundColor)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .aspectRatio(2.05, contentMode: .fit)
+            .clipped()
+
+            HStack(alignment: .bottom, spacing: 18) {
+                VStack(alignment: .leading, spacing: 5) {
+                    WallumeStatusBadge("当前推荐", systemImage: "sparkles", tint: .white)
+                    Text(item.displayName)
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("\(item.pixelWidth) × \(item.pixelHeight)  ·  \(item.frameRate.formatted()) fps")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(.white.opacity(0.18), in: Circle())
+            }
+            .padding(24)
+            .background(.ultraThinMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 8, bottomTrailingRadius: 8, topTrailingRadius: 0))
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct WallumeMediaTile: View {
+    let item: MediaItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            ZStack(alignment: .topTrailing) {
+                Group {
+                    if let image = NSImage(contentsOf: item.thumbnailURL) {
+                        Image(nsImage: image).resizable().scaledToFill()
+                    } else {
+                        Color(nsColor: .underPageBackgroundColor)
+                    }
+                }
+                .frame(height: 156)
+                .clipped()
+                Image(systemName: "play.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(9)
+                    .background(.black.opacity(0.4), in: Circle())
+                    .padding(10)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+
+            Text(item.displayName).font(.headline).lineLimit(1)
+            Text("\(item.pixelWidth) × \(item.pixelHeight)  ·  \(item.codec)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(.primary.opacity(0.08))
         }
     }
 }

@@ -4,10 +4,12 @@ import SwiftUI
 /// Shared presentation primitives. These keep the feature pages visually coherent while
 /// leaving all feature state and actions in their existing stores.
 public enum WallumeDesign {
-    public static let accent = Color(red: 0.05, green: 0.56, blue: 0.56)
-    public static let warmAccent = Color(red: 0.91, green: 0.31, blue: 0.23)
+    public static let accent = Color(red: 0.02, green: 0.6, blue: 0.56)
+    public static let warmAccent = Color(red: 0.94, green: 0.34, blue: 0.25)
+    public static let ink = Color(red: 0.08, green: 0.1, blue: 0.12)
+    public static let motion = Animation.spring(response: 0.42, dampingFraction: 0.82)
     public static let cardCornerRadius: CGFloat = 8
-    public static let contentWidth: CGFloat = 920
+    public static let contentWidth: CGFloat = 1120
 }
 
 public struct WallumeMark: View {
@@ -64,7 +66,7 @@ public struct WallumePageHeader<Trailing: View>: View {
     public var body: some View {
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.title.bold())
+                Text(title).font(.system(size: 30, weight: .bold, design: .rounded))
                 Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
             }
             Spacer(minLength: 16)
@@ -115,5 +117,21 @@ public extension View {
         padding(20)
             .background(Color(nsColor: .controlBackgroundColor))
             .overlay(alignment: .bottom) { Divider() }
+    }
+
+    func wallumeInteractiveSurface() -> some View {
+        modifier(WallumeInteractiveSurface())
+    }
+}
+
+private struct WallumeInteractiveSurface: ViewModifier {
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isHovered ? 1.012 : 1)
+            .shadow(color: .black.opacity(isHovered ? 0.12 : 0.04), radius: isHovered ? 16 : 5, y: isHovered ? 8 : 2)
+            .animation(WallumeDesign.motion, value: isHovered)
+            .onHover { isHovered = $0 }
     }
 }

@@ -16,31 +16,61 @@ public struct MediaDetailView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let player = preview.player {
-                VideoPlayer(player: player).frame(minHeight: 240)
-            } else if let image = NSImage(contentsOf: item.coverURL) {
-                Image(nsImage: image).resizable().scaledToFit().frame(minHeight: 240)
+        VStack(spacing: 0) {
+            ZStack(alignment: .bottomTrailing) {
+                Group {
+                    if let player = preview.player {
+                        VideoPlayer(player: player)
+                    } else if let image = NSImage(contentsOf: item.coverURL) {
+                        Image(nsImage: image).resizable().scaledToFill()
+                    } else {
+                        Color(nsColor: .underPageBackgroundColor)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .clipped()
+                Button("播放", systemImage: "play.fill") { preview.play(item.variantURL) }
+                    .buttonStyle(.borderedProminent)
+                    .tint(WallumeDesign.accent)
+                    .padding(18)
             }
-            Text(item.displayName).font(.title2.bold())
-            Grid(alignment: .leading) {
-                GridRow { Text("分辨率"); Text("\(item.pixelWidth) × \(item.pixelHeight)") }
-                GridRow { Text("帧率"); Text(item.frameRate.formatted()) }
-                GridRow { Text("编码"); Text(item.codec) }
-                GridRow { Text("时长"); Text(item.durationSeconds.formatted()) }
-                GridRow { Text("文件大小"); Text(ByteCountFormatter.string(fromByteCount: item.sourceByteCount, countStyle: .file)) }
-                GridRow { Text("源文件"); Text(item.sourceURL.path).lineLimit(2) }
+
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(item.displayName).font(.title2.weight(.bold))
+                        Text("\(item.pixelWidth) × \(item.pixelHeight)  ·  \(item.codec)  ·  \(item.frameRate.formatted()) fps")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if let onSetWallpaper {
+                        Button("设为壁纸", systemImage: "display", action: onSetWallpaper)
+                            .buttonStyle(.borderedProminent)
+                            .tint(WallumeDesign.accent)
+                    }
+                }
+
+                Grid(alignment: .leading, horizontalSpacing: 30, verticalSpacing: 8) {
+                    GridRow { Text("时长").foregroundStyle(.secondary); Text(item.durationSeconds.formatted()) }
+                    GridRow { Text("文件大小").foregroundStyle(.secondary); Text(ByteCountFormatter.string(fromByteCount: item.sourceByteCount, countStyle: .file)) }
+                    GridRow { Text("源文件").foregroundStyle(.secondary); Text(item.sourceURL.path).lineLimit(1).textSelection(.enabled) }
+                }
+
+                HStack {
+                    Button("在 Finder 中显示", systemImage: "folder") {
+                        if !onReveal() { revealError = "无法在 Finder 中显示源文件" }
+                    }
+                    Spacer()
+                    Button("删除", systemImage: "trash", role: .destructive, action: onDelete)
+                    Button("关闭") { dismiss() }
+                }
             }
-            HStack {
-                Button("关闭") { dismiss() }
-                if let onSetWallpaper { Button("设为壁纸", systemImage: "display", action: onSetWallpaper) }
-                Button("播放预览") { preview.play(item.variantURL) }
-                Button("在 Finder 中显示") { if !onReveal() { revealError = "无法在 Finder 中显示源文件" } }
-                Spacer()
-                Button("删除", role: .destructive, action: onDelete)
-            }
+            .padding(24)
         }
-        .padding(20).frame(minWidth: 560, minHeight: 440)
+        .frame(minWidth: 700, minHeight: 560)
+        .background(Color(nsColor: .windowBackgroundColor))
         .onDisappear { preview.releasePlayer() }
         .alert("操作失败", isPresented: Binding(get: { revealError != nil }, set: { if !$0 { revealError = nil } })) {
             Button("知道了") { revealError = nil }

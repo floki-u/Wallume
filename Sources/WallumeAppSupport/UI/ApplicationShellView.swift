@@ -353,6 +353,7 @@ public struct ApplicationShellView: View {
         .frame(minWidth: 820, minHeight: 560)
         .navigationSplitViewStyle(.balanced)
         .wallumePageBackground()
+        .animation(WallumeDesign.motion, value: navigation.selection)
         .toolbar {
             if let displays {
                 let playback = PlaybackToolbarState(

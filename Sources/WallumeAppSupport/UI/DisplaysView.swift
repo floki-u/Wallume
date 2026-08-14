@@ -69,61 +69,84 @@ public struct DisplaysView: View {
     }
 
     private func displayCard(_ card: DisplayCardState) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(card.display.name).font(.title3.bold())
-                if card.display.isMain { WallumeStatusBadge("主显示器", systemImage: "star.fill", tint: .blue) }
-                WallumeStatusBadge(
-                    card.connection == .connected ? "在线" : "离线",
-                    systemImage: card.connection == .connected ? "checkmark.circle.fill" : "circle.slash",
-                    tint: card.connection == .connected ? .green : .secondary
-                )
-                Spacer()
-                Text("\(card.display.pixelWidth) × \(card.display.pixelHeight)")
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 14) {
+        VStack(spacing: 0) {
+            ZStack(alignment: .topLeading) {
                 Group {
-                    if let media = card.media, let image = NSImage(contentsOf: media.thumbnailURL) {
+                    if let media = card.media, let image = NSImage(contentsOf: media.coverURL) {
                         Image(nsImage: image).resizable().scaledToFill()
                     } else {
-                        ZStack { Color.secondary.opacity(0.12); Image(systemName: "photo") }
+                        Color(nsColor: .underPageBackgroundColor)
+                            .overlay(Image(systemName: "display").font(.largeTitle).foregroundStyle(.secondary))
                     }
                 }
-                .frame(width: 180, height: 102).clipped().clipShape(RoundedRectangle(cornerRadius: 6))
+                .frame(height: 210)
+                .frame(maxWidth: .infinity)
+                .clipped()
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(card.wallpaperTitle).font(.headline)
+                HStack(spacing: 8) {
+                    if card.display.isMain { WallumeStatusBadge("主显示器", systemImage: "star.fill", tint: .white) }
+                    WallumeStatusBadge(
+                        card.connection == .connected ? "在线" : "离线",
+                        systemImage: card.connection == .connected ? "checkmark.circle.fill" : "circle.slash",
+                        tint: .white
+                    )
+                }
+                .padding(14)
+            }
+
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(card.display.name).font(.headline)
+                    Text(card.wallpaperTitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                    if let error = card.runtimeError {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+                Spacer()
+                if card.connection == .connected {
+                    Button(card.hasAssignment ? "更换" : "选择", systemImage: "arrow.triangle.2.circlepath") {
+                        onChooseWallpaper(card.id)
+                    }
+                } else {
+                    Button("清除配置", systemImage: "trash", role: .destructive) {
+                        Task { await store.clearRememberedDisplay(displayID: card.id) }
+                    }
+                }
+            }
+            .padding(16)
+
+            if card.connection == .connected && (card.canSetPresentationMode || card.canRemoveAssignment || card.runtimeError != nil) {
+                HStack {
                     if card.canSetPresentationMode {
                         Picker("显示方式", selection: modeBinding(card)) {
                             ForEach(WallpaperPresentationMode.allCases, id: \.self) { mode in
                                 Text(mode.displayTitle).tag(mode)
                             }
                         }
-                        .frame(maxWidth: 220)
+                        .labelsHidden()
+                        .frame(width: 130)
                     }
-                    if let error = card.runtimeError {
-                        Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                    Spacer()
+                    if card.runtimeError != nil {
+                        Button("重试", systemImage: "arrow.clockwise") { Task { await store.retry(displayID: card.id) } }
+                    }
+                    if card.canRemoveAssignment {
+                        Button("移除", systemImage: "minus.circle", role: .destructive) {
+                            Task { await store.removeAssignment(displayID: card.id) }
+                        }
                     }
                 }
-                Spacer()
-                VStack(alignment: .trailing) {
-                    if card.connection == .connected {
-                        Button(card.hasAssignment ? "更换壁纸" : "选择壁纸") { onChooseWallpaper(card.id) }
-                        if card.canRemoveAssignment {
-                            Button("移除", role: .destructive) { Task { await store.removeAssignment(displayID: card.id) } }
-                        }
-                        if card.runtimeError != nil {
-                            Button("重试") { Task { await store.retry(displayID: card.id) } }
-                        }
-                    } else {
-                        Button("清除保存的配置", role: .destructive) { Task { await store.clearRememberedDisplay(displayID: card.id) } }
-                    }
-                }
+                .font(.subheadline)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 14)
             }
         }
-        .wallumeCard()
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.primary.opacity(0.08)) }
+        .wallumeInteractiveSurface()
     }
 
     private func modeBinding(_ card: DisplayCardState) -> Binding<WallpaperPresentationMode> {
