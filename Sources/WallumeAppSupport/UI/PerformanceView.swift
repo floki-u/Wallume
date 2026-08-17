@@ -37,17 +37,14 @@ public struct PerformanceView: View {
     public var body: some View {
         let page = PerformancePageViewState(snapshot: store.snapshot)
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                WallumePageHeader("性能", subtitle: "观察 Wallume 的实时资源占用") {
-                    WallumeStatusBadge(statusBadgeText(page.mode), systemImage: statusBadgeIcon(page.mode), tint: statusBadgeTint(page.mode))
-                }
-                statusCard(page)
-                metricsCard
-                runtimeCard
-                diagnosticCard(page)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 84) { statusCopy(page); signalPanel(page) }.frame(minWidth: 920)
+                VStack(alignment: .leading, spacing: 32) { statusCopy(page); signalPanel(page) }
             }
-            .frame(maxWidth: WallumeDesign.contentWidth, alignment: .leading)
-            .padding(24)
+            .frame(maxWidth: 1_160)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 40)
         }
         .wallumePageBackground()
         .task { await store.pageAppeared() }
@@ -60,22 +57,78 @@ public struct PerformanceView: View {
         }
     }
 
+    private func statusCopy(_ page: PerformancePageViewState) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("安静地，\n保持运行。").font(.system(size: 46, weight: .bold, design: .serif))
+            Text("实时数据只留在内存中；诊断报告只在你手动导出时落盘。")
+                .foregroundStyle(.secondary).frame(maxWidth: 360, alignment: .leading)
+            WallumeStatusBadge(statusBadgeText(page.mode), systemImage: statusBadgeIcon(page.mode), tint: statusBadgeTint(page.mode))
+        }
+        .frame(maxWidth: 390, alignment: .leading)
+    }
+
+    private func signalPanel(_ page: PerformancePageViewState) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack { Text("实时采样").font(.caption).foregroundStyle(.secondary); Spacer(); Text("LIVE").font(.caption.weight(.bold)).foregroundStyle(WallumeDesign.accent) }
+            HStack(alignment: .bottom, spacing: 8) {
+                ForEach(0..<12, id: \.self) { index in
+                    Capsule().fill(WallumeDesign.accent.opacity(0.75)).frame(maxWidth: .infinity).frame(height: CGFloat(52 + (index * 23) % 110))
+                }
+            }
+            .frame(height: 180, alignment: .bottom)
+            Divider()
+            HStack { metric("显示器", value: store.snapshot.runtime.activeDisplayCount.formatted()); metric("CPU", value: percent(store.snapshot.realtimeSummary.currentCPUPercent)); metric("内存", value: bytes(store.snapshot.realtimeSummary.currentResidentBytes)) }
+            diagnosticCard(page)
+        }
+        .padding(24)
+        .frame(maxWidth: 590)
+        .background(PerformancePanelSurface())
+    }
+
+    private func metric(_ label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) { Text(value).font(.title3.weight(.semibold)).monospacedDigit(); Text(label).font(.caption).foregroundStyle(.secondary) }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func statusCard(_ page: PerformancePageViewState) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(statusText(page.mode)).font(.headline)
+        HStack(alignment: .center, spacing: 14) {
+            Image(systemName: statusBadgeIcon(page.mode))
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(statusBadgeTint(page.mode))
+                .frame(width: 34, height: 34)
+                .background(statusBadgeTint(page.mode).opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(statusText(page.mode)).font(.headline)
             Text("实时采样仅保存在内存中，最多保留最近 60 项。诊断会连续采样 30 秒并只保存匿名汇总数据。")
+                    .font(.caption)
                 .foregroundStyle(.secondary)
+            }
         }.wallumeCard()
     }
 
     private var metricsCard: some View {
         let metrics = store.snapshot.realtimeSummary
-        return VStack(alignment: .leading, spacing: 8) {
-            Text("进程指标").font(.title3.bold())
-            Grid(alignment: .leading, horizontalSpacing: 22, verticalSpacing: 6) {
-                GridRow { Text("指标"); Text("当前"); Text("平均"); Text("峰值") }.foregroundStyle(.secondary)
-                GridRow { Text("CPU"); Text(percent(metrics.currentCPUPercent)); Text(percent(metrics.averageCPUPercent)); Text(percent(metrics.peakCPUPercent)) }
-                GridRow { Text("常驻内存"); Text(bytes(metrics.currentResidentBytes)); Text(bytes(metrics.averageResidentBytes)); Text(bytes(metrics.peakResidentBytes)) }
+        return VStack(alignment: .leading, spacing: 14) {
+            Text(wallumeLocalized("正在消耗")).font(.headline)
+            HStack(alignment: .firstTextBaseline, spacing: 28) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("CPU").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(percent(metrics.currentCPUPercent))
+                        .font(.system(size: 32, weight: .semibold, design: .rounded))
+                        .fontDesign(.rounded)
+                        .monospacedDigit()
+                    Text("平均 \(percent(metrics.averageCPUPercent)) · 峰值 \(percent(metrics.peakCPUPercent))")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Divider().frame(height: 58)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(wallumeLocalized("常驻内存")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(bytes(metrics.currentResidentBytes))
+                        .font(.title2.weight(.semibold))
+                        .monospacedDigit()
+                    Text("平均 \(bytes(metrics.averageResidentBytes)) · 峰值 \(bytes(metrics.peakResidentBytes))")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
         }.wallumeCard()
     }
@@ -156,6 +209,18 @@ public struct PerformanceView: View {
     private func scenarioTitle(_ scenario: PerformanceDiagnosticScenario) -> String { switch scenario { case .singleDisplay: "单显示器"; case .twoDisplays: "双显示器"; case .paused: "暂停状态" } }
     private func percent(_ value: Double) -> String { String(format: "%.1f%%", value) }
     private func bytes(_ value: UInt64) -> String { ByteCountFormatter.string(fromByteCount: Int64(clamping: value), countStyle: .memory) }
+}
+
+private struct PerformancePanelSurface: View {
+    @AppStorage("wallume.theme") private var themeName = WallumeTheme.nocturne.rawValue
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let palette = WallumeThemePalette.resolve(WallumeTheme.fromStoredValue(themeName), scheme: colorScheme)
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .fill(palette.panelRaised)
+            .overlay { RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(palette.line) }
+    }
 }
 
 public struct PerformanceDiagnosticDocument: FileDocument {

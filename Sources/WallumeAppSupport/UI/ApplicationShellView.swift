@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import WallumeCore
 
@@ -213,7 +214,11 @@ public struct PlaybackToolbarState: Equatable, Sendable {
 
 public struct ApplicationShellView: View {
     @Bindable private var navigation: ApplicationNavigation
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @AppStorage("wallume.theme") private var themeName = WallumeTheme.nocturne.rawValue
+    @AppStorage("wallume.language") private var languageName = WallumeAppLanguage.chinese.rawValue
+    @State private var showsThemePicker = false
+    @State private var showsSearch = false
+    @State private var searchQuery = ""
     private let gallery: GalleryStore
     private let tasks: ImportTaskStore
     private let displays: DisplayFeatureStore?
@@ -273,21 +278,65 @@ public struct ApplicationShellView: View {
     }
 
     public var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            WallumeSidebar(
-                features: FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil),
-                selection: $navigation.selection
-            )
-            .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 260)
-        } detail: {
-            switch ApplicationShellRoute.resolve(
+        ZStack {
+            VStack(spacing: 0) {
+                ProjectionTopbar(
+                    features: FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil),
+                    selection: $navigation.selection,
+                    onImport: onImportFiles,
+                    themeName: $themeName,
+                    languageName: $languageName,
+                    onTheme: { showsThemePicker = true },
+                    onSearch: { showsSearch = true }
+                )
+                detailContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            projectionOverlay
+        }
+        .frame(minWidth: 900, minHeight: 620)
+        .wallumePageBackground()
+        .onExitCommand { dismissProjectionOverlay() }
+        .onChange(of: searchQuery) { _, query in
+            gallery.searchText = query
+            if !query.isEmpty { navigation.selection = .gallery }
+        }
+    }
+
+    @ViewBuilder
+    private var projectionOverlay: some View {
+        if showsThemePicker || showsSearch {
+            ZStack {
+                Color.black.opacity(0.56)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: dismissProjectionOverlay)
+                if showsThemePicker {
+                    ProjectionThemeSheet(themeName: $themeName, dismiss: dismissProjectionOverlay)
+                } else {
+                    ProjectionSearchSheet(query: $searchQuery, selection: $navigation.selection, dismiss: dismissProjectionOverlay)
+                }
+            }
+            .transition(.opacity)
+            .zIndex(10)
+        }
+    }
+
+    private func dismissProjectionOverlay() {
+        showsThemePicker = false
+        showsSearch = false
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        switch ApplicationShellRoute.resolve(
                 selection: navigation.selection,
                 hasDisplayStore: displays != nil,
                 hasLockScreenStore: lockScreen != nil,
                 hasPerformanceStore: performance != nil,
                 hasSettingsStore: settings != nil
             ) {
-            case .gallery:
+        case .gallery:
                 GalleryView(
                     gallery: gallery,
                     tasks: tasks,
@@ -298,11 +347,11 @@ public struct ApplicationShellView: View {
                     onImportFolder: onImportFolder,
                     onDrop: onDrop
                 )
-            case .displays:
+        case .displays:
                 if let displays {
                     DisplaysView(store: displays, gallery: gallery) { navigation.openGalleryForWallpaper(displayID: $0) }
                 }
-            case .lockScreen:
+        case .lockScreen:
                 if let lockScreen {
                     LockScreenView(
                         store: lockScreen,
@@ -311,11 +360,11 @@ public struct ApplicationShellView: View {
                         revealStaticFallback: openInFinder
                     )
                 }
-            case .performance:
+        case .performance:
                 if let performance {
                     PerformanceView(store: performance)
                 }
-            case .settings:
+        case .settings:
                 if let settings {
                     SettingsView(
                         store: settings,
@@ -327,65 +376,150 @@ public struct ApplicationShellView: View {
                         exportDiagnostics: exportDiagnostics
                     )
                 }
-            case .unavailable:
-                ContentUnavailableView("功能不可用", systemImage: FeatureRegistry.features.first { $0.id == navigation.selection }?.systemImage ?? "exclamationmark.triangle")
-            }
-        }
-        .frame(minWidth: 840, minHeight: 580)
-        .navigationSplitViewStyle(.balanced)
-        .wallumePageBackground()
-        .animation(WallumeDesign.motion, value: navigation.selection)
-        .toolbar {
-            if let displays {
-                let playback = PlaybackToolbarState(
-                    userPaused: displays.userPaused,
-                    pauseReasons: displays.effectivePauseReasons
-                )
-                ToolbarItem(placement: .principal) {
-                    HStack(spacing: 10) {
-                    if let status = playback.statusText {
-                        Label(status, systemImage: "pause.circle.fill")
-                    }
-                    Button(playback.actionTitle, systemImage: displays.userPaused ? "play.fill" : "pause.fill") {
-                        Task { await displays.setUserPaused(!displays.userPaused) }
-                    }
-                    .help(playback.actionTitle)
-                    }
-                }
-            }
+        case .unavailable:
+            ContentUnavailableView(wallumeLocalized("功能不可用"), systemImage: FeatureRegistry.features.first { $0.id == navigation.selection }?.systemImage ?? "exclamationmark.triangle")
         }
     }
 }
 
-private struct WallumeSidebar: View {
+private struct ProjectionTopbar: View {
     let features: [WallumeFeature]
     @Binding var selection: WallumeFeatureID
+    let onImport: () -> Void
+    @Binding var themeName: String
+    @Binding var languageName: String
+    let onTheme: () -> Void
+    let onSearch: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: WallumeThemePalette {
+        WallumeThemePalette.resolve(WallumeTheme.fromStoredValue(themeName), scheme: colorScheme)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                WallumeMark(size: 32)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Wallume").font(.headline.weight(.semibold))
-                    Text("你的壁纸").font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 14)
-
-            List(selection: $selection) {
-                Section("工作区") {
-                    ForEach(features.filter { $0.id != .settings }) { feature in
-                        Label(feature.title, systemImage: feature.systemImage).tag(feature.id)
-                    }
-                }
-                if features.contains(where: { $0.id == .settings }) {
-                    Section {
-                        Label("设置", systemImage: "gearshape").tag(WallumeFeatureID.settings)
-                    }
-                }
-            }
-            .listStyle(.sidebar)
+        ViewThatFits(in: .horizontal) {
+            expandedBar.frame(minWidth: 1_100)
+            compactBar
         }
-        .padding(.top, 14)
+        .padding(.leading, 24)
+        .padding(.trailing, 24)
+        .frame(height: 70)
+        .background { HeaderDoubleClickSurface() }
+        .background(palette.panel.opacity(0.96))
+        .overlay(alignment: .bottom) { Rectangle().fill(palette.line).frame(height: 1) }
     }
+
+    private var expandedBar: some View {
+        HStack(spacing: 28) {
+            HStack(spacing: 9) {
+                WallumeMark(size: 28)
+                Text("WALLUME").font(.caption.weight(.bold)).tracking(1.8)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Wallume")
+
+            HStack(spacing: 20) {
+                ForEach(features.filter { $0.id != .settings }) { feature in
+                    Button { selection = feature.id } label: {
+                        Text(projectionTitle(for: feature.id))
+                            .font(.caption.weight(selection == feature.id ? .semibold : .regular))
+                            .foregroundStyle(selection == feature.id ? .primary : .secondary)
+                            .frame(minWidth: 72, maxHeight: .infinity)
+                            .contentShape(Rectangle())
+                            .overlay(alignment: .bottom) {
+                                Rectangle().fill(WallumeDesign.accent).frame(height: 2).opacity(selection == feature.id ? 1 : 0)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Spacer()
+            Button(action: onSearch) { Text("⌘K").font(.caption.monospaced()).foregroundStyle(.secondary) }
+                .buttonStyle(.bordered)
+                .keyboardShortcut("k", modifiers: .command)
+            Button(languageName == WallumeAppLanguage.chinese.rawValue ? "EN" : "中文") { languageName = languageName == WallumeAppLanguage.chinese.rawValue ? WallumeAppLanguage.english.rawValue : WallumeAppLanguage.chinese.rawValue }.buttonStyle(.bordered)
+            Button(action: onTheme) { HStack(spacing: 5) { Circle().fill(WallumeDesign.accent).frame(width: 8, height: 8); Text(wallumeLocalized(WallumeTheme.fromStoredValue(themeName).title)) } }.buttonStyle(.bordered)
+            if features.contains(where: { $0.id == .settings }) {
+                Button { selection = .settings } label: { Image(systemName: "gearshape") }
+                    .buttonStyle(.borderless)
+                    .help(wallumeLocalized("设置"))
+            }
+            Button(wallumeLocalized("导入视频"), systemImage: "plus", action: onImport)
+                .buttonStyle(.borderedProminent)
+                .tint(WallumeDesign.accent)
+        }
+        .animation(.easeOut(duration: 0.16), value: selection)
+    }
+
+    private var compactBar: some View {
+        HStack(spacing: 12) {
+            WallumeMark(size: 28)
+                .accessibilityLabel("Wallume")
+            HStack(spacing: 4) {
+                ForEach(features.filter { $0.id != .settings }) { feature in
+                    Button { selection = feature.id } label: {
+                        Image(systemName: feature.systemImage)
+                            .frame(width: 32, height: 32)
+                            .background(selection == feature.id ? palette.accent.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .help(projectionTitle(for: feature.id))
+                }
+            }
+            Spacer()
+            Button(action: onSearch) { Image(systemName: "magnifyingglass").frame(width: 32, height: 32) }
+                .buttonStyle(.borderless)
+                .keyboardShortcut("k", modifiers: .command)
+                .help("搜索")
+            Button(action: onTheme) { Image(systemName: "circle.lefthalf.filled").frame(width: 32, height: 32) }
+                .buttonStyle(.borderless)
+                .help(wallumeLocalized("主题"))
+            Button(action: onImport) {
+                Image(systemName: "plus")
+                    .frame(width: 36, height: 36)
+                    .foregroundStyle(.black)
+                    .background(palette.accent, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            }
+            .buttonStyle(.plain)
+                .help(wallumeLocalized("导入视频"))
+        }
+    }
+
+    private func projectionTitle(for id: WallumeFeatureID) -> String {
+        switch id {
+        case .gallery: wallumeLocalized("画面库")
+        case .displays: wallumeLocalized("显示器")
+        case .lockScreen: wallumeLocalized("锁屏同步")
+        case .performance: wallumeLocalized("状态")
+        case .settings: wallumeLocalized("设置")
+        }
+    }
+}
+
+private struct HeaderDoubleClickSurface: NSViewRepresentable {
+    func makeNSView(context: Context) -> HeaderDoubleClickView { HeaderDoubleClickView() }
+    func updateNSView(_ nsView: HeaderDoubleClickView, context: Context) {}
+}
+
+private final class HeaderDoubleClickView: NSView {
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            window?.performZoom(nil)
+            return
+        }
+        super.mouseDown(with: event)
+    }
+}
+
+private struct ProjectionThemeSheet: View {
+    @Binding var themeName: String
+    let dismiss: () -> Void
+    var body: some View { VStack(alignment: .leading, spacing: 18) { Text("选择放映氛围").font(.system(size: 28, weight: .bold, design: .serif)); Text("主题会保存到这台 Mac；默认跟随夜幕。").foregroundStyle(.secondary); ForEach(WallumeTheme.allCases) { theme in Button { themeName = theme.rawValue; dismiss() } label: { HStack { Circle().fill(theme == .dawn ? .teal : WallumeDesign.accent).frame(width: 12, height: 12); VStack(alignment: .leading) { Text(theme.title); Text(theme.detail).font(.caption).foregroundStyle(.secondary) }; Spacer(); if themeName == theme.rawValue { Image(systemName: "checkmark") } }.padding(12).background(.primary.opacity(0.05)) }.buttonStyle(.plain) } }.padding(28).frame(width: 460).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous)).overlay { RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(.white.opacity(0.2)) }.shadow(color: .black.opacity(0.35), radius: 32, y: 14) }
+}
+
+private struct ProjectionSearchSheet: View {
+    @Binding var query: String
+    @Binding var selection: WallumeFeatureID
+    let dismiss: () -> Void
+    var body: some View { VStack(alignment: .leading, spacing: 16) { TextField("搜索画面、显示器或操作…", text: $query).textFieldStyle(.roundedBorder); ForEach([WallumeFeatureID.gallery, .displays, .lockScreen, .performance], id: \.self) { id in Button { selection = id; dismiss() } label: { Label(id == .gallery ? "画面库" : id == .displays ? "显示器" : id == .lockScreen ? "锁屏同步" : "状态", systemImage: id == .gallery ? "square.grid.2x2" : id == .displays ? "display.2" : id == .lockScreen ? "lock" : "waveform.path.ecg").frame(maxWidth: .infinity, alignment: .leading).padding(8) }.buttonStyle(.plain) } }.padding(24).frame(width: 420).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous)).overlay { RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(.white.opacity(0.2)) }.shadow(color: .black.opacity(0.35), radius: 32, y: 14) }
 }

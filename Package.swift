@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Wallume",
+    defaultLocalization: "zh-Hans",
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "WallumeCore", targets: ["WallumeCore"]),
@@ -35,7 +36,11 @@ let package = Package(
                 .linkedFramework("QuartzCore"),
             ]
         ),
-        .target(name: "WallumeAppSupport", dependencies: ["WallumeCore"]),
+        .target(
+            name: "WallumeAppSupport",
+            dependencies: ["WallumeCore"],
+            resources: [.process("Resources")]
+        ),
         .executableTarget(name: "WallumeApp", dependencies: ["WallumeCore", "WallumeAppSupport"]),
         .testTarget(
             name: "WallumeCoreTests",

@@ -21,6 +21,20 @@ final class LockScreenSyncServiceTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fixture.root.path), [])
     }
 
+    func testReadOnlyPlatformStopsBeforeRecoveryInspection() async throws {
+        let fixture = try await LockScreenSyncFixture.make(
+            probeResult: .success(LockScreenSyncFixture.probe(writesPermitted: false))
+        )
+        defer { fixture.cleanup() }
+
+        await fixture.service.start()
+        await fixture.service.waitForIdle()
+
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .unsupported)
+        XCTAssertEqual(fixture.client.calls, [.probe])
+    }
+
     func testExplicitSelectionAndConfirmationEnableFirstInstall() async throws {
         let fixture = try await LockScreenSyncFixture.make()
         defer { fixture.cleanup() }
@@ -279,7 +293,7 @@ final class LockScreenSyncServiceTests: XCTestCase {
         XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
     }
 
-    func testUnsupportedConfiguredConflictAllowsSafeExplicitRecovery() async throws {
+    func testUnsupportedConfiguredConflictPreservesConfigurationWithoutRecoveryWrites() async throws {
         let original = LockScreenConfiguration.enabled(
             aerialID: aerialID,
             transactionID: LockScreenSyncFixture.existingTransactionID,
@@ -299,20 +313,9 @@ final class LockScreenSyncServiceTests: XCTestCase {
         await fixture.service.start()
         await fixture.service.waitForIdle()
 
-        await fixture.service.disableAndRestore()
-        await fixture.service.waitForIdle()
-
-        XCTAssertEqual(
-            fixture.client.calls,
-            [
-                .probe,
-                .inspectRecovery,
-                .inspectRecovery,
-                .restore(transactionID: fixture.existingTransactionID),
-            ]
-        )
+        XCTAssertEqual(fixture.client.calls, [.probe])
         let persisted = try await fixture.reloadedConfiguration()
-        XCTAssertEqual(persisted, .disabled)
+        XCTAssertEqual(persisted, original)
         let state = await fixture.service.snapshot()
         XCTAssertFalse(state.capabilities.canDisableAndRestore)
         XCTAssertEqual(state.phase, .unsupported)
@@ -594,7 +597,7 @@ final class LockScreenSyncServiceTests: XCTestCase {
         XCTAssertEqual(state.phase, .needsRepair)
     }
 
-    func testMalformedConfigurationRemainsTerminalAfterValidReplacementAndRetry() async throws {
+    func testExplicitRetryRecoversAfterStrictlyValidReplacementFollowingMalformedLoad() async throws {
         let fixture = try await LockScreenSyncFixture.make()
         defer { fixture.cleanup() }
         try fixture.files.writeAtomically(Data("not json".utf8), to: fixture.configurationURL)
@@ -612,14 +615,13 @@ final class LockScreenSyncServiceTests: XCTestCase {
         await fixture.service.confirmEnable()
         await fixture.service.waitForIdle()
 
-        XCTAssertEqual(fixture.client.calls, [])
-        XCTAssertEqual(try fixture.files.read(fixture.configurationURL), replacement)
-        XCTAssertFalse(fixture.client.calls.contains {
+        XCTAssertEqual(fixture.client.calls.prefix(2), [.probe, .inspectRecovery])
+        XCTAssertTrue(fixture.client.calls.contains {
             if case .install = $0 { return true }
             return false
         })
         let state = await fixture.service.snapshot()
-        XCTAssertEqual(state.phase, .needsRepair)
+        XCTAssertEqual(state.phase, .synced)
     }
 
     func testRetryDoesNotAdoptValidExternalConfigurationReplacementAfterInitialLoad() async throws {
@@ -736,7 +738,7 @@ final class LockScreenSyncServiceTests: XCTestCase {
         )
     }
 
-    func testUnsupportedProbeRestoresMatchingCommittedOrphanButBlocksNewInstall() async throws {
+    func testUnsupportedProbeDoesNotRestoreMatchingCommittedOrphan() async throws {
         let transactionID = fixtureID(40)
         let fixture = try await LockScreenSyncFixture.make(
             configuration: .enabled(aerialID: aerialID),
@@ -754,15 +756,12 @@ final class LockScreenSyncServiceTests: XCTestCase {
         await fixture.service.apply(input: fixture.input(media: media))
         await fixture.service.waitForIdle()
 
-        XCTAssertEqual(
-            fixture.client.calls,
-            [.probe, .inspectRecovery, .restore(transactionID: transactionID)]
-        )
+        XCTAssertEqual(fixture.client.calls, [.probe])
         let state = await fixture.service.snapshot()
         XCTAssertEqual(state.phase, .unsupported)
     }
 
-    func testUnsupportedProbeRecoversConfiguredIncompleteTransactionBeforeBlockingInstall() async throws {
+    func testUnsupportedProbeLeavesConfiguredIncompleteTransactionUntouched() async throws {
         for phase in [TransactionPhase.prepared, .writing, .restoring] {
             let transactionID = fixtureID(45)
             let original = LockScreenConfiguration.enabled(
@@ -786,23 +785,19 @@ final class LockScreenSyncServiceTests: XCTestCase {
             await fixture.service.start()
             await fixture.service.waitForIdle()
 
-            XCTAssertEqual(
-                fixture.client.calls,
-                [.probe, .inspectRecovery, .restore(transactionID: transactionID)],
-                "\(phase)"
-            )
+            XCTAssertEqual(fixture.client.calls, [.probe], "\(phase)")
             XCTAssertFalse(fixture.client.calls.contains {
                 if case .install = $0 { return true }
                 return false
             }, "\(phase)")
             let persisted = try await fixture.reloadedConfiguration()
-            XCTAssertNil(persisted.activeTransactionID, "\(phase)")
+            XCTAssertEqual(persisted, original, "\(phase)")
             let state = await fixture.service.snapshot()
             XCTAssertEqual(state.phase, .unsupported, "\(phase)")
         }
     }
 
-    func testUnsupportedProbeAllowsExplicitRestoreAndDisableOfCommittedTransaction() async throws {
+    func testUnsupportedProbeDisablesExplicitRestoreAndPreservesCommittedTransaction() async throws {
         let transactionID = fixtureID(46)
         let fixture = try await LockScreenSyncFixture.make(
             configuration: .enabled(
@@ -822,16 +817,13 @@ final class LockScreenSyncServiceTests: XCTestCase {
         await fixture.service.waitForIdle()
 
         let unsupported = await fixture.service.snapshot()
-        XCTAssertTrue(unsupported.capabilities.canDisableAndRestore)
+        XCTAssertFalse(unsupported.capabilities.canDisableAndRestore)
         await fixture.service.disableAndRestore()
         await fixture.service.waitForIdle()
 
-        XCTAssertEqual(
-            fixture.client.calls,
-            [.probe, .inspectRecovery, .restore(transactionID: transactionID)]
-        )
+        XCTAssertEqual(fixture.client.calls, [.probe])
         let persisted = try await fixture.reloadedConfiguration()
-        XCTAssertEqual(persisted, .disabled)
+        XCTAssertEqual(persisted.activeTransactionID, transactionID)
     }
 
     func testForeignBackupBlocksRecoveryWritesEvenWithMatchingOrphan() async throws {
@@ -1507,7 +1499,7 @@ final class LockScreenSyncServiceTests: XCTestCase {
         XCTAssertEqual(persisted.lastResult, .waiting)
     }
 
-    func testUnsupportedProbeStillInspectsRecoveryButBlocksInstall() async throws {
+    func testUnsupportedProbeStopsBeforeRecoveryInspectionAndInstall() async throws {
         let probe = LockScreenSyncFixture.probe(writesPermitted: false)
         let fixture = try await LockScreenSyncFixture.make(
             configuration: .enabled(aerialID: aerialID),
@@ -1522,7 +1514,28 @@ final class LockScreenSyncServiceTests: XCTestCase {
 
         let state = await fixture.service.snapshot()
         XCTAssertEqual(state.phase, .unsupported)
-        XCTAssertEqual(fixture.client.calls, [.probe, .inspectRecovery])
+        XCTAssertEqual(fixture.client.calls, [.probe])
+    }
+
+    func testTahoeStopsBeforeCompatibilitySelectionRecoveryInspectionAndInstall() async throws {
+        let fixture = try await LockScreenSyncFixture.make(
+            configuration: .disabled,
+            probeResult: .success(LockScreenSyncFixture.tahoeProbe())
+        )
+        defer { fixture.cleanup() }
+        let media = try fixture.makeAvailableMedia(id: fixture.firstMediaID, name: "First")
+        await fixture.service.apply(input: fixture.input(media: media))
+
+        await fixture.service.start()
+        await fixture.service.selectTahoeCompatibility()
+        await fixture.service.confirmEnable()
+        await fixture.service.waitForIdle()
+
+        let state = await fixture.service.snapshot()
+        XCTAssertEqual(state.phase, .unsupported)
+        XCTAssertFalse(state.capabilities.canSelectAerialSlot)
+        XCTAssertFalse(state.capabilities.canConfirmEnable)
+        XCTAssertEqual(fixture.client.calls, [.probe])
     }
 
     func testFakeSystemClientRecordsCallsWithoutFilesystemPathsOrProcessExecution() throws {
@@ -1669,12 +1682,15 @@ final class LockScreenSyncServiceTests: XCTestCase {
     }
 }
 
-private final class FakeLockScreenSystemClient: LockScreenSystemClient, @unchecked Sendable {
+private final class FakeLockScreenSystemClient: LockScreenSystemClient, TahoeLockScreenSystemClient, @unchecked Sendable {
     enum Call: Equatable {
         case probe
         case install(mediaID: UUID, aerialID: String)
+        case installTahoe(mediaID: UUID, assetID: String, targetDisplayID: String)
         case inspectRecovery
+        case inspectTahoeRecovery
         case restore(transactionID: UUID)
+        case resetTahoe(transactionID: UUID)
     }
 
     private var probeResults: [Result<LockScreenProbeReport, FakeClientError>]
@@ -1764,10 +1780,43 @@ private final class FakeLockScreenSystemClient: LockScreenSystemClient, @uncheck
         return try result.get()
     }
 
+    func installTahoe(
+        media: MediaItem,
+        assetID: String,
+        targetDisplayID: String
+    ) async throws -> TahoeAerialTransactionManifest {
+        record(.installTahoe(
+            mediaID: media.id,
+            assetID: assetID,
+            targetDisplayID: targetDisplayID
+        ))
+        return makeTahoeManifest(assetID: assetID)
+    }
+
+    func inspectTahoeRecovery() throws -> [TahoeAerialRecoveryCandidate] {
+        lock.lock()
+        recordedCalls.append(.inspectTahoeRecovery)
+        lock.unlock()
+        return []
+    }
+
+    func resetTahoe(transactionID: UUID) throws -> TahoeAerialResetReport {
+        lock.lock()
+        recordedCalls.append(.resetTahoe(transactionID: transactionID))
+        lock.unlock()
+        return TahoeAerialResetReport(restored: [], conflicts: [])
+    }
+
     private func next<T>(_ results: inout [Result<T, FakeClientError>]) -> Result<T, FakeClientError> {
         precondition(!results.isEmpty, "Missing fake result")
         if results.count == 1 { return results[0] }
         return results.removeFirst()
+    }
+
+    private func record(_ call: Call) {
+        lock.lock()
+        recordedCalls.append(call)
+        lock.unlock()
     }
 }
 
@@ -1913,6 +1962,21 @@ private final class LockScreenSyncFixture {
                 videoURL: URL(string: "https://example.test/aerial.mov")!
             )],
             foreignBackupNames: foreignBackupNames
+        )
+    }
+
+    static func tahoeProbe() -> LockScreenProbeReport {
+        LockScreenProbeReport(
+            generation: .tahoe,
+            writesPermitted: false,
+            manifestExists: true,
+            indexExists: true,
+            availableSlots: [AerialSlot(
+                id: "com.apple.aerials.tahoe-day",
+                displayName: "Tahoe Day",
+                videoURL: URL(string: "https://example.test/tahoe.mov")!
+            )],
+            foreignBackupNames: []
         )
     }
 
@@ -2086,6 +2150,33 @@ private func makeManifest(
         indexMutations: [],
         primaryBackup: URL(string: "https://example.test/primary.backup")!,
         recoveryBackup: URL(string: "https://example.test/recovery.backup")!
+    )
+}
+
+private func makeTahoeManifest(
+    id: UUID = UUID(uuidString: "33F12AB3-7C94-44B7-91CD-62B1ED4A4E51")!,
+    assetID: String
+) -> TahoeAerialTransactionManifest {
+    TahoeAerialTransactionManifest(
+        id: id,
+        phase: .committed,
+        createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+        registration: TahoeAerialRegistration(
+            asset: TahoeAerialAssetRecord(
+                id: assetID,
+                displayName: "Tahoe",
+                videoURL: URL(fileURLWithPath: "/tmp/\(assetID).mov"),
+                thumbnailURL: URL(fileURLWithPath: "/tmp/\(assetID).png")
+            ),
+            videoHash: "video-hash",
+            thumbnailHash: "thumbnail-hash",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        ),
+        manifestURL: URL(fileURLWithPath: "/tmp/entries.json"),
+        manifestBeforeHash: "before",
+        manifestAfterHash: "after",
+        indexURL: URL(fileURLWithPath: "/tmp/Index.plist"),
+        indexMutations: []
     )
 }
 

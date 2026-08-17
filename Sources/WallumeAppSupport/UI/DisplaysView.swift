@@ -29,11 +29,7 @@ public struct DisplaysView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            WallumePageHeader("显示器", subtitle: "为每块屏幕分配和预览动态壁纸") {
-                playbackStatus
-            }
-
+        Group {
             if store.cards.isEmpty {
                 ContentUnavailableView(
                     "未检测到显示器",
@@ -41,12 +37,19 @@ public struct DisplaysView: View {
                     description: Text("连接显示器后可为它设置动态壁纸")
                 )
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 14) {
-                        ForEach(store.cards) { card in displayCard(card) }
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 22) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("显示器").font(.system(size: 38, weight: .bold, design: .serif))
+                            Text("已连接 \(store.cards.count) 块显示器；每块屏幕都可独立播放与设置画面。")
+                                .foregroundStyle(.secondary).frame(maxWidth: 520, alignment: .leading)
+                        }
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 360, maximum: 640), spacing: 18)], spacing: 18) {
+                            ForEach(store.cards) { roomCard($0) }
+                        }
+                        sharedPlaybackControl
                     }
-                    .frame(maxWidth: WallumeDesign.contentWidth, alignment: .leading)
-                    .padding(24)
+                    .frame(maxWidth: 1_420, alignment: .leading).padding(.horizontal, 32).padding(.vertical, 32)
                 }
             }
         }
@@ -86,23 +89,57 @@ public struct DisplaysView: View {
         }
     }
 
-    private func displayCard(_ card: DisplayCardState) -> some View {
+    private func roomCard(_ card: DisplayCardState) -> some View {
         VStack(spacing: 0) {
             ZStack(alignment: .topLeading) {
-                Group {
-                    if let media = card.media, let image = NSImage(contentsOf: media.coverURL) {
-                        Image(nsImage: image).resizable().scaledToFill()
-                    } else {
-                        Color(nsColor: .underPageBackgroundColor)
-                            .overlay(Image(systemName: "display").font(.largeTitle).foregroundStyle(.secondary))
-                    }
+                displayImage(card).aspectRatio(1.75, contentMode: .fit).clipped()
+                Text(card.display.isMain ? "主显示器" : "外接显示器").font(.caption2.weight(.semibold)).foregroundStyle(.white).padding(7).background(.black.opacity(0.38)).padding(12)
+            }
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(card.display.name.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(WallumeDesign.accent)
+                    Text(card.wallpaperTitle).font(.headline).lineLimit(1)
+                    Text("\(card.presentationMode.displayTitle) · 静音 · \(card.connection == .connected ? "正在播放" : "离线")").font(.caption).foregroundStyle(.secondary)
                 }
-                .frame(height: 210)
+                Spacer()
+                Button("更换画面") { if gallery != nil { pickingDisplay = card } else { onChooseWallpaper(card.id) } }.buttonStyle(.bordered)
+            }
+            .padding(16)
+        }
+        .frame(maxWidth: .infinity)
+        .wallumeCard()
+    }
+
+    private var sharedPlaybackControl: some View {
+        HStack {
+            Image(systemName: store.userPaused ? "play.fill" : "pause.fill").frame(width: 28, height: 28).background(WallumeDesign.accent.opacity(0.16))
+            VStack(alignment: .leading, spacing: 3) { Text("播放控制").font(.subheadline.weight(.semibold)); Text("暂停会保留每块屏幕当前的画面与设置。").font(.caption).foregroundStyle(.secondary) }
+            Spacer()
+            Button(store.userPaused ? "继续全部" : "暂停全部") { Task { await store.setUserPaused(!store.userPaused) } }.buttonStyle(.bordered)
+        }
+        .padding(.vertical, 18).overlay(alignment: .top) { Divider() }.overlay(alignment: .bottom) { Divider() }
+    }
+
+    private var primaryCard: DisplayCardState? {
+        store.cards.first(where: { $0.display.isMain }) ?? store.cards.first
+    }
+
+    private var secondaryCards: [DisplayCardState] {
+        guard let primaryID = primaryCard?.id else { return [] }
+        return store.cards.filter { $0.id != primaryID }
+    }
+
+    private func projectionStage(_ card: DisplayCardState) -> some View {
+        VStack(spacing: 0) {
+            ZStack(alignment: .topLeading) {
+                displayImage(card)
+                .frame(height: 390)
                 .frame(maxWidth: .infinity)
                 .clipped()
+                LinearGradient(colors: [.black.opacity(0.12), .clear, .black.opacity(0.65)], startPoint: .top, endPoint: .bottom)
 
                 HStack(spacing: 8) {
-                    if card.display.isMain { WallumeStatusBadge("主显示器", systemImage: "star.fill", tint: .white) }
+                    WallumeStatusBadge("主显示器", systemImage: "star.fill", tint: .white)
                     WallumeStatusBadge(
                         card.connection == .connected ? "在线" : "离线",
                         systemImage: card.connection == .connected ? "checkmark.circle.fill" : "circle.slash",
@@ -112,9 +149,10 @@ public struct DisplaysView: View {
                 .padding(14)
             }
 
-            HStack(alignment: .center, spacing: 16) {
+            HStack(alignment: .bottom, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(card.display.name).font(.headline)
+                    Text("正在投放").font(.caption.weight(.semibold)).foregroundStyle(WallumeDesign.accent)
+                    Text(card.display.name).font(.title2.weight(.semibold))
                     Text(card.wallpaperTitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                     if let error = card.runtimeError {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -124,7 +162,7 @@ public struct DisplaysView: View {
                 }
                 Spacer()
                 if card.connection == .connected {
-                    Button(card.hasAssignment ? "更换" : "选择", systemImage: "arrow.triangle.2.circlepath") {
+                    Button(card.hasAssignment ? "更换画面" : "选择画面", systemImage: "arrow.triangle.2.circlepath") {
                         if gallery != nil { pickingDisplay = card }
                         else { onChooseWallpaper(card.id) }
                     }
@@ -134,7 +172,7 @@ public struct DisplaysView: View {
                     }
                 }
             }
-            .padding(16)
+            .padding(20)
 
             if card.connection == .connected && (card.canSetPresentationMode || card.canRemoveAssignment || card.runtimeError != nil) {
                 HStack {
@@ -158,14 +196,53 @@ public struct DisplaysView: View {
                     }
                 }
                 .font(.subheadline)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 14)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 18)
             }
         }
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.primary.opacity(0.08)) }
+        .background(Color.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.13)) }
         .wallumeInteractiveSurface()
+    }
+
+    private func secondaryDisplayCard(_ card: DisplayCardState) -> some View {
+        Button {
+            if card.connection == .connected {
+                if gallery != nil { pickingDisplay = card }
+                else { onChooseWallpaper(card.id) }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                displayImage(card)
+                    .frame(width: 116, height: 72)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(card.display.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(card.wallpaperTitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Label(card.connection == .connected ? "在线" : "离线", systemImage: card.connection == .connected ? "checkmark.circle.fill" : "circle.slash")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(card.connection == .connected ? .green : .secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.secondary)
+            }
+            .padding(10)
+            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(card.connection != .connected)
+    }
+
+    @ViewBuilder
+    private func displayImage(_ card: DisplayCardState) -> some View {
+        if let media = card.media, let image = NSImage(contentsOf: media.coverURL) {
+            Image(nsImage: image).resizable().scaledToFill()
+        } else {
+            Color(nsColor: .underPageBackgroundColor)
+                .overlay(Image(systemName: "display").font(.largeTitle).foregroundStyle(.secondary))
+        }
     }
 
     private func modeBinding(_ card: DisplayCardState) -> Binding<WallpaperPresentationMode> {
@@ -233,7 +310,7 @@ private struct DisplayPickerTile: View {
             Text(item.displayName).lineLimit(1).font(.subheadline.weight(.semibold))
         }
         .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.primary.opacity(0.08)) }
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous).strokeBorder(.primary.opacity(0.08)) }
     }
 }

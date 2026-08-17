@@ -45,33 +45,65 @@ public struct DisplaySelectorView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("设为壁纸").font(.title2.bold())
-            Text("选择要应用“\(mediaName)”的显示器").foregroundStyle(.secondary)
-
-            HStack {
-                Button("全部选择") { model.selectAll() }
-                Button("清除选择") { model.clearAll() }
-                Spacer()
-                Text(model.summary).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(wallumeLocalized("投放到屏幕"))
+                    .font(.title2.weight(.bold))
+                Text("选择要应用“\(mediaName)”的显示器。每块屏幕会保留自己的显示方式。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
 
-            List(model.targets) { target in
-                Toggle(isOn: Binding(
-                    get: { model.selectedIDs.contains(target.id) },
-                    set: { _ in model.toggle(target.id) }
-                )) {
-                    VStack(alignment: .leading) {
-                        HStack {
-                            Text(target.name)
-                            if target.isMain { Text("主显示器").font(.caption).foregroundStyle(.blue) }
+            HStack {
+                Button(wallumeLocalized("全部选择")) { model.selectAll() }
+                Button(wallumeLocalized("清除选择")) { model.clearAll() }
+                Spacer()
+                Text(model.summary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(WallumeDesign.accent)
+            }
+
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(model.targets) { target in
+                        let isSelected = model.selectedIDs.contains(target.id)
+                        Button {
+                            model.toggle(target.id)
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "display")
+                                    .font(.title3.weight(.medium))
+                                    .frame(width: 32, height: 28)
+                                    .background(isSelected ? WallumeDesign.accent.opacity(0.18) : .primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 6) {
+                                        Text(target.name).font(.subheadline.weight(.semibold))
+                                        if target.isMain { WallumeStatusBadge("主显示器", systemImage: "star.fill", tint: WallumeDesign.accent) }
+                                    }
+                                    Text(currentAssignments[target.id].map { wallumeLocalized("当前播放：") + $0 } ?? wallumeLocalized("尚未设置画面"))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 12)
+                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                    .font(.title3)
+                                    .foregroundStyle(isSelected ? WallumeDesign.accent : .secondary)
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(isSelected ? WallumeDesign.accent.opacity(0.1) : .primary.opacity(0.035), in: RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous)
+                                    .strokeBorder(isSelected ? WallumeDesign.accent.opacity(0.55) : .primary.opacity(0.08))
+                            }
                         }
-                        Text(currentAssignments[target.id].map { "当前：\($0)" } ?? "当前未设置")
-                            .font(.caption).foregroundStyle(.secondary)
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(target.name)
+                        .accessibilityValue(wallumeLocalized(isSelected ? "已选择" : "未选择"))
                     }
                 }
             }
-            .frame(minHeight: 200)
+            .frame(minHeight: 220, maxHeight: 320)
 
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
@@ -81,13 +113,13 @@ public struct DisplaySelectorView: View {
 
             HStack {
                 Spacer()
-                Button("取消", action: onCancel)
-                Button("确认") { onConfirm(model.selectedIDs) }
+                Button(wallumeLocalized("取消"), action: onCancel)
+                Button(wallumeLocalized("确认")) { onConfirm(model.selectedIDs) }
                     .buttonStyle(.borderedProminent)
                     .disabled(!model.canConfirm)
             }
         }
-        .padding(20)
-        .frame(minWidth: 460, minHeight: 360)
+        .padding(24)
+        .frame(minWidth: 520, minHeight: 410)
     }
 }

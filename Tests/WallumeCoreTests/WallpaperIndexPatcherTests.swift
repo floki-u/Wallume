@@ -24,8 +24,7 @@ final class WallpaperIndexPatcherTests: XCTestCase {
                 options: [],
                 format: nil
             ) as? [String: Any]
-            XCTAssertEqual(decoded?["selectedID"] as? String, "AERIAL-ONE", name)
-            XCTAssertEqual(decoded?["showAsScreenSaver"] as? Bool, true, name)
+            XCTAssertEqual(decoded?["assetID"] as? String, "AERIAL-ONE", name)
         }
     }
 

@@ -13,7 +13,7 @@ final class SystemVersionTests: XCTestCase {
     func testOnlySupportedGenerationsPermitWrites() {
         XCTAssertTrue(MacOSGeneration.sonoma.permitsWrites)
         XCTAssertTrue(MacOSGeneration.sequoia.permitsWrites)
-        XCTAssertTrue(MacOSGeneration.tahoe.permitsWrites)
+        XCTAssertFalse(MacOSGeneration.tahoe.permitsWrites)
         XCTAssertFalse(MacOSGeneration.unsupported(13).permitsWrites)
     }
 }

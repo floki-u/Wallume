@@ -139,47 +139,23 @@ public struct LockScreenView: View {
 
     private func nativeProviderBody(_ provider: NativeWallpaperProviderStore) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                WallumePageHeader("锁屏", subtitle: "将当前素材用于锁屏") {
-                    WallumeStatusBadge(
-                        nativeShortStatus(provider.status),
-                        systemImage: nativeStatusIcon(provider.status),
-                        tint: nativeStatusTint(provider.status)
-                    )
-                }
-
-                nativeCanvas(provider)
-
-                nativePrimaryAction(provider)
-
-                if case .failure = provider.status, let imageURL = provider.media?.coverURL {
-                    HStack(alignment: .center, spacing: 14) {
-                        Image(systemName: "photo.on.rectangle")
-                            .font(.title2)
-                            .foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("锁屏未能启用").font(.headline)
-                            Text("你可以先使用当前素材的静态封面，或重置后再试。")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 16)
-                        Button("查看封面", systemImage: "eye") { revealStaticFallback(imageURL) }
-                    }
-                    .wallumeCard()
-                }
-
-                if provider.deployment != nil {
-                    Divider()
-                    Button("管理锁屏资源", systemImage: "arrow.counterclockwise") {
-                        presentsProviderReset = true
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                }
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 72) { lockPreview(provider); lockCopy(provider) }.frame(minWidth: 900)
+                VStack(alignment: .leading, spacing: 32) { lockPreview(provider); lockCopy(provider) }
             }
-            .frame(maxWidth: WallumeDesign.contentWidth, alignment: .leading)
-            .padding(24)
+            .frame(maxWidth: 1_180)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 40)
+
+            if provider.deployment != nil {
+                Button("管理锁屏资源", systemImage: "arrow.counterclockwise") {
+                    presentsProviderReset = true
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 32)
+            }
         }
         .wallumePageBackground()
         .alert("无法打开系统壁纸设置", isPresented: Binding(
@@ -187,12 +163,32 @@ public struct LockScreenView: View {
             set: { if !$0 { store.dismissPageError() } }
         )) {
             Button("知道了") { store.dismissPageError() }
-        } message: {
-            Text(store.pageError ?? "")
+        } message: { Text(store.pageError ?? "") }
+        .sheet(isPresented: $presentsProviderReset) { providerResetSheet(provider) }
+    }
+
+    private func lockPreview(_ provider: NativeWallpaperProviderStore) -> some View {
+        ZStack(alignment: .top) {
+            nativeCanvas(provider)
+            VStack(spacing: 3) {
+                Text(Date.now.formatted(date: .omitted, time: .shortened)).font(.system(size: 44, weight: .medium, design: .rounded))
+                Text(Date.now.formatted(.dateTime.month().day().weekday())).font(.caption)
+            }
+            .foregroundStyle(.white).padding(.top, 58)
         }
-        .sheet(isPresented: $presentsProviderReset) {
-            providerResetSheet(provider)
+        .frame(maxWidth: 620)
+    }
+
+    private func lockCopy(_ provider: NativeWallpaperProviderStore) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("让画面\n自然延续。")
+                .font(.system(size: 46, weight: .bold, design: .serif))
+            nativeSafetyRail(provider)
+            Text("Wallume 仅会写入你确认的专属资源槽，并保留可验证的恢复锚点。")
+                .foregroundStyle(.secondary).frame(maxWidth: 360, alignment: .leading)
+            nativePrimaryAction(provider)
         }
+        .frame(maxWidth: 380, alignment: .leading)
     }
 
     private func providerResetSheet(_ provider: NativeWallpaperProviderStore) -> some View {
@@ -252,7 +248,7 @@ public struct LockScreenView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 210)
+            .frame(height: 248)
             .clipped()
 
             VStack(alignment: .leading, spacing: 6) {
@@ -270,9 +266,72 @@ public struct LockScreenView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.ultraThinMaterial)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.primary.opacity(0.08)) }
+        .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous).strokeBorder(.primary.opacity(0.08)) }
         .wallumeInteractiveSurface()
+    }
+
+    private func nativeSafetyRail(_ provider: NativeWallpaperProviderStore) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: nativeSafetyIcon(provider.status))
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(nativeSafetyTint(provider.status))
+                .frame(width: 30, height: 30)
+                .background(nativeSafetyTint(provider.status).opacity(0.14), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(nativeSafetyTitle(provider.status)).font(.subheadline.weight(.semibold))
+                Text(nativeSafetyDetail(provider.status))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            Image(systemName: "checkmark.shield")
+                .foregroundStyle(WallumeDesign.accent)
+        }
+        .wallumeCard()
+    }
+
+    private func nativeSafetyIcon(_ status: NativeWallpaperProviderStatus) -> String {
+        switch status {
+        case .activeInSystem: "checkmark.shield.fill"
+        case .readyToPrepare, .preparedForSystemSelection, .systemSelectionNeedsUpdate: "shield"
+        case .needsMedia: "display"
+        case .resetConfirmed: "checkmark.circle"
+        case .unavailable, .failure: "exclamationmark.shield"
+        }
+    }
+
+    private func nativeSafetyTint(_ status: NativeWallpaperProviderStatus) -> Color {
+        switch status {
+        case .activeInSystem, .resetConfirmed: .green
+        case .unavailable, .failure: .red
+        case .needsMedia: .secondary
+        case .readyToPrepare, .preparedForSystemSelection, .systemSelectionNeedsUpdate: WallumeDesign.accent
+        }
+    }
+
+    private func nativeSafetyTitle(_ status: NativeWallpaperProviderStatus) -> String {
+        switch status {
+        case .activeInSystem: "锁屏已启用且可验证"
+        case .readyToPrepare: "已准备安全投放"
+        case .preparedForSystemSelection: "等待系统设置确认"
+        case .systemSelectionNeedsUpdate: "需要更新系统锁屏素材"
+        case .needsMedia: "等待主显示器选择素材"
+        case .resetConfirmed: "系统状态已确认，可安全清理"
+        case .unavailable, .failure: "锁屏同步暂不可用"
+        }
+    }
+
+    private func nativeSafetyDetail(_ status: NativeWallpaperProviderStatus) -> String {
+        switch status {
+        case .activeInSystem: "Wallume 会保留恢复锚点，方便在需要时恢复原有资源。"
+        case .readyToPrepare: "只会使用已经确认的 Wallume 专属资源槽。"
+        case .preparedForSystemSelection: "请在系统设置中选择 Wallume 的动态画面。"
+        case .systemSelectionNeedsUpdate: "当前画面已变化；更新后会再次引导你确认。"
+        case .needsMedia: "先为主显示器投放一段画面，再继续锁屏同步。"
+        case .resetConfirmed: "系统已不再使用 Wallume 的锁屏资源。"
+        case .unavailable, .failure: "桌面壁纸不受影响；可以稍后重试或查看诊断。"
+        }
     }
 
     @ViewBuilder

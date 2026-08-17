@@ -135,6 +135,9 @@ public actor NativeWallpaperProviderLifecycle {
         guard try isSafeRegularFile(media.variantURL), try isSafeRegularFile(media.coverURL) else {
             throw NativeWallpaperProviderLifecycleError.unsafeSource(media.variantURL)
         }
+        // A provider can keep several staged assets. Do not replace or delete an older asset
+        // while macOS renders it, but do allow the next selected desktop item to be staged.
+        // The new deployment stays inactive until the extension reports that exact media ID.
         let directory = paths.mediaDirectory(for: media.id)
         try files.createDirectory(paths.root)
         try files.createDirectory(paths.mediaDirectory)

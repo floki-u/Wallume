@@ -14,12 +14,24 @@ SAVER_MACOS="$SAVER_CONTENTS/MacOS"
 NATIVE_PROVIDER_DERIVED_DATA="$PWD/.build/NativeWallpaperProvider"
 NATIVE_PROVIDER_APP="$NATIVE_PROVIDER_DERIVED_DATA/Build/Products/Debug/WallumeProviderHost.app"
 NATIVE_EXTENSION="$NATIVE_PROVIDER_APP/Contents/Extensions/WallumeNativeWallpaperExtension.appex"
-SIGNING_IDENTITY="${WALLUME_SIGNING_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development/ { print $2; exit }')}"
-XCODE_SIGNING_IDENTITY="${WALLUME_XCODE_SIGNING_IDENTITY:-Apple Development}"
 DEVELOPMENT_TEAM="${WALLUME_DEVELOPMENT_TEAM:-PD9JWWM64D}"
+XCODE_SIGNING_IDENTITY="${WALLUME_XCODE_SIGNING_IDENTITY:-Apple Development}"
+
+if [[ -n "${WALLUME_SIGNING_IDENTITY:-}" ]]; then
+    SIGNING_IDENTITY="$WALLUME_SIGNING_IDENTITY"
+else
+    SIGNING_IDENTITY=""
+    while IFS= read -r candidate; do
+        subject="$(security find-certificate -p -c "$candidate" | openssl x509 -noout -subject 2>/dev/null || true)"
+        if [[ "$subject" == *"OU=$DEVELOPMENT_TEAM"* ]]; then
+            SIGNING_IDENTITY="$candidate"
+            break
+        fi
+    done < <(security find-identity -v -p codesigning | sed -n 's/.*"\(.*\)".*/\1/p')
+fi
 
 if [[ -z "$SIGNING_IDENTITY" ]]; then
-    echo "No Apple Development signing identity found. Set WALLUME_SIGNING_IDENTITY to build the native wallpaper provider."
+    echo "No Apple Development signing identity matches team $DEVELOPMENT_TEAM. Set WALLUME_SIGNING_IDENTITY or WALLUME_DEVELOPMENT_TEAM."
     exit 1
 fi
 

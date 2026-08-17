@@ -20,7 +20,7 @@ final class LockScreenProbeTests: XCTestCase {
         XCTAssertFalse(LocalFileStore().exists(fixture.paths.transactionsDirectory))
     }
 
-    func testProbeReportsSlotsAndForeignBackupNamesWithoutRejectingTheReport() throws {
+    func testTahoeProbeReportsReadOnlyEvenWhenLegacyAerialFilesExist() throws {
         let fixture = try ProbeFixture.make()
         defer { fixture.remove() }
         try fixture.writeVideo(id: "AERIAL-ONE")
@@ -40,7 +40,7 @@ final class LockScreenProbeTests: XCTestCase {
             version: .init(majorVersion: 26, minorVersion: 5, patchVersion: 2)
         )
 
-        XCTAssertTrue(report.writesPermitted)
+        XCTAssertFalse(report.writesPermitted)
         XCTAssertEqual(report.generation, .tahoe)
         XCTAssertTrue(report.indexExists)
         XCTAssertEqual(report.availableSlots.map(\.id), ["AERIAL-ONE", "AERIAL-TWO"])

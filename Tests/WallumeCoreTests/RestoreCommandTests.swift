@@ -13,7 +13,7 @@ final class RestoreCommandTests: XCTestCase {
         XCTAssertEqual(output.stdout, "")
         XCTAssertEqual(
             output.stderr,
-            "usage: wallume-restore status | probe | restore <transaction-uuid> | restore-all\n"
+            "usage: wallume-restore status | probe | restore <transaction-uuid> | restore-all | tahoe-status | tahoe-reset <transaction-uuid> | tahoe-reset-all\n"
         )
         XCTAssertEqual(recovery.restoredIDs, [])
     }
@@ -59,7 +59,7 @@ final class RestoreCommandTests: XCTestCase {
         XCTAssertEqual(recovery.restoredIDs, [])
         XCTAssertEqual(
             output.stderr,
-            "usage: wallume-restore status | probe | restore <transaction-uuid> | restore-all\n"
+            "usage: wallume-restore status | probe | restore <transaction-uuid> | restore-all | tahoe-status | tahoe-reset <transaction-uuid> | tahoe-reset-all\n"
         )
     }
 

@@ -32,6 +32,26 @@ final class AppKitShellTests: XCTestCase {
         XCTAssertEqual(StatusItemController.title(for: StatusItemState(imports: importing, activeDisplayCount: 2, pauseReasons: [])), "导入 0/1")
     }
 
+    func testStatusBarButtonAlwaysUsesIconWithoutText() {
+        let playing = StatusItemState(
+            imports: .init(items: [], warnings: [], isActive: false),
+            activeDisplayCount: 2,
+            pauseReasons: []
+        )
+        let importing = StatusItemState(
+            imports: .init(
+                items: [ImportQueueItem(source: URL(fileURLWithPath: "/a.mov"), attempts: [.init(status: .running)])],
+                warnings: [],
+                isActive: true
+            ),
+            activeDisplayCount: 2,
+            pauseReasons: []
+        )
+
+        XCTAssertEqual(StatusItemController.statusBarButtonTitle(for: playing), "")
+        XCTAssertEqual(StatusItemController.statusBarButtonTitle(for: importing), "")
+    }
+
     func testPanelConfigurationsSeparateFilesAndFolders() {
         XCTAssertTrue(ImportPanelConfiguration.files.allowsMultipleSelection)
         XCTAssertFalse(ImportPanelConfiguration.files.canChooseDirectories)

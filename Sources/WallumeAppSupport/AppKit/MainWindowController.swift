@@ -36,11 +36,29 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
     }
 
     private func makeWindow() -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 980, height: 680), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+        let window = ProjectionWindow(contentRect: NSRect(x: 0, y: 0, width: 1_180, height: 760), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = "Wallume"
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+        window.minSize = NSSize(width: 820, height: 560)
         window.isReleasedWhenClosed = false
         window.delegate = self
         self.window = window
         return window
+    }
+}
+
+/// The SwiftUI header occupies the full-size content area, while the traffic-light band
+/// remains AppKit chrome. Handle double-clicks in that chrome too so both bands match
+/// the standard macOS zoom behavior.
+private final class ProjectionWindow: NSWindow {
+    override func mouseDown(with event: NSEvent) {
+        let titlebarBandHeight: CGFloat = 56
+        if event.clickCount == 2, event.locationInWindow.y >= frame.height - titlebarBandHeight {
+            performZoom(nil)
+            return
+        }
+        super.mouseDown(with: event)
     }
 }

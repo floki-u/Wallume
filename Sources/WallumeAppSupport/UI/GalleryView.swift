@@ -2,30 +2,6 @@ import AppKit
 import SwiftUI
 import WallumeCore
 
-private enum GalleryLayoutMode: String, CaseIterable, Identifiable {
-    case adaptive
-    case fourColumns
-    case carousel
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .adaptive: "自适应"
-        case .fourColumns: "每行 4 个"
-        case .carousel: "轮播"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .adaptive: "rectangle.grid.1x2"
-        case .fourColumns: "rectangle.grid.2x2.fill"
-        case .carousel: "rectangle.on.rectangle.angled"
-        }
-    }
-}
-
 public struct GalleryView: View {
     @Bindable private var gallery: GalleryStore
     private let tasks: ImportTaskStore
@@ -35,9 +11,10 @@ public struct GalleryView: View {
     private let onImportFiles: () -> Void
     private let onImportFolder: () -> Void
     private let onDrop: ([URL]) -> Void
-    @AppStorage("wallume.gallery.layout") private var layoutRawValue = GalleryLayoutMode.adaptive.rawValue
     @State private var assignmentItem: MediaItem?
+    @State private var pendingAssignmentItem: MediaItem?
     @State private var carouselSelection: UUID?
+    @State private var isAutoCycling = true
 
     public init(gallery: GalleryStore, tasks: ImportTaskStore, displays: DisplayFeatureStore? = nil, preferredAssignmentDisplayID: DisplayID? = nil, onAssignmentFlowFinished: @escaping () -> Void = {}, onImportFiles: @escaping () -> Void, onImportFolder: @escaping () -> Void, onDrop: @escaping ([URL]) -> Void) {
         self.gallery = gallery
@@ -57,23 +34,21 @@ public struct GalleryView: View {
             } else if gallery.items.isEmpty {
                 ContentUnavailableView("导入第一段动态画面", systemImage: "film.stack", description: Text("支持 MOV 和 MP4；导入后可直接分配到显示器。"))
             } else {
-                VStack(spacing: 0) {
-                    galleryHeader
-                    Divider()
+                ScrollView {
+                    VStack(spacing: 0) {
+                    projectionLibrary
                     if gallery.filteredItems.isEmpty {
                         ContentUnavailableView("没有匹配的视频", systemImage: "magnifyingglass", description: Text("尝试其他关键词。"))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if selectedLayout == .carousel {
-                        carousel
+                            .frame(maxWidth: .infinity, minHeight: 280)
                     } else {
-                        mediaGrid
+                        projectionFilmstrip
+                    }
                     }
                 }
             }
         }
         .wallumePageBackground()
         .animation(.easeInOut(duration: 0.2), value: gallery.filteredItems.map(\.id))
-        .searchable(text: $gallery.searchText, prompt: "搜索素材")
         .dropDestination(for: URL.self) { urls, _ in
             onDrop(urls)
             return !urls.isEmpty
@@ -83,7 +58,7 @@ public struct GalleryView: View {
                 ImportTaskDrawer(store: tasks)
             }
         }
-        .sheet(item: $gallery.selectedItem) { item in detailSheet(item) }
+        .sheet(item: $gallery.selectedItem, onDismiss: presentPendingAssignmentIfNeeded) { item in detailSheet(item) }
         .sheet(item: $assignmentItem) { item in assignmentSheet(item) }
         .alert("媒体正在使用中", isPresented: Binding(
             get: { gallery.deletionBlock != nil },
@@ -95,134 +70,90 @@ public struct GalleryView: View {
         }
         .onAppear { ensureCarouselSelection() }
         .onChange(of: gallery.filteredItems.map(\.id)) { _, _ in ensureCarouselSelection() }
-        .task(id: layoutRawValue) { await advanceCarouselAutomatically() }
-    }
-
-    private var selectedLayout: GalleryLayoutMode {
-        GalleryLayoutMode(rawValue: layoutRawValue) ?? .adaptive
-    }
-
-    private var galleryHeader: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("素材库").font(.title2.weight(.semibold))
-                Text("点击素材以预览视频或应用到显示器。")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 12)
-            layoutMenu
-            importControls
+        .task(id: carouselSelection) {
+            guard isAutoCycling, gallery.filteredItems.count > 1 else { return }
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, isAutoCycling else { return }
+            nextCarouselItem()
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
     }
 
-    private var layoutMenu: some View {
-        Menu {
-            Section("排列方式") {
-                ForEach(GalleryLayoutMode.allCases) { layout in
-                    Button {
-                        layoutRawValue = layout.rawValue
-                    } label: {
-                        Label(layout.title, systemImage: selectedLayout == layout ? "checkmark" : layout.systemImage)
-                    }
-                }
-            }
-        } label: {
-            Label("排列", systemImage: selectedLayout.systemImage)
-        }
-        .help("选择素材排列方式")
+    private var playbackSummary: (mediaName: String, displayName: String)? {
+        guard let card = displays?.cards.first(where: { $0.hasAssignment }), let media = card.media else { return nil }
+        return (media.displayName, card.display.name)
     }
 
-    private var importControls: some View {
+    private var projectionLibrary: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                Button("导入视频", systemImage: "plus", action: onImportFiles)
-                    .buttonStyle(.borderedProminent)
-                importMenu
-            }
-            HStack(spacing: 4) {
-                Button(action: onImportFiles) {
-                    Image(systemName: "plus")
-                }
-                .buttonStyle(.borderedProminent)
-                .help("导入视频")
-                importMenu
-            }
+            HStack(alignment: .center, spacing: 56) { projectionCopy; projectionFeature }.frame(minWidth: 1_180)
+            VStack(alignment: .leading, spacing: 24) { projectionCopy; projectionFeature }
         }
+        .frame(maxWidth: 2_200)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 32)
+        .padding(.vertical, 28)
     }
 
-    private var importMenu: some View {
-        Menu {
-            Button("导入文件夹", systemImage: "folder.badge.plus", action: onImportFolder)
-        } label: {
-            Image(systemName: "ellipsis.circle")
+    private var projectionCopy: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("选一段画面，\n留住此刻的空间。")
+                .font(.system(size: 44, weight: .bold, design: .serif))
+                .fixedSize(horizontal: false, vertical: true)
+            Text("本地素材不会上传。预览一段画面，再将它投放到指定显示器。")
+                .foregroundStyle(.secondary).frame(maxWidth: 350, alignment: .leading)
+            Button("预览当前画面", systemImage: "play.fill") { if let item = carouselItem { gallery.selectedItem = item } }
+                .buttonStyle(.borderedProminent).tint(WallumeDesign.accent)
         }
-        .menuStyle(.borderlessButton)
-        .help("更多导入选项")
+        .frame(width: 420, alignment: .leading)
     }
 
-    private var mediaGrid: some View {
-        ScrollView {
-            LazyVGrid(columns: gridColumns, spacing: 16) {
-                ForEach(gallery.filteredItems) { item in
-                    Button { gallery.selectedItem = item } label: {
-                        GalleryMediaTile(item: item)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(24)
-        }
-    }
-
-    private var gridColumns: [GridItem] {
-        switch selectedLayout {
-        case .adaptive:
-            [GridItem(.adaptive(minimum: 190, maximum: 300), spacing: 16)]
-        case .fourColumns:
-            Array(repeating: GridItem(.flexible(minimum: 0), spacing: 16), count: 4)
-        case .carousel:
-            []
-        }
-    }
-
-    private var carousel: some View {
-        GeometryReader { geometry in
+    private var projectionFeature: some View {
+        VStack(spacing: 12) {
             ZStack {
-                if let item = carouselItem {
-                    Button { gallery.selectedItem = item } label: {
-                        GalleryCarouselSlide(item: item)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(
-                        width: min(1_600, max(640, geometry.size.width - 140)),
-                        height: max(360, geometry.size.height - 48)
-                    )
-                    .simultaneousGesture(
-                        DragGesture(minimumDistance: 28)
-                            .onEnded { value in
-                                if value.translation.width < 0 { nextCarouselItem() }
-                                if value.translation.width > 0 { previousCarouselItem() }
-                            }
-                    )
-                }
-
-                HStack {
-                    carouselButton("chevron.left", action: previousCarouselItem)
-                    Spacer()
-                    carouselButton("chevron.right", action: nextCarouselItem)
-                }
-                .padding(.horizontal, 28)
+                if let item = carouselItem { GalleryCarouselSlide(item: item, displayName: playbackSummary?.displayName) }
             }
-            .background(
-                CarouselWheelObserver(
-                    onPrevious: previousCarouselItem,
-                    onNext: nextCarouselItem
-                )
-            )
+            .aspectRatio(16 / 9, contentMode: .fit)
+            HStack(spacing: 8) {
+                carouselButton("chevron.left", action: previousCarouselItem)
+                Text("画面轮播")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button(isAutoCycling ? "暂停轮播" : "自动轮播", systemImage: isAutoCycling ? "pause.fill" : "play.fill") { isAutoCycling.toggle() }
+                    .buttonStyle(.bordered)
+                carouselButton("chevron.right", action: nextCarouselItem)
+                Spacer()
+            }
         }
+        .frame(minWidth: 700, maxWidth: .infinity)
+    }
+
+    private var projectionFilmstrip: some View {
+        VStack(spacing: 14) {
+            HStack {
+                HStack(spacing: 7) {
+                    Text("本地画面").font(.caption).foregroundStyle(.secondary)
+                    Text(gallery.filteredItems.count.formatted()).font(.caption.weight(.bold)).foregroundStyle(WallumeDesign.accent)
+                }
+                Spacer()
+                Text("全部").font(.caption.weight(.semibold))
+                    .padding(.bottom, 5)
+                    .overlay(alignment: .bottom) { Rectangle().fill(WallumeDesign.accent).frame(height: 1) }
+            }
+            .overlay(alignment: .top) { Divider().offset(y: -16) }
+            .padding(.horizontal, 32)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                ForEach(gallery.filteredItems) { item in
+                    Button {
+                        withAnimation(.easeOut(duration: 0.22)) { carouselSelection = item.id }
+                    } label: { ProjectionFilmstripTile(item: item, isSelected: item.id == carouselSelection) }
+                    .buttonStyle(.plain)
+                }
+                }
+            }
+            .padding(.horizontal, 32)
+        }
+        .padding(.bottom, 28)
     }
 
     private var carouselItem: MediaItem? {
@@ -246,15 +177,6 @@ public struct GalleryView: View {
         }
         if !gallery.filteredItems.contains(where: { $0.id == carouselSelection }) {
             carouselSelection = gallery.filteredItems[0].id
-        }
-    }
-
-    private func advanceCarouselAutomatically() async {
-        guard selectedLayout == .carousel else { return }
-        while !Task.isCancelled {
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-            guard !Task.isCancelled, selectedLayout == .carousel else { return }
-            nextCarouselItem()
         }
     }
 
@@ -283,11 +205,25 @@ public struct GalleryView: View {
                 if gallery.deletionBlock == nil { _ = gallery.confirmDelete(item) }
             },
             onSetWallpaper: { applyToMainDisplay(item) },
-            onChooseDisplay: { assignmentItem = item }
+            onChooseDisplay: { beginAssignmentFlow(for: item) }
         )
     }
 
+    /// SwiftUI only presents one sheet from this hierarchy at a time. Dismiss the detail sheet
+    /// first, then present the screen picker from its dismissal callback to avoid a delayed picker.
+    private func beginAssignmentFlow(for item: MediaItem) {
+        pendingAssignmentItem = item
+        gallery.selectedItem = nil
+    }
+
+    private func presentPendingAssignmentIfNeeded() {
+        guard let item = pendingAssignmentItem else { return }
+        pendingAssignmentItem = nil
+        assignmentItem = item
+    }
+
     private func applyToMainDisplay(_ item: MediaItem) {
+        pendingAssignmentItem = nil
         guard let displays else { return }
         guard let target = displays.assignmentTargets.first(where: \.isMain) ?? displays.assignmentTargets.first else {
             displays.reportPageError("未找到可用显示器。")
@@ -355,9 +291,9 @@ private struct GalleryMediaTile: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(9)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous)
                 .strokeBorder(.primary.opacity(0.09))
         }
         .wallumeInteractiveSurface()
@@ -373,8 +309,33 @@ private struct GalleryMediaTile: View {
     }
 }
 
+private struct ProjectionFilmstripTile: View {
+    let item: MediaItem
+    let isSelected: Bool
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            if let image = NSImage(contentsOf: item.thumbnailURL) {
+                Image(nsImage: image).resizable().scaledToFill()
+            } else { Color(nsColor: .underPageBackgroundColor) }
+            LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .center, endPoint: .bottom)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.displayName.uppercased()).font(.caption2.weight(.bold)).lineLimit(1)
+                Text(item.durationSeconds.formatted()).font(.caption2)
+            }
+            .foregroundStyle(.white).padding(10)
+        }
+        .frame(width: 270)
+        .aspectRatio(1.75, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(isSelected ? WallumeDesign.accent : .clear, lineWidth: 2) }
+        .opacity(isSelected ? 1 : 0.78)
+    }
+}
+
 private struct GalleryCarouselSlide: View {
     let item: MediaItem
+    let displayName: String?
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -387,9 +348,23 @@ private struct GalleryCarouselSlide: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.78)],
+                startPoint: .center,
+                endPoint: .bottom
+            )
+            .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 7) {
+                    Circle().fill(.green).frame(width: 7, height: 7)
+                    Text("正在放映").font(.caption.weight(.semibold))
+                    if let displayName {
+                        Text(displayName).font(.caption).foregroundStyle(.white.opacity(0.6))
+                    }
+                }
                 Text(item.displayName).font(.title3.weight(.semibold)).lineLimit(1)
                 Text("\(item.pixelWidth) x \(item.pixelHeight)  ·  \(item.frameRate.formatted()) fps")
                     .font(.subheadline)
@@ -397,9 +372,35 @@ private struct GalleryCarouselSlide: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.regularMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 8, bottomTrailingRadius: 8, topTrailingRadius: 0))
+            .foregroundStyle(.white)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+    }
+}
+
+private struct GalleryRailThumbnail: View {
+    let item: MediaItem
+    let isSelected: Bool
+
+    var body: some View {
+        Group {
+            if let image = NSImage(contentsOf: item.thumbnailURL) {
+                Image(nsImage: image).resizable().scaledToFill()
+            } else {
+                Color.white.opacity(0.08)
+            }
+        }
+        .frame(width: 96, height: 54)
+        .clipped()
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(isSelected ? WallumeDesign.accent : .white.opacity(0.14), lineWidth: isSelected ? 2 : 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .opacity(isSelected ? 1 : 0.58)
+        .scaleEffect(isSelected ? 1 : 0.96)
+        .animation(.easeOut(duration: 0.18), value: isSelected)
+        .accessibilityLabel(item.displayName)
     }
 }
 

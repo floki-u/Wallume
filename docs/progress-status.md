@@ -15,6 +15,8 @@ Updated: 2026-07-20
 
 ## Current position
 
+**Blocker added 2026-07-23:** macOS 26 的“自定义动态视频原生锁屏”仍未完成。它是产品硬性验收项：必须在首次锁屏、解锁后二次锁屏、重启和多显示器场景稳定播放用户视频，并可完整恢复。当前私有 Aerial 注册在冷启动后黑屏；第三方 Provider 缺少 Apple 私有 entitlement；传统 `.saver` 未被 Tahoe 的自定屏保界面枚举。因此锁屏功能不能验收或随 Release 宣称支持。完整研究证据与后续计划见 `docs/macos-26-lock-screen-investigation.md` 的 2026-07-23 更新。
+
 Performance diagnostics is locally merged. Settings is enabled and its engineering work is complete: all three preferences, directory/build information, redacted retryable local export, and application-owned export termination are delivered. Final review-remediation verification passed 39 focused tests and 405 full-suite tests with zero failures; local Release-configuration builds completed for `WallumeApp`, `wallume-runtime`, `wallume-media`, and `wallume-restore`; and `git diff --check` passed. Termination closes commit admission, rejects not-yet-admitted export writes, drains an already-admitted synchronous atomic commit, and preserves preferences plus the lock-screen → diagnostics → runtime shutdown order. The current diagnostics reference machine is Apple M4 with 51,539,607,552 bytes physical memory on macOS 26; this is not M1 data or target-hardware certification. No packaged release or remote integration is claimed. Phase 4 itself remains in progress pending localization, application state restoration, manual Settings/whole-app UI acceptance, and real-system Lock Screen installation/lock/unlock/restoration acceptance.
 
 ## Next work

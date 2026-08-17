@@ -40,6 +40,28 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
         XCTAssertEqual(fixture.files.writeCount, 1)
     }
 
+    func testUpdateAcceptsItsOwnISO8601SecondPrecisionTimestamp() async throws {
+        let fixture = try LockScreenConfigurationFixture()
+        defer { fixture.cleanup() }
+        let timestamp = Date(timeIntervalSince1970: 1_700_000_000.875)
+        let configuration = LockScreenConfiguration(
+            isEnabled: true,
+            selectedAerialID: "com.apple.aerials.sea",
+            activeTransactionID: UUID(),
+            lastSyncedMediaID: UUID(),
+            lastSyncedAt: timestamp,
+            lastResult: .synced
+        )
+
+        _ = try await fixture.store.load()
+        try await fixture.store.update(configuration)
+
+        let snapshot = await fixture.store.snapshot()
+        XCTAssertEqual(snapshot.lastSyncedAt?.timeIntervalSince1970, 1_700_000_000)
+        let reloaded = try await fixture.reloadedStore().load()
+        XCTAssertEqual(reloaded, snapshot)
+    }
+
     func testUnsupportedSchemaFailsClosedAndPreservesFile() async throws {
         let fixture = try LockScreenConfigurationFixture()
         defer { fixture.cleanup() }
@@ -294,6 +316,26 @@ final class LockScreenConfigurationStoreTests: XCTestCase {
         }
 
         XCTAssertEqual(fixture.files.writeCount, writesBeforeLoad)
+    }
+
+    func testExplicitRecoveryReopensStoreOnlyAfterStrictlyValidReplacement() async throws {
+        let fixture = try LockScreenConfigurationFixture()
+        defer { fixture.cleanup() }
+        try fixture.files.writeAtomically(Data("not json".utf8), to: fixture.url)
+
+        do {
+            _ = try await fixture.store.load()
+            XCTFail("Expected malformed load")
+        } catch {}
+        fixture.files.replaceExternally(
+            Data(#"{"schemaVersion":1,"isEnabled":false}"#.utf8),
+            at: fixture.url
+        )
+
+        let recovered = try await fixture.store.recoverAfterFailure()
+
+        XCTAssertEqual(recovered, .disabled)
+        try await fixture.store.update(.disabled)
     }
 
     func testRestoreMarkerWithoutTransactionReferenceFailsClosed() async throws {

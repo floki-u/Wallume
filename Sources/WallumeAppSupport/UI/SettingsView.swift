@@ -193,7 +193,8 @@ public struct SettingsView: View {
     private let diagnosticsDirectory: URL
     private let openInFinder: (URL) -> Void
     @State private var exportController: SettingsDiagnosticsExportController
-    @AppStorage("wallume.theme") private var themeName = WallumeTheme.tide.rawValue
+    @AppStorage("wallume.theme") private var themeName = WallumeTheme.nocturne.rawValue
+    @AppStorage("wallume.language") private var languageName = WallumeAppLanguage.chinese.rawValue
 
     public init(
         store: SettingsStore,
@@ -240,10 +241,11 @@ public struct SettingsView: View {
             diagnosticsDirectory: diagnosticsDirectory,
             exportState: exportController.state
         )
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 WallumePageHeader("设置", subtitle: "启动、播放与本地数据") { EmptyView() }
                 appearanceCard
+                languageCard
                 preferencesCard(page)
                 directoriesCard(page)
                 diagnosticsCard(page)
@@ -253,6 +255,7 @@ public struct SettingsView: View {
             .padding(24)
         }
         .wallumePageBackground()
+        .onAppear(perform: migrateLegacyThemeIfNeeded)
         .alert("设置操作失败", isPresented: Binding(
             get: { store.errorMessage != nil },
             set: { if !$0 { store.dismissError() } }
@@ -264,17 +267,38 @@ public struct SettingsView: View {
     }
 
     private var appearanceCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("外观").font(.headline)
-            Picker("主题", selection: $themeName) {
+        let selectedTheme = WallumeTheme.fromStoredValue(themeName)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(wallumeLocalized("放映氛围")).font(.headline)
+                    Text(wallumeLocalized(selectedTheme.detail)).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Circle().fill(WallumeDesign.accent).frame(width: 9, height: 9)
+            }
+            Picker(wallumeLocalized("主题"), selection: $themeName) {
                 ForEach(WallumeTheme.allCases) { theme in
-                    Text(theme.title).tag(theme.rawValue)
+                    Text(wallumeLocalized(theme.title)).tag(theme.rawValue)
                 }
             }
             .pickerStyle(.segmented)
-            Text("自动适配 macOS 的浅色与深色外观。")
+        }
+        .wallumeCard()
+    }
+
+    private var languageCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(wallumeLocalized("语言")).font(.headline)
+            Text(wallumeLocalized("界面语言会立即切换；默认使用中文。"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Picker(wallumeLocalized("界面语言"), selection: $languageName) {
+                ForEach(WallumeAppLanguage.allCases) { language in
+                    Text(language.title).tag(language.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
         }
         .wallumeCard()
     }
@@ -364,6 +388,13 @@ public struct SettingsView: View {
             Task { await exportController.retry() }
         case .chooseAnotherDestination:
             Task { await exportController.chooseAnotherDestination() }
+        }
+    }
+
+    private func migrateLegacyThemeIfNeeded() {
+        let canonicalName = WallumeTheme.fromStoredValue(themeName).rawValue
+        if themeName != canonicalName {
+            themeName = canonicalName
         }
     }
 }

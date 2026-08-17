@@ -212,6 +212,17 @@ final class LockScreenTransactionTests: XCTestCase {
         XCTAssertTrue(fixture.events.isEmpty)
     }
 
+    func testTahoeIsRejectedBeforeAnyDirectoryCreation() throws {
+        let fixture = TransactionFixture.makeUnsupported(systemMajorVersion: 26)
+        defer { fixture.remove() }
+
+        XCTAssertThrowsError(try fixture.transaction.install(fixture.request)) {
+            XCTAssertEqual($0 as? LockScreenTransactionError, .unsupportedOS(26))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.root.path))
+        XCTAssertTrue(fixture.events.isEmpty)
+    }
+
     func testEveryRequiredBackupIsVerifiedBeforePreparedJournalOrReplacement() throws {
         for corruption in [FileCorruption.primaryVideoBackup, .recoveryVideoBackup, .posterBackup] {
             let fixture = try TransactionFixture.make(corrupting: corruption)
@@ -678,7 +689,7 @@ private func selectedAerialID(in indexData: Data) throws -> String? {
             format: nil
         ) as? [String: Any]
     )
-    return values["selectedID"] as? String
+    return values["assetID"] as? String
 }
 
 private struct TestDigester: Digesting {
@@ -808,7 +819,7 @@ private struct TransactionFixture {
             root: root, paths: paths, files: files, digest: digest, journals: journals,
             refresher: refresher, transaction: transaction,
             request: .init(
-                systemVersion: .init(majorVersion: 26, minorVersion: 5, patchVersion: 2),
+                systemVersion: .init(majorVersion: 15, minorVersion: 6, patchVersion: 0),
                 aerialID: "AERIAL-ONE", optimizedVideo: optimizedVideo, poster: poster
             ),
             slotVideo: slotVideo, optimizedVideo: optimizedVideo, poster: poster,
@@ -816,7 +827,7 @@ private struct TransactionFixture {
         )
     }
 
-    static func makeUnsupported() -> Self {
+    static func makeUnsupported(systemMajorVersion: Int = 27) -> Self {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appending(path: "Wallume-UnsupportedTransactionTests-\(UUID().uuidString)")
         let paths = AerialPaths(homeDirectory: root, userGeneratedID: "TEST-USER")
@@ -826,7 +837,7 @@ private struct TransactionFixture {
         let journals = AtomicJSONStore(files: files)
         let refresher = TestRefresher(recorder: recorder)
         let request = LockScreenTransactionRequest(
-            systemVersion: .init(majorVersion: 27, minorVersion: 0, patchVersion: 0),
+            systemVersion: .init(majorVersion: systemMajorVersion, minorVersion: 0, patchVersion: 0),
             aerialID: "AERIAL-ONE",
             optimizedVideo: root.appending(path: "missing.mov"),
             poster: root.appending(path: "missing.png")

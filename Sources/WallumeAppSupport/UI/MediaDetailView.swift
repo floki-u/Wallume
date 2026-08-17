@@ -41,6 +41,9 @@ public struct MediaDetailView: View {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 5) {
+                        Text(wallumeLocalized("素材预览"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(WallumeDesign.accent)
                         Text(item.displayName).font(.title2.weight(.bold))
                         Text("\(item.pixelWidth) × \(item.pixelHeight)  ·  \(item.codec)  ·  \(item.frameRate.formatted()) fps")
                             .font(.subheadline)
@@ -48,7 +51,7 @@ public struct MediaDetailView: View {
                     }
                     Spacer()
                     if let onSetWallpaper {
-                        Button("应用到主显示器", systemImage: "display", action: onSetWallpaper)
+                        Button(wallumeLocalized("投放到主显示器"), systemImage: "display", action: onSetWallpaper)
                             .buttonStyle(.borderedProminent)
                             .tint(WallumeDesign.accent)
                     }
@@ -65,7 +68,7 @@ public struct MediaDetailView: View {
                         if !onReveal() { revealError = "无法在 Finder 中显示源文件" }
                     }
                     if let onChooseDisplay {
-                        Button("选择显示器", systemImage: "display.2", action: onChooseDisplay)
+                        Button(wallumeLocalized("选择投放屏幕"), systemImage: "display.2", action: onChooseDisplay)
                     }
                     Spacer()
                     Button("删除", systemImage: "trash", role: .destructive, action: onDelete)

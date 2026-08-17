@@ -68,10 +68,33 @@ final class LockScreenViewTests: XCTestCase {
     func testUnsupportedStateNeverOffersEnable() {
         let model = LockScreenPageViewState(state: LockScreenSyncState(
             phase: .unsupported,
+            probe: .init(
+                generation: .tahoe,
+                writesPermitted: false,
+                manifestExists: true,
+                indexExists: true,
+                availableSlots: [slot("tahoe-day")],
+                foreignBackupNames: []
+            ),
             capabilities: capabilities(refresh: true, retry: true)
         ))
         XCTAssertFalse(model.canRequestEnable)
+        XCTAssertFalse(model.canRefresh)
+        XCTAssertFalse(model.canRetry)
+        XCTAssertFalse(model.canResynchronize)
+        XCTAssertTrue(model.showsSystemWallpaperSettings)
         XCTAssertEqual(model.nextAction, .openSystemWallpaperSettings)
+    }
+
+    func testUnsupportedStateOffersGeneratedStaticFallback() {
+        let fallbackURL = URL(fileURLWithPath: "/cover.jpg")
+        let model = LockScreenPageViewState(state: LockScreenSyncState(
+            phase: .unsupported,
+            staticFallback: .init(mediaID: UUID(), displayName: "Ocean", imageURL: fallbackURL)
+        ))
+
+        XCTAssertEqual(model.staticFallbackName, "Ocean")
+        XCTAssertEqual(model.staticFallbackImageURL, fallbackURL)
     }
 
     @MainActor
