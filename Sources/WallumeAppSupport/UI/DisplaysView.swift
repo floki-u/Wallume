@@ -14,13 +14,17 @@ public extension WallpaperPresentationMode {
 
 public struct DisplaysView: View {
     @Bindable private var store: DisplayFeatureStore
+    private let gallery: GalleryStore?
     private let onChooseWallpaper: (DisplayID) -> Void
+    @State private var pickingDisplay: DisplayCardState?
 
     public init(
         store: DisplayFeatureStore,
+        gallery: GalleryStore? = nil,
         onChooseWallpaper: @escaping (DisplayID) -> Void = { _ in }
     ) {
         self.store = store
+        self.gallery = gallery
         self.onChooseWallpaper = onChooseWallpaper
     }
 
@@ -54,6 +58,20 @@ public struct DisplaysView: View {
             Button("知道了") { store.dismissPageError() }
         } message: {
             Text(store.pageError ?? "")
+        }
+        .sheet(item: $pickingDisplay) { card in
+            if let gallery {
+                DisplayMediaPicker(
+                    gallery: gallery,
+                    displayName: card.display.name,
+                    onSelect: { item in
+                        Task {
+                            await store.assign(mediaID: item.id, displayIDs: [card.id])
+                            if store.pageError == nil { pickingDisplay = nil }
+                        }
+                    }
+                )
+            }
         }
     }
 
@@ -107,7 +125,8 @@ public struct DisplaysView: View {
                 Spacer()
                 if card.connection == .connected {
                     Button(card.hasAssignment ? "更换" : "选择", systemImage: "arrow.triangle.2.circlepath") {
-                        onChooseWallpaper(card.id)
+                        if gallery != nil { pickingDisplay = card }
+                        else { onChooseWallpaper(card.id) }
                     }
                 } else {
                     Button("清除配置", systemImage: "trash", role: .destructive) {
@@ -154,5 +173,67 @@ public struct DisplaysView: View {
             get: { card.presentationMode },
             set: { mode in Task { await store.setPresentationMode(mode, displayID: card.id) } }
         )
+    }
+}
+
+private struct DisplayMediaPicker: View {
+    @Environment(\.dismiss) private var dismiss
+    @Bindable var gallery: GalleryStore
+    let displayName: String
+    let onSelect: (MediaItem) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("更换壁纸").font(.title2.weight(.semibold))
+                    Text(displayName).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("关闭") { dismiss() }
+            }
+            .padding(20)
+            Divider()
+            if gallery.items.isEmpty {
+                ContentUnavailableView("还没有素材", systemImage: "film")
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 180, maximum: 260), spacing: 16)], spacing: 16) {
+                        ForEach(gallery.items) { item in
+                            Button { onSelect(item) } label: {
+                                DisplayPickerTile(item: item)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(20)
+                }
+            }
+        }
+        .frame(minWidth: 640, minHeight: 460)
+    }
+}
+
+private struct DisplayPickerTile: View {
+    let item: MediaItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Group {
+                if let image = NSImage(contentsOf: item.thumbnailURL) {
+                    Image(nsImage: image).resizable().scaledToFill()
+                } else {
+                    Color(nsColor: .underPageBackgroundColor)
+                }
+            }
+            .aspectRatio(16 / 9, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            Text(item.displayName).lineLimit(1).font(.subheadline.weight(.semibold))
+        }
+        .padding(8)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.primary.opacity(0.08)) }
     }
 }

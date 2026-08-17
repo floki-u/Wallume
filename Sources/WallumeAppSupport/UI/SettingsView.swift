@@ -13,7 +13,7 @@ public struct SettingsBuildInfo: Equatable, Sendable {
 
     public static let unavailable = SettingsBuildInfo(productVersion: "unavailable", buildNumber: "unavailable")
 
-    public var displayText: String { "版本 \(productVersion)（\(buildNumber)）" }
+    public var displayText: String { "版本 \(productVersion).\(buildNumber)" }
 }
 
 public enum SettingsDiagnosticsExportState: Equatable, Sendable {
@@ -193,6 +193,7 @@ public struct SettingsView: View {
     private let diagnosticsDirectory: URL
     private let openInFinder: (URL) -> Void
     @State private var exportController: SettingsDiagnosticsExportController
+    @AppStorage("wallume.theme") private var themeName = WallumeTheme.tide.rawValue
 
     public init(
         store: SettingsStore,
@@ -240,14 +241,15 @@ public struct SettingsView: View {
             exportState: exportController.state
         )
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 18) {
                 WallumePageHeader("设置", subtitle: "启动、播放与本地数据") { EmptyView() }
+                appearanceCard
                 preferencesCard(page)
                 directoriesCard(page)
                 diagnosticsCard(page)
                 Text(page.buildInfo.displayText).font(.caption).foregroundStyle(.secondary)
             }
-            .frame(maxWidth: WallumeDesign.contentWidth, alignment: .leading)
+            .frame(maxWidth: 760, alignment: .leading)
             .padding(24)
         }
         .wallumePageBackground()
@@ -259,6 +261,22 @@ public struct SettingsView: View {
         } message: {
             Text(store.errorMessage ?? "")
         }
+    }
+
+    private var appearanceCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("外观").font(.headline)
+            Picker("主题", selection: $themeName) {
+                ForEach(WallumeTheme.allCases) { theme in
+                    Text(theme.title).tag(theme.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+            Text("自动适配 macOS 的浅色与深色外观。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .wallumeCard()
     }
 
     private func preferencesCard(_ page: SettingsPageViewState) -> some View {

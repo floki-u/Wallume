@@ -1,4 +1,5 @@
 import AVKit
+import AppKit
 import SwiftUI
 import WallumeCore
 
@@ -8,11 +9,12 @@ public struct MediaDetailView: View {
     let onReveal: () -> Bool
     let onDelete: () -> Void
     let onSetWallpaper: (() -> Void)?
+    let onChooseDisplay: (() -> Void)?
     @State private var preview = MediaPreviewController()
     @State private var revealError: String?
 
-    public init(item: MediaItem, onReveal: @escaping () -> Bool, onDelete: @escaping () -> Void, onSetWallpaper: (() -> Void)? = nil) {
-        self.item = item; self.onReveal = onReveal; self.onDelete = onDelete; self.onSetWallpaper = onSetWallpaper
+    public init(item: MediaItem, onReveal: @escaping () -> Bool, onDelete: @escaping () -> Void, onSetWallpaper: (() -> Void)? = nil, onChooseDisplay: (() -> Void)? = nil) {
+        self.item = item; self.onReveal = onReveal; self.onDelete = onDelete; self.onSetWallpaper = onSetWallpaper; self.onChooseDisplay = onChooseDisplay
     }
 
     public var body: some View {
@@ -20,7 +22,7 @@ public struct MediaDetailView: View {
             ZStack(alignment: .bottomTrailing) {
                 Group {
                     if let player = preview.player {
-                        VideoPlayer(player: player)
+                        WallumeVideoPreview(player: player)
                     } else if let image = NSImage(contentsOf: item.coverURL) {
                         Image(nsImage: image).resizable().scaledToFill()
                     } else {
@@ -46,7 +48,7 @@ public struct MediaDetailView: View {
                     }
                     Spacer()
                     if let onSetWallpaper {
-                        Button("设为壁纸", systemImage: "display", action: onSetWallpaper)
+                        Button("应用到主显示器", systemImage: "display", action: onSetWallpaper)
                             .buttonStyle(.borderedProminent)
                             .tint(WallumeDesign.accent)
                     }
@@ -62,6 +64,9 @@ public struct MediaDetailView: View {
                     Button("在 Finder 中显示", systemImage: "folder") {
                         if !onReveal() { revealError = "无法在 Finder 中显示源文件" }
                     }
+                    if let onChooseDisplay {
+                        Button("选择显示器", systemImage: "display.2", action: onChooseDisplay)
+                    }
                     Spacer()
                     Button("删除", systemImage: "trash", role: .destructive, action: onDelete)
                     Button("关闭") { dismiss() }
@@ -75,5 +80,25 @@ public struct MediaDetailView: View {
         .alert("操作失败", isPresented: Binding(get: { revealError != nil }, set: { if !$0 { revealError = nil } })) {
             Button("知道了") { revealError = nil }
         } message: { Text(revealError ?? "") }
+    }
+}
+
+/// `VideoPlayer` crashes inside `_AVKit_SwiftUI` on macOS 26 when it replaces the cover image
+/// during a SwiftUI layout transaction. Keep AVKit's AppKit view stable instead.
+private struct WallumeVideoPreview: NSViewRepresentable {
+    let player: AVPlayer
+
+    func makeNSView(context: Context) -> AVPlayerView {
+        let view = AVPlayerView()
+        view.controlsStyle = .floating
+        view.videoGravity = .resizeAspect
+        view.player = player
+        return view
+    }
+
+    func updateNSView(_ view: AVPlayerView, context: Context) {
+        if view.player !== player {
+            view.player = player
+        }
     }
 }

@@ -51,7 +51,11 @@ func buildSettingsViewModelsXPC() async -> AnyObject? {
             contentBadge: .video,
             showInTopLevel: true,
             sortOrder: 0,
-            disposability: .removable,
+            // Tahoe's Wallpaper Settings extension crashes while processing the
+            // inline delete affordance for third-party video choices. Deletion is
+            // therefore owned by Wallume, where it can first verify no system
+            // surface still references the resource.
+            disposability: .none,
         )
         items.append(item)
     }

@@ -115,6 +115,7 @@ public struct LockScreenView: View {
     @State private var presentsConfirmation = false
     @State private var presentsDiagnosticExporter = false
     @State private var diagnosticDocument: LockScreenDiagnosticDocument?
+    @State private var presentsProviderReset = false
 
     public init(
         store: LockScreenFeatureStore,
@@ -138,8 +139,8 @@ public struct LockScreenView: View {
 
     private func nativeProviderBody(_ provider: NativeWallpaperProviderStore) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                WallumePageHeader("锁屏与桌面", subtitle: "原生动态壁纸通过 macOS 同时应用到桌面和锁屏") {
+            VStack(alignment: .leading, spacing: 18) {
+                WallumePageHeader("锁屏", subtitle: "将当前素材用于锁屏") {
                     WallumeStatusBadge(
                         nativeShortStatus(provider.status),
                         systemImage: nativeStatusIcon(provider.status),
@@ -149,48 +150,16 @@ public struct LockScreenView: View {
 
                 nativeCanvas(provider)
 
-                VStack(alignment: .leading, spacing: 0) {
-                    nativeStep(
-                        number: "1",
-                        title: "准备视频",
-                        detail: provider.media == nil ? "先在显示器页为主显示器分配一个视频。" : "创建供系统壁纸提供者读取的视频与静态封面。",
-                        actionTitle: "准备当前视频",
-                        actionIcon: "arrow.down.circle",
-                        isEnabled: provider.media != nil && provider.status != .activeInSystem
-                    ) { Task { await provider.prepareCurrentMedia() } }
+                nativePrimaryAction(provider)
 
-                    nativeStep(
-                        number: "2",
-                        title: "在系统中选择",
-                        detail: "打开系统设置，在 Wallume 分类中选择刚准备的视频。",
-                        actionTitle: "打开系统壁纸设置",
-                        actionIcon: "gearshape",
-                        isEnabled: provider.deployment != nil
-                    ) { openSystemWallpaperSettings() }
-
-                    nativeStep(
-                        number: "3",
-                        title: "确认已生效",
-                        detail: provider.status == .activeInSystem ? "系统已报告 Wallume 视频正在使用。" : "选择完成后检查状态；桌面和锁屏会由 macOS 接管。",
-                        actionTitle: "检查状态",
-                        actionIcon: "arrow.clockwise",
-                        isEnabled: provider.deployment != nil
-                    ) { Task { await provider.refreshSystemSelection() } }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous)
-                        .strokeBorder(.primary.opacity(0.1))
-                }
-
-                if let imageURL = provider.media?.coverURL {
+                if case .failure = provider.status, let imageURL = provider.media?.coverURL {
                     HStack(alignment: .center, spacing: 14) {
                         Image(systemName: "photo.on.rectangle")
                             .font(.title2)
                             .foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("动态视频无法加载？").font(.headline)
-                            Text("可以改用当前视频生成的静态封面；Wallume 不会替你自动更换系统壁纸。")
+                            Text("锁屏未能启用").font(.headline)
+                            Text("你可以先使用当前素材的静态封面，或重置后再试。")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -201,27 +170,75 @@ public struct LockScreenView: View {
                 }
 
                 if provider.deployment != nil {
-                    DisclosureGroup("重置 Provider 资源") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("先在系统壁纸设置中选择其他壁纸，再确认重置。你的 Wallume 媒体库不会被删除。")
-                                .foregroundStyle(.secondary)
-                            HStack {
-                                Button("确认系统已重置") { Task { await provider.confirmSystemReset() } }
-                                Button("清理资源", systemImage: "trash", role: .destructive) {
-                                    Task { await provider.cleanupAfterReset() }
-                                }
-                                .disabled(provider.status != .resetConfirmed)
-                            }
-                        }
-                        .padding(.top, 8)
+                    Divider()
+                    Button("管理锁屏资源", systemImage: "arrow.counterclockwise") {
+                        presentsProviderReset = true
                     }
-                    .font(.subheadline)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: WallumeDesign.contentWidth, alignment: .leading)
             .padding(24)
         }
         .wallumePageBackground()
+        .alert("无法打开系统壁纸设置", isPresented: Binding(
+            get: { store.pageError != nil },
+            set: { if !$0 { store.dismissPageError() } }
+        )) {
+            Button("知道了") { store.dismissPageError() }
+        } message: {
+            Text(store.pageError ?? "")
+        }
+        .sheet(isPresented: $presentsProviderReset) {
+            providerResetSheet(provider)
+        }
+    }
+
+    private func providerResetSheet(_ provider: NativeWallpaperProviderStore) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("管理锁屏资源").font(.title2.weight(.bold))
+            Text("如需移除系统设置中的 Wallume 项目，先在系统壁纸设置中选择其他壁纸。Wallume 会检查系统状态后再清理锁屏副本，素材库不会被删除。")
+                .foregroundStyle(.secondary)
+            resetStatusMessage(provider.status)
+            HStack {
+                Button("取消") { presentsProviderReset = false }
+                Spacer()
+                Button("检查系统状态", systemImage: "checkmark.shield") {
+                    Task { await provider.confirmSystemReset() }
+                }
+                Button("清理锁屏副本", systemImage: "trash", role: .destructive) {
+                    Task {
+                        await provider.cleanupAfterReset()
+                        if case .failure = provider.status {
+                            return
+                        }
+                        presentsProviderReset = false
+                    }
+                }
+                .disabled(provider.status != .resetConfirmed)
+            }
+        }
+        .padding(24)
+        .frame(width: 480)
+    }
+
+    @ViewBuilder
+    private func resetStatusMessage(_ status: NativeWallpaperProviderStatus) -> some View {
+        switch status {
+        case .resetConfirmed:
+            Label("系统已不再使用 Wallume 素材，可以清理锁屏副本。", systemImage: "checkmark.circle.fill")
+                .font(.subheadline)
+                .foregroundStyle(.green)
+        case .failure(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline)
+                .foregroundStyle(.red)
+        default:
+            Label("选择其他壁纸后，点“检查系统状态”继续。", systemImage: "info.circle")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func nativeCanvas(_ provider: NativeWallpaperProviderStore) -> some View {
@@ -235,15 +252,13 @@ public struct LockScreenView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 260)
+            .frame(height: 210)
             .clipped()
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(nativeStatusText(provider.status))
+                Text(nativeStatusTitle(provider.status))
                     .font(.title2.weight(.bold))
-                Text(provider.media == nil
-                    ? "先为主显示器选择视频，然后在这里准备原生动态壁纸。"
-                    : "系统将负责桌面与锁屏播放；Wallume 不会直接改写系统壁纸数据库。")
+                Text(nativeStatusDetail(provider.status))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 if let media = provider.media {
@@ -251,7 +266,7 @@ public struct LockScreenView: View {
                         .font(.subheadline.weight(.medium))
                 }
             }
-            .padding(20)
+            .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.ultraThinMaterial)
         }
@@ -260,33 +275,47 @@ public struct LockScreenView: View {
         .wallumeInteractiveSurface()
     }
 
-    private func nativeStep(
-        number: String,
-        title: String,
-        detail: String,
-        actionTitle: String,
-        actionIcon: String,
-        isEnabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        HStack(alignment: .center, spacing: 16) {
-            Text(number)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(WallumeDesign.accent)
-                .frame(width: 24, height: 24)
-                .background(WallumeDesign.accent.opacity(0.12), in: Circle())
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.headline)
-                Text(detail).font(.subheadline).foregroundStyle(.secondary)
+    @ViewBuilder
+    private func nativePrimaryAction(_ provider: NativeWallpaperProviderStore) -> some View {
+        switch provider.status {
+        case .needsMedia:
+            Label("先在显示器页选择素材", systemImage: "display")
+                .foregroundStyle(.secondary)
+                .wallumeCard()
+        case .readyToPrepare:
+            Button("用于锁屏", systemImage: "lock") {
+                Task {
+                    await provider.prepareCurrentMedia()
+                    if provider.status == .preparedForSystemSelection { openSystemWallpaperSettings() }
+                }
             }
-            Spacer(minLength: 16)
-            Button(actionTitle, systemImage: actionIcon, action: action)
-                .labelStyle(.titleAndIcon)
-                .disabled(!isEnabled)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+        case .preparedForSystemSelection:
+            Button("在系统设置中启用", systemImage: "gearshape") { openSystemWallpaperSettings() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+        case .systemSelectionNeedsUpdate:
+            Button("更新锁屏素材", systemImage: "arrow.triangle.2.circlepath") {
+                Task {
+                    await provider.prepareCurrentMedia()
+                    if provider.status == .preparedForSystemSelection { openSystemWallpaperSettings() }
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+        case .activeInSystem:
+            HStack {
+                Label("锁屏已启用", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                Spacer()
+                Button("刷新", systemImage: "arrow.clockwise") { Task { await provider.refreshSystemSelection() } }
+            }
+            .wallumeCard()
+        case .resetConfirmed:
+            Button("清理锁屏资源", systemImage: "trash", role: .destructive) { Task { await provider.cleanupAfterReset() } }
+        case .unavailable, .failure:
+            EmptyView()
         }
-        .padding(18)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .overlay(alignment: .bottom) { Divider() }
     }
 
     private var legacyLockScreenBody: some View {
@@ -496,15 +525,29 @@ public struct LockScreenView: View {
         }
     }
 
-    private func nativeStatusText(_ status: NativeWallpaperProviderStatus) -> String {
+    private func nativeStatusTitle(_ status: NativeWallpaperProviderStatus) -> String {
         switch status {
-        case .unavailable: "当前 macOS 版本不支持 Wallume 原生动态锁屏。"
-        case .needsMedia: "请先在主显示器选择一个已导入的视频。"
-        case .readyToPrepare: "当前视频可准备为系统动态壁纸。"
-        case .preparedForSystemSelection: "视频已准备好，等待你在系统设置中选择。"
-        case .activeInSystem: "系统已选中 Wallume 动态壁纸，桌面和锁屏由 macOS 原生播放。"
-        case .resetConfirmed: "系统重置已确认，现在可以清理 Wallume 的提供者资源。"
+        case .unavailable: "此版本暂不支持锁屏"
+        case .needsMedia: "还没有可用于锁屏的素材"
+        case .readyToPrepare: "当前素材可用于锁屏"
+        case .preparedForSystemSelection: "等待你在系统设置中启用"
+        case .systemSelectionNeedsUpdate: "锁屏仍在使用另一段素材"
+        case .activeInSystem: "锁屏已启用"
+        case .resetConfirmed: "可以清理锁屏资源"
         case let .failure(message): message
+        }
+    }
+
+    private func nativeStatusDetail(_ status: NativeWallpaperProviderStatus) -> String {
+        switch status {
+        case .unavailable: "可在系统设置中使用其他壁纸。"
+        case .needsMedia: "先为主显示器应用一个素材。"
+        case .readyToPrepare: "启用后，当前素材会同时用于桌面与锁屏。"
+        case .preparedForSystemSelection: "系统设置已打开后，在 Wallume 分类中选择当前素材。"
+        case .systemSelectionNeedsUpdate: "已选择的新素材可立即用于桌面；更新锁屏后，在系统设置中选择它即可完成切换。"
+        case .activeInSystem: "当前素材正在用于桌面和锁屏。"
+        case .resetConfirmed: "清理不会删除你的素材库。"
+        case .failure: "可使用静态封面，或重置后再试。"
         }
     }
 
@@ -514,6 +557,7 @@ public struct LockScreenView: View {
         case .needsMedia: "需要视频"
         case .readyToPrepare: "可以准备"
         case .preparedForSystemSelection: "等待系统选择"
+        case .systemSelectionNeedsUpdate: "需要更新"
         case .activeInSystem: "已生效"
         case .resetConfirmed: "可以清理"
         case .failure: "需要处理"
@@ -524,7 +568,7 @@ public struct LockScreenView: View {
         switch status {
         case .activeInSystem: .green
         case .failure, .unavailable: .red
-        case .preparedForSystemSelection, .readyToPrepare: WallumeDesign.accent
+        case .preparedForSystemSelection, .readyToPrepare, .systemSelectionNeedsUpdate: WallumeDesign.accent
         case .needsMedia, .resetConfirmed: .secondary
         }
     }
@@ -533,7 +577,7 @@ public struct LockScreenView: View {
         switch status {
         case .activeInSystem: "checkmark.circle.fill"
         case .failure, .unavailable: "exclamationmark.triangle.fill"
-        case .preparedForSystemSelection: "gearshape.2"
+        case .preparedForSystemSelection, .systemSelectionNeedsUpdate: "gearshape.2"
         default: "lock.display"
         }
     }

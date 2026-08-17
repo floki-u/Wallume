@@ -7,6 +7,7 @@ public enum NativeWallpaperProviderStatus: Equatable, Sendable {
     case needsMedia
     case readyToPrepare
     case preparedForSystemSelection
+    case systemSelectionNeedsUpdate
     case activeInSystem
     case resetConfirmed
     case failure(String)
@@ -93,9 +94,13 @@ public final class NativeWallpaperProviderStore {
     private func reloadDeployment() async {
         do {
             deployment = try await lifecycle.reconcileSystemSelection()
-            if deployment?.isActiveInSystem == true {
+            let hasActiveSystemSelection = try await lifecycle.hasActiveSystemSelection()
+            if deployment?.isActiveInSystem == true, deployment?.mediaID == media?.id {
                 status = .activeInSystem
                 notifyActivationIfNeeded(true)
+            } else if deployment?.isActiveInSystem == true || hasActiveSystemSelection {
+                status = .systemSelectionNeedsUpdate
+                notifyActivationIfNeeded(false)
             } else if deployment != nil {
                 status = .preparedForSystemSelection
                 notifyActivationIfNeeded(false)

@@ -76,13 +76,13 @@ public enum NativeWallpaperProviderLifecycleError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .unsafeSource:
-            "动态壁纸的本地资源无法安全读取。"
+            "Wallume 资源无法安全读取。"
         case .invalidProviderIdentifier:
-            "动态壁纸提供者标识不匹配。"
+            "Wallume 提供者标识不匹配。"
         case .resetRequired:
-            "请先在系统壁纸设置中改用其他壁纸，再清除 Wallume 的动态壁纸资源。"
+            "系统仍在使用 Wallume 素材。请先在系统壁纸设置中选择其他壁纸，再回来检查。"
         case .unsupportedState:
-            "Wallume 的动态壁纸状态文件无法安全读取。"
+            "Wallume 资源状态无法安全读取。"
         }
     }
 }
@@ -122,7 +122,8 @@ public actor NativeWallpaperProviderLifecycle {
     }
 
     /// Copies the playback asset plus a static fallback image into Wallume-owned storage.
-    /// Replacing an active provider selection is intentionally rejected until reset completes.
+    /// Existing provider assets remain in place while macOS still references them, so preparing
+    /// a new selection never breaks the wallpaper that is already active.
     @discardableResult
     public func prepare(
         media: MediaItem,
@@ -134,10 +135,6 @@ public actor NativeWallpaperProviderLifecycle {
         guard try isSafeRegularFile(media.variantURL), try isSafeRegularFile(media.coverURL) else {
             throw NativeWallpaperProviderLifecycleError.unsafeSource(media.variantURL)
         }
-        if let existing = try deployment(), existing.isActiveInSystem, existing.mediaID != media.id {
-            throw NativeWallpaperProviderLifecycleError.resetRequired
-        }
-
         let directory = paths.mediaDirectory(for: media.id)
         try files.createDirectory(paths.root)
         try files.createDirectory(paths.mediaDirectory)
@@ -183,7 +180,17 @@ public actor NativeWallpaperProviderLifecycle {
             throw NativeWallpaperProviderLifecycleError.unsupportedState
         }
         let state = try json.read(ProviderSelectionState.self, from: paths.providerStateFile)
-        guard state.isActive, state.currentVideoID == record.mediaID.uuidString else { return record }
+        guard state.isActive, state.currentVideoID == record.mediaID.uuidString else {
+            guard record.isActiveInSystem else { return record }
+            let inactive = NativeWallpaperProviderDeployment(
+                mediaID: record.mediaID,
+                providerIdentifier: record.providerIdentifier,
+                isActiveInSystem: false,
+                deployedAt: record.deployedAt
+            )
+            try json.write(inactive, to: paths.stateFile)
+            return inactive
+        }
         guard !record.isActiveInSystem else { return record }
         let active = NativeWallpaperProviderDeployment(
             mediaID: record.mediaID,
@@ -209,8 +216,11 @@ public actor NativeWallpaperProviderLifecycle {
         )
     }
 
-    /// Call only after the user has reset the system selection away from Wallume's provider.
+    /// Verifies that no Wallume provider surface remains before allowing cleanup.
     public func confirmSystemReset() throws {
+        guard try !hasActiveSystemSelection() else {
+            throw NativeWallpaperProviderLifecycleError.resetRequired
+        }
         guard let record = try deployment() else { return }
         try json.write(
             NativeWallpaperProviderDeployment(
@@ -226,7 +236,7 @@ public actor NativeWallpaperProviderLifecycle {
     /// Removes only the deterministic Wallume provider directory. It never removes media from
     /// the main Wallume library and refuses cleanup while a system selection may still reference it.
     public func cleanupAfterReset() throws {
-        if let record = try deployment(), record.isActiveInSystem {
+        if try hasActiveSystemSelection() || (try deployment()?.isActiveInSystem == true) {
             throw NativeWallpaperProviderLifecycleError.resetRequired
         }
         guard files.exists(paths.root) else { return }
@@ -234,6 +244,17 @@ public actor NativeWallpaperProviderLifecycle {
             throw NativeWallpaperProviderLifecycleError.unsupportedState
         }
         try files.remove(paths.root)
+    }
+
+    /// Reports whether any Wallume provider context is still being rendered by the system.
+    /// This can refer to an older prepared item, so callers must not infer the selected media ID.
+    public func hasActiveSystemSelection() throws -> Bool {
+        guard files.exists(paths.providerStateFile) else { return false }
+        guard try files.hasNoSymlinkComponents(paths.providerStateFile),
+              try files.identity(of: paths.providerStateFile).isRegularFile else {
+            throw NativeWallpaperProviderLifecycleError.unsupportedState
+        }
+        return try json.read(ProviderSelectionState.self, from: paths.providerStateFile).isActive
     }
 
     private func isSafeRegularFile(_ url: URL) throws -> Bool {

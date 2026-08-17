@@ -182,10 +182,26 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 },
                 navigation: navigation,
                 openSystemWallpaperSettings: {
-                    guard let url = URL(string: "x-apple.systempreferences:com.apple.Wallpaper-Settings.extension"),
-                          NSWorkspace.shared.open(url) else {
-                        lockScreenStore.reportPageError("无法打开系统壁纸设置，请在系统设置中手动打开“壁纸”。")
+                    let workspace = NSWorkspace.shared
+                    guard let url = URL(string: "x-apple.systempreferences:com.apple.Wallpaper-Settings.extension") else {
+                        lockScreenStore.reportPageError("无法生成系统壁纸设置链接，请在系统设置中手动打开“壁纸”。")
                         return
+                    }
+                    NSRunningApplication
+                        .runningApplications(withBundleIdentifier: "com.apple.systempreferences")
+                        .first?
+                        .activate(options: [.activateAllWindows])
+                    if workspace.open(url) { return }
+
+                    let settings = URL(fileURLWithPath: "/System/Applications/System Settings.app")
+                    let configuration = NSWorkspace.OpenConfiguration()
+                    configuration.activates = true
+                    workspace.openApplication(at: settings, configuration: configuration) { _, error in
+                        if error != nil {
+                            Task { @MainActor in
+                                lockScreenStore.reportPageError("无法打开系统壁纸设置，请在系统设置中手动打开“壁纸”。")
+                            }
+                        }
                     }
                 },
                 onImportFiles: { let urls = panels.chooseFiles(); Task { await queue.enqueue(urls) } },
@@ -197,8 +213,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             guard let self else { return }
             if active {
                 Task { await self.runtimeService.stop() }
-            } else if self.assignmentConfigurationLoaded,
-                      ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 26 {
+            } else if self.assignmentConfigurationLoaded {
                 self.runtimeService.start(assignments: self.latestAssignments)
             }
         }
@@ -283,8 +298,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 displayStore.reportPageError("显示器配置无法读取：\(error.localizedDescription)")
             }
             await refreshDisplayAndLockScreenState()
-            if ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 26,
-               nativeWallpaperProviderStore.status != .activeInSystem {
+            if nativeWallpaperProviderStore.status != .activeInSystem {
                 runtimeService.start(assignments: latestAssignments)
             }
             await lockScreenService.start()
@@ -310,8 +324,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             for await snapshot in stream {
                 guard let self else { return }
                 latestAssignments = snapshot
-                if ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 26,
-                   nativeWallpaperProviderStore.status != .activeInSystem {
+                if nativeWallpaperProviderStore.status != .activeInSystem {
                     runtimeService.apply(assignments: snapshot)
                 }
                 gallery.reload()

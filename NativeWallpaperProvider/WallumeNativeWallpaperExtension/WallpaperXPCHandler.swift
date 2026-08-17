@@ -61,6 +61,13 @@ private func scheduleTeardown(for key: DisplayKey) {
         Lifecycle.teardownTimers[key] = nil
         let torn = WallpaperState.shared.tearDownContext(for: key)
         extensionLog("  [teardown] grace fired for display \(key.displayID) → \(torn ? "stopped renderer + invalidated CAContext" : "nothing to tear down")")
+        if torn, WallpaperState.shared.activeContextCount == 0 {
+            // The system has moved every Wallume surface away. Persist this so the
+            // companion app resumes its desktop renderer and stops claiming that
+            // Wallume is still the lock-screen selection.
+            WallpaperPrefs.shared.setActive(false)
+            extensionLog("  [teardown] no Wallume contexts remain → marked inactive")
+        }
     }
     Lifecycle.teardownTimers[key] = item
     Lifecycle.queue.asyncAfter(deadline: .now() + Lifecycle.teardownGrace, execute: item)
@@ -212,14 +219,12 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
         traceLog("  destination: \(destSize) @\(scaleFactor)x, isPreview: \(isPreview), pid: \(connectionPID), choice: \(choiceConfiguration ?? "nil"), files: \(choiceFiles)")
         acquiredAsPreview = isPreview
 
-        // Each acquire's `choiceConfiguration` is authoritative for *this* display's
-        // context. Do NOT mutate the process-wide `currentVideoID` here based on a
-        // diff — concurrent acquires for different displays would race and a renderer
-        // can end up initialized with the wrong monitor's video. The global tracks
-        // the last user-picked choice (via `selectedChoicesDidChange`); we only seed
-        // it on first launch when UserDefaults has no value yet, so the menu-bar UI
-        // has something sensible to show before the user picks anything.
-        if WallpaperState.shared.currentVideoID == nil, let videoID = choiceConfiguration {
+        // Tahoe does not reliably deliver `selectedChoicesDidChange` from System
+        // Settings. A non-preview acquire is authoritative instead: the agent has
+        // accepted that choice for a real desktop or lock-screen surface. Keeping the
+        // summary in sync here prevents the app from reporting the previous video
+        // after the system has already switched its renderer.
+        if !isPreview, let videoID = choiceConfiguration {
             WallpaperState.shared.currentVideoID = videoID
         }
 
@@ -272,16 +277,21 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
             guard let replyObj = createRemoteContextXPC(contextId: existing.contextId) else {
                 reply(nil, NSError(domain: "WallumeNativeWallpaperExtension", code: 3, userInfo: nil)); return
             }
-            reply(replyObj, nil)
 
-            if ColorDiag.enabled { colorDiagInstall(rootLayer: existing.rootLayer, for: key); return }
+            if ColorDiag.enabled {
+                reply(replyObj, nil)
+                colorDiagInstall(rootLayer: existing.rootLayer, for: key)
+                return
+            }
 
             if existing.videoID == choiceConfiguration, existing.renderer != nil {
                 traceLog("  [acquire] SAME choice (\(choiceConfiguration ?? "nil")) + renderer present → no swap")
+                reply(replyObj, nil)
                 return
             }
             guard let videoURL else {
                 traceLog("  [acquire] no video for new choice, keeping current")
+                reply(replyObj, nil)
                 return
             }
             extensionLog("  [acquire] switching to \(videoURL.lastPathComponent) (renderer \(existing.renderer != nil ? "present → switchVideo" : "nil → create"))")
@@ -295,28 +305,32 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
                 renderer.switchVideo(to: videoURL)
                 WallpaperState.shared.updateVideoID(choiceConfiguration, for: key)
                 WallpaperPrefs.shared.setActive(true)
+                reply(replyObj, nil)
             } else if WallpaperState.shared.claimRendererCreate(for: key) {
                 // Context exists but no renderer yet AND no create already in flight —
                 // attach one to the existing root layer. The claim prevents a racing
                 // (preview) acquire from creating a duplicate renderer on the same layer.
                 let boxedRoot = SendableBox(value: existing.rootLayer)
-                Task { [boxedRoot, videoURL, cachedStill, selector, key, choiceConfiguration] in
+                let boxedReply = SendableBox(value: replyObj)
+                Task { [boxedRoot, boxedReply, videoURL, cachedStill, selector, key, choiceConfiguration] in
                     let renderer: VideoRenderer
                     do {
                         renderer = try await VideoRenderer.create(rootLayer: boxedRoot.value, videoURL: videoURL, stillImage: cachedStill)
                     } catch {
                         extensionLog("  [Renderer] swap create failed: \(error)")
                         WallpaperState.shared.clearRendererPending(for: key)
+                        reply(boxedReply.value, nil)
                         return
                     }
                     renderer.variantSelector = selector
                     let old = WallpaperState.shared.setRenderer(renderer, videoID: choiceConfiguration, for: key)
                     old?.stop()
                     WallpaperPrefs.shared.setActive(true)
-                    renderer.start()
+                    renderer.start(onFirstFrameReady: { reply(boxedReply.value, nil) })
                 }
             } else {
                 traceLog("  [acquire] renderer create already in flight for display \(key.displayID) — skipping duplicate")
+                reply(replyObj, nil)
             }
             let w = Int(destSize.width * scaleFactor), h = Int(destSize.height * scaleFactor)
             Task { [videoURL, choiceConfiguration, w, h] in await writeBMPSnapshot(videoURL: videoURL, videoID: choiceConfiguration, displayPixelWidth: w, displayPixelHeight: h) }
@@ -389,34 +403,15 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
             return
         }
 
-        // Cold start = no existing WallumeProviderHost surface on this display for the SAME surface
-        // role (preview vs. live desktop) that the agent could keep compositing during the
-        // swap. Unlike a switch (where the outgoing context is OURS and stays hosted, via
-        // the teardown grace, until we reply), here the agent has nothing of ours to hold
-        // in THIS role's CALayerHost — the instant it hosts our context it shows whatever
-        // the context contains. `rootLayer.contents` is BLACK cross-process (only IOSurface-
-        // backed AVSampleBufferDisplayLayer content composites remotely — see
-        // Research/wallpaper-extension-issue13-and-rendering-findings.md), so replying
-        // before the renderer exists paints black. Instead, on a cold start we reply the
-        // instant VideoRenderer.create() has seeded + flushed the IOSurface still into the
-        // display layer: the agent then hosts a context already showing the still, and the
-        // video plays over it in place. A switch keeps deferring until the first video frame.
-        //
-        // Filtering by `isPreview` is what fixes the WallpaperAgent-restart ordering bug:
-        // a preview-first / desktop-second boot must NOT let the preview renderer trip this
-        // check for the incoming desktop acquire, because the desktop CALayerHost has never
-        // hosted anything of ours — deferring there paints black.
-        let coldStart = !WallpaperState.shared.hasLiveRenderer(onDisplay: displayID0, isPreview: isPreview)
-
         // Claim the single create slot for this display. If a racing (preview)
         // acquire beat us to it, skip — exactly one renderer per display.
         if WallpaperState.shared.claimRendererCreate(for: key) {
-            traceLog("  Setting up VideoRenderer with: \(videoURL.lastPathComponent) (coldStart=\(coldStart))")
+            traceLog("  Setting up VideoRenderer with: \(videoURL.lastPathComponent)")
             let boxedRoot = SendableBox(value: rootLayer)
             // The reply object is non-Sendable; box it to cross into the render Task.
             let boxedReply = SendableBox(value: replyObj)
             let selector = makeVariantSelector(choice: choiceConfiguration, fallback: videoURL)
-            Task { [coldStart, boxedRoot, boxedReply, videoURL, cachedStill, selector, key, choiceConfiguration] in
+            Task { [boxedRoot, boxedReply, videoURL, cachedStill, selector, key, choiceConfiguration] in
                 let renderer: VideoRenderer
                 do {
                     renderer = try await VideoRenderer.create(rootLayer: boxedRoot.value, videoURL: videoURL, stillImage: cachedStill)
@@ -429,10 +424,6 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
                 // Cold start: the IOSurface still is now seeded + flushed into the display
                 // layer, so reply — the agent hosts our context already showing the still
                 // (no black gap), and video plays over it.
-                if coldStart {
-                    reply(boxedReply.value, nil)
-                    traceLog("  [acquire] cold start → replied after still seeded for \(videoURL.lastPathComponent)")
-                }
                 renderer.variantSelector = selector
                 let old = WallpaperState.shared.setRenderer(renderer, videoID: choiceConfiguration, for: key)
                 WallpaperPrefs.shared.setActive(true)
@@ -440,7 +431,7 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
                 // already replied with the still). Either way, stop the old renderer once
                 // we've told the agent to swap off it.
                 renderer.start(onFirstFrameReady: {
-                    if !coldStart { reply(boxedReply.value, nil) }
+                    reply(boxedReply.value, nil)
                     old?.stop()
                 })
             }
@@ -662,6 +653,24 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
         guard let videoID else {
             extensionLog("  [Remove] Could not extract video ID from request")
             reply(nil)
+            return
+        }
+
+        // WallpaperAgent can keep reading the selected file while this callback is
+        // in flight. Deleting it here terminates the provider process and leaves the
+        // user with macOS's opaque "extension exited" error. Require the system to
+        // switch away first; once every context has been invalidated, the same remove
+        // request is safe and proceeds normally.
+        let isStillRendered = WallpaperState.shared
+            .activeDisplayContexts()
+            .contains { $0.videoID == videoID }
+        guard !isStillRendered else {
+            extensionLog("  [Remove] Refused active video: \(videoID)")
+            reply(NSError(
+                domain: "com.wallume.app.wallpaper",
+                code: 409,
+                userInfo: [NSLocalizedDescriptionKey: "此素材正在使用。请先在系统壁纸设置中选择其他壁纸，再删除它。"]
+            ))
             return
         }
 

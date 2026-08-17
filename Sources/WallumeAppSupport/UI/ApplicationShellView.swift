@@ -213,6 +213,7 @@ public struct PlaybackToolbarState: Equatable, Sendable {
 
 public struct ApplicationShellView: View {
     @Bindable private var navigation: ApplicationNavigation
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     private let gallery: GalleryStore
     private let tasks: ImportTaskStore
     private let displays: DisplayFeatureStore?
@@ -272,32 +273,12 @@ public struct ApplicationShellView: View {
     }
 
     public var body: some View {
-        NavigationSplitView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 10) {
-                    WallumeMark(size: 34)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Wallume").font(.headline.weight(.semibold))
-                        Text("动态壁纸").font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.horizontal, 14)
-                List(selection: $navigation.selection) {
-                    Section("工作区") {
-                        ForEach(FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil).filter { $0.id != .settings }) { feature in
-                            Label(feature.title, systemImage: feature.systemImage).tag(feature.id)
-                        }
-                    }
-                    if FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil).contains(where: { $0.id == .settings }) {
-                        Section {
-                            Label("设置", systemImage: "gearshape").tag(WallumeFeatureID.settings)
-                        }
-                    }
-                }
-                .listStyle(.sidebar)
-            }
-            .padding(.top, 16)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 205)
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            WallumeSidebar(
+                features: FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil),
+                selection: $navigation.selection
+            )
+            .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 260)
         } detail: {
             switch ApplicationShellRoute.resolve(
                 selection: navigation.selection,
@@ -319,7 +300,7 @@ public struct ApplicationShellView: View {
                 )
             case .displays:
                 if let displays {
-                    DisplaysView(store: displays) { navigation.openGalleryForWallpaper(displayID: $0) }
+                    DisplaysView(store: displays, gallery: gallery) { navigation.openGalleryForWallpaper(displayID: $0) }
                 }
             case .lockScreen:
                 if let lockScreen {
@@ -347,10 +328,10 @@ public struct ApplicationShellView: View {
                     )
                 }
             case .unavailable:
-                ContentUnavailableView("将在后续批次开放", systemImage: FeatureRegistry.features.first { $0.id == navigation.selection }?.systemImage ?? "hammer")
+                ContentUnavailableView("功能不可用", systemImage: FeatureRegistry.features.first { $0.id == navigation.selection }?.systemImage ?? "exclamationmark.triangle")
             }
         }
-        .frame(minWidth: 820, minHeight: 560)
+        .frame(minWidth: 840, minHeight: 580)
         .navigationSplitViewStyle(.balanced)
         .wallumePageBackground()
         .animation(WallumeDesign.motion, value: navigation.selection)
@@ -360,7 +341,8 @@ public struct ApplicationShellView: View {
                     userPaused: displays.userPaused,
                     pauseReasons: displays.effectivePauseReasons
                 )
-                ToolbarItemGroup {
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 10) {
                     if let status = playback.statusText {
                         Label(status, systemImage: "pause.circle.fill")
                     }
@@ -368,8 +350,42 @@ public struct ApplicationShellView: View {
                         Task { await displays.setUserPaused(!displays.userPaused) }
                     }
                     .help(playback.actionTitle)
+                    }
                 }
             }
         }
+    }
+}
+
+private struct WallumeSidebar: View {
+    let features: [WallumeFeature]
+    @Binding var selection: WallumeFeatureID
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                WallumeMark(size: 32)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Wallume").font(.headline.weight(.semibold))
+                    Text("你的壁纸").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 14)
+
+            List(selection: $selection) {
+                Section("工作区") {
+                    ForEach(features.filter { $0.id != .settings }) { feature in
+                        Label(feature.title, systemImage: feature.systemImage).tag(feature.id)
+                    }
+                }
+                if features.contains(where: { $0.id == .settings }) {
+                    Section {
+                        Label("设置", systemImage: "gearshape").tag(WallumeFeatureID.settings)
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+        }
+        .padding(.top, 14)
     }
 }
