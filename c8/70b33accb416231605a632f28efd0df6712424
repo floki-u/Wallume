@@ -1,0 +1,264 @@
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  6abcc4200bc2e5c1 216,276-281,303,331,334,344-345,353-384,387,389
+Sources/WallumeAppSupport/UI/SettingsView.swift
+  6abcc4200bc2e5c1 16,196,244,246,252,266-279
+Sources/WallumeAppSupport/UI/LockScreenView.swift
+  6abcc4200bc2e5c1 118,142-143,153,155,161-162,173-175,177-178,185-241,255,259,261,269,278-311,313-317,528,530-536,541-550,560,571,580
+Sources/WallumeWallpaperPOC/WallpaperExtensionRuntimeProbe.swift
+  6abcc4200bc2e5c1 1-76
+Sources/WallumeAppSupport/UI/DisplaysView.swift
+  6abcc4200bc2e5c1 17,19,23,27,62-75,128-129,178-237
+Sources/WallumeAppSupport/UI/GalleryView.swift
+  6abcc4200bc2e5c1 5-28,38,40,43-45,48-50,54,57-69,75-79,81-83,86-87,96-98,101-129,132-136,138-173,178-328,332,336-341,345-346,349,351-352,356-357,361-371,375-465
+Sources/WallumeWallpaperProviderFixture/main.swift
+  6abcc4200bc2e5c1 1-18
+Sources/WallumeAppSupport/UI/WallumeDesign.swift
+  6abcc4200bc2e5c1 4-21,25-27,87,94,121,144-169,179
+Sources/WallumeAppSupport/LockScreen/NativeWallpaperProviderStore.swift
+  6abcc4200bc2e5c1 10,97-98,101-103
+Sources/WallumeWallpaperProbe/main.swift
+  6abcc4200bc2e5c1 1-16
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/WallpaperXPCHandler.swift
+  6abcc4200bc2e5c1 64-70,222-227,281-285,289,294,308,314-315,322,329,333,409,414,434,659-676
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/SettingsProvider.swift
+  6abcc4200bc2e5c1 54-58
+Sources/WallumeWallpaperPOC/WallpaperExtensionProtocolSurface.swift
+  6abcc4200bc2e5c1 1-33
+Sources/WallumeAppSupport/LockScreen/NativeWallpaperProviderLifecycle.swift
+  6abcc4200bc2e5c1 79,81,83,85,125-126,183-193,219,221-223,239,249-257
+Sources/WallumeWallpaperProviderPOC/WallpaperProviderExperiment.swift
+  6abcc4200bc2e5c1 1-43
+Sources/WallumeAppSupport/UI/MediaDetailView.swift
+  6abcc4200bc2e5c1 2,12,16-17,25,51,67-68,85-102
+Sources/WallumeApp/ApplicationController.swift
+  6abcc4200bc2e5c1 185-187,190-204,216,301,327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "c870b33accb416231605a632f28efd0df6712424",
+  "prompts": {
+    "17882649509d1e2e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8e25-7c25-7341-97a8-6c019d5ea8c5",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 415,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/macos-26-lock-screen-open-source-audit-2026-07-27.md": {
+          "accepted_lines": 213
+        },
+        "docs/macos-26-lock-screen-exploration-2026-07-27.md": {
+          "accepted_lines": 98
+        },
+        "Tests/WallumeAppSupportTests/LockScreenSyncServiceTests.swift": {
+          "accepted_lines": 100
+        },
+        "docs/macos-26-lock-screen-primary-sources.md": {
+          "accepted_lines": 4
+        }
+      }
+    },
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 1785,
+      "total_deletions": 1248,
+      "accepted_lines": 1869,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeWallpaperProviderFixture/main.swift": {
+          "accepted_lines": 18
+        },
+        "Sources/WallumeWallpaperProbe/main.swift": {
+          "accepted_lines": 16
+        },
+        "Sources/WallumeAppSupport/LockScreen/NativeWallpaperProviderStore.swift": {
+          "additions": 8,
+          "deletions": 3,
+          "accepted_lines": 6
+        },
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 260,
+          "deletions": 244,
+          "accepted_lines": 93
+        },
+        "Sources/WallumeAppSupport/UI/WallumeDesign.swift": {
+          "additions": 64,
+          "deletions": 18,
+          "accepted_lines": 54
+        },
+        "Sources/WallumeWallpaperPOC/WallpaperExtensionProtocolSurface.swift": {
+          "accepted_lines": 33
+        },
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/WallpaperXPCHandler.swift": {
+          "additions": 47,
+          "deletions": 38,
+          "accepted_lines": 47
+        },
+        "Sources/WallumeAppSupport/UI/DisplaysView.swift": {
+          "additions": 83,
+          "deletions": 2,
+          "accepted_lines": 82
+        },
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/SettingsProvider.swift": {
+          "additions": 5,
+          "deletions": 1,
+          "accepted_lines": 5
+        },
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        },
+        "Sources/WallumeAppSupport/UI/GalleryView.swift": {
+          "additions": 1060,
+          "deletions": 805,
+          "accepted_lines": 465
+        },
+        "Sources/WallumeAppSupport/UI/SettingsView.swift": {
+          "additions": 21,
+          "deletions": 3,
+          "accepted_lines": 21
+        },
+        "Tests/WallumeAppSupportTests/LockScreenViewTests.swift": {
+          "accepted_lines": 11
+        },
+        "Tests/WallumeWallpaperPOCTests/WallpaperExtensionRuntimeProbeTests.swift": {
+          "accepted_lines": 75
+        },
+        "Sources/WallumeWallpaperProviderPOC/WallpaperProviderExperiment.swift": {
+          "accepted_lines": 43
+        },
+        "Sources/WallumeWallpaperPOC/WallpaperExtensionRuntimeProbe.swift": {
+          "accepted_lines": 76
+        },
+        "Sources/WallumeAppSupport/UI/LockScreenView.swift": {
+          "additions": 148,
+          "deletions": 104,
+          "accepted_lines": 136
+        },
+        "docs/native-wallpaper-provider-lifecycle.md": {
+          "accepted_lines": 38
+        },
+        "docs/macos-26.6-dynamic-lock-screen-revalidation-2026-08-14.md": {
+          "accepted_lines": 387
+        },
+        "Tests/WallumeAppSupportTests/NativeWallpaperProviderLifecycleTests.swift": {
+          "accepted_lines": 101
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "additions": 24,
+          "deletions": 11,
+          "accepted_lines": 22
+        },
+        "Tests/WallumeWallpaperProviderPOCTests/WallpaperProviderExperimentTests.swift": {
+          "accepted_lines": 36
+        },
+        "Sources/WallumeAppSupport/UI/MediaDetailView.swift": {
+          "additions": 29,
+          "deletions": 4,
+          "accepted_lines": 29
+        },
+        "Sources/WallumeAppSupport/LockScreen/NativeWallpaperProviderLifecycle.swift": {
+          "additions": 36,
+          "deletions": 15,
+          "accepted_lines": 33
+        },
+        "docs/macos-26-wallpaper-provider-poc.md": {
+          "accepted_lines": 37
+        }
+      }
+    },
+    "8696c979740de9f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6ed5-3ce2-7622-a34e-3f5a1e215c83",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1576,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "docs/macos-26-tahoe-registration-protocol.md": {
+          "accepted_lines": 66
+        },
+        "Tests/WallumeCoreTests/LockScreenProbeTests.swift": {
+          "accepted_lines": 2
+        },
+        "Tests/WallumeCoreTests/AerialPathsTests.swift": {
+          "accepted_lines": 2
+        },
+        "Tests/WallumeCoreTests/RestoreCommandTests.swift": {
+          "accepted_lines": 2
+        },
+        "Tests/WallumeCoreTests/TahoeAerialTransactionTests.swift": {
+          "accepted_lines": 203
+        },
+        "Tests/WallumeCoreTests/TahoeAerialCatalogTests.swift": {
+          "accepted_lines": 118
+        },
+        "Tests/WallumeAppSupportTests/LockScreenViewTests.swift": {
+          "accepted_lines": 12
+        },
+        "docs/local-verification-checklist.md": {
+          "accepted_lines": 34
+        },
+        "Tests/WallumeCoreTests/LockScreenTransactionTests.swift": {
+          "accepted_lines": 14
+        },
+        "Tests/WallumeAppSupportTests/LockScreenConfigurationStoreTests.swift": {
+          "accepted_lines": 42
+        },
+        "Tests/WallumeCoreTests/TahoeWallpaperIndexPatcherTests.swift": {
+          "accepted_lines": 187
+        },
+        "Tests/WallumeCoreTests/TahoeAerialTransactionPlannerTests.swift": {
+          "accepted_lines": 66
+        },
+        "docs/progress-status.md": {
+          "accepted_lines": 2
+        },
+        "docs/macos-26-lock-screen-primary-sources.md": {
+          "accepted_lines": 65
+        },
+        "Tests/WallumeAppSupportTests/AppKitShellTests.swift": {
+          "accepted_lines": 20
+        },
+        "Tests/WallumeCoreTests/TahoeLockScreenVideoPreparerTests.swift": {
+          "accepted_lines": 23
+        },
+        "docs/superpowers/plans/2026-07-22-stabilization-and-ui.md": {
+          "accepted_lines": 300
+        },
+        "Tests/WallumeCoreTests/SystemVersionTests.swift": {
+          "accepted_lines": 1
+        },
+        "Tests/WallumeAppSupportTests/LockScreenSyncServiceTests.swift": {
+          "accepted_lines": 32
+        },
+        "docs/macos-26-lock-screen-investigation.md": {
+          "accepted_lines": 298
+        },
+        "Tests/WallumeCoreTests/TahoeAerialRegistrationTests.swift": {
+          "accepted_lines": 86
+        },
+        "Tests/WallumeCoreTests/WallpaperIndexPatcherTests.swift": {
+          "accepted_lines": 1
+        }
+      }
+    }
+  }
+}
