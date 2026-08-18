@@ -116,9 +116,14 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
 EOF
 codesign --force --deep --sign "$SIGNING_IDENTITY" "$APP_PATH" >/dev/null
 codesign --verify --deep --strict "$APP_PATH"
-# Register the signed, embedded copy. System Settings must never point to Xcode's DerivedData
-# product, which disappears on the next clean build.
-pluginkit -a "$CONTENTS/Extensions/WallumeNativeWallpaperExtension.appex" >/dev/null
+# System Settings must never point to Xcode's DerivedData product, which disappears on the next
+# clean build. Explicit registration is therefore development-only.
+# Explicit registration is useful for local development. A copied application registers its
+# embedded ExtensionKit extension when it launches, so distribution builds should not leave
+# this machine's temporary build path registered in System Settings.
+if [[ "${WALLUME_REGISTER_EXTENSION:-0}" == "1" ]]; then
+    pluginkit -a "$CONTENTS/Extensions/WallumeNativeWallpaperExtension.appex" >/dev/null
+fi
 
 echo "Creating $SAVER_NAME bundle..."
 rm -rf "$SAVER_PATH"

@@ -13,14 +13,23 @@ Wallume 是一个 macOS 本地动态墙纸实验项目：导入本地视频后�
 open "$(swift build --show-bin-path)/Wallume.app"
 ```
 
-构建脚本会嵌入并注册 `com.wallume.app.wallpaper` 扩展。可按需通过以下环境变量覆盖签名设置：
+构建脚本会嵌入 `com.wallume.app.wallpaper` 扩展。日常本地调试如需预先注册扩展，可额外设置 `WALLUME_REGISTER_EXTENSION=1`。可按需通过以下环境变量覆盖签名设置：
 
 ```bash
 WALLUME_SIGNING_IDENTITY="Apple Development: 你的名称" \
 WALLUME_XCODE_SIGNING_IDENTITY="Apple Development" \
 WALLUME_DEVELOPMENT_TEAM="你的 Team ID" \
+WALLUME_REGISTER_EXTENSION=1 \
 ./build-app.sh
 ```
+
+实验分发包（不提交产物）可在构建完成后生成：
+
+```bash
+./package-experimental.sh 1.2.9
+```
+
+压缩包同时包含 `Wallume.app` 和 `uninstall-wallume.sh`；请在拖入废纸篓之前运行后者。
 
 ## 使用锁屏素材
 
@@ -33,9 +42,9 @@ Wallume 不会直接改写 Apple 的墙纸存储。切换、重置或删除锁�
 
 ## 清理
 
-- “设置 → 本地数据”可分别清理可再生成的预览缓存和不可恢复的诊断数据，不会删除素材库或显示器分配。
-- “锁屏同步 → 管理锁屏资源”会先检查系统是否不再使用 Wallume，之后才能清理锁屏副本。
-- 构建后的卸载辅助脚本位于 `$(swift build --show-bin-path)/uninstall-wallume.sh`。它只注销扩展并清理提供者数据；正式卸载的素材库清理策略尚未提供。
+- 暂停使用：先在“系统设置 → 墙纸”选择非 Wallume 墙纸，再退出 Wallume；如需释放原生锁屏副本，在“锁屏同步 → 管理锁屏资源”中检查并清理。
+- 完整卸载：在仍保留 `Wallume.app` 时运行 `$(swift build --show-bin-path)/uninstall-wallume.sh`，它会退出应用、确认系统已不再使用 Wallume、注销扩展并清理提供者副本。完成后再把 `Wallume.app` 拖到废纸篓。
+- 如确定不再保留素材库、预览缓存、诊断和应用偏好，运行 `$(swift build --show-bin-path)/uninstall-wallume.sh --purge-data` 并输入 `DELETE`。这些 Wallume 专属目录会移到废纸篓；从其他位置导入的原始视频不会删除。
 
 ## 仓库内容
 
