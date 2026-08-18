@@ -1,0 +1,96 @@
+Sources/WallumeApp/ApplicationController.swift
+  9b1dc746f8fa0c5b 176-188
+Sources/WallumeAppSupport/Settings/LocalDataCleaner.swift
+  9b1dc746f8fa0c5b 1-36
+Sources/WallumeAppSupport/UI/SettingsView.swift
+  9b1dc746f8fa0c5b 195-196,198-199,209-210,220-221,235-236,244-245,279-299,378-385,435-444,455-465
+Sources/WallumeAppSupport/LockScreen/NativeWallpaperProviderStore.swift
+  9b1dc746f8fa0c5b 58-62
+Sources/WallumeAppSupport/UI/LockScreenView.swift
+  9b1dc746f8fa0c5b 119,169-171,226-255,384-385,391,395
+README.md
+  9b1dc746f8fa0c5b 3,5,7,9,16-22,25,27-30,32,34,36-38,40,42
+.gitignore
+  9b1dc746f8fa0c5b 8-17
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  9b1dc746f8fa0c5b 232-233,253-254,274-275,381-382
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "15da3cb1355ee2638ed833367970ba1e47ccca05",
+  "prompts": {
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "9b1dc746f8fa0c5b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a00f38-74bd-77e0-ab65-589bdcfe9391",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 207,
+      "total_deletions": 44,
+      "accepted_lines": 207,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Package.swift": {
+          "deletions": 9
+        },
+        ".gitignore": {
+          "additions": 10,
+          "accepted_lines": 10
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "additions": 13,
+          "accepted_lines": 13
+        },
+        "Sources/WallumeAppSupport/UI/SettingsView.swift": {
+          "additions": 68,
+          "accepted_lines": 68
+        },
+        "Sources/WallumeAppSupport/Settings/LocalDataCleaner.swift": {
+          "additions": 36,
+          "accepted_lines": 36
+        },
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 9,
+          "deletions": 1,
+          "accepted_lines": 9
+        },
+        "Sources/WallumeAppSupport/LockScreen/NativeWallpaperProviderStore.swift": {
+          "additions": 5,
+          "deletions": 2,
+          "accepted_lines": 5
+        },
+        "README.md": {
+          "additions": 26,
+          "deletions": 24,
+          "accepted_lines": 26
+        },
+        "Sources/WallumeAppSupport/UI/LockScreenView.swift": {
+          "additions": 40,
+          "deletions": 8,
+          "accepted_lines": 40
+        }
+      }
+    }
+  }
+}
