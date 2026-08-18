@@ -192,7 +192,11 @@ public struct SettingsView: View {
     private let dataDirectory: URL
     private let diagnosticsDirectory: URL
     private let openInFinder: (URL) -> Void
+    private let clearMediaCaches: () throws -> Void
+    private let clearDiagnostics: () throws -> Void
     @State private var exportController: SettingsDiagnosticsExportController
+    @State private var cleanupTarget: LocalDataCleanupTarget?
+    @State private var cleanupError: String?
     @AppStorage("wallume.theme") private var themeName = WallumeTheme.nocturne.rawValue
     @AppStorage("wallume.language") private var languageName = WallumeAppLanguage.chinese.rawValue
 
@@ -202,6 +206,8 @@ public struct SettingsView: View {
         dataDirectory: URL,
         diagnosticsDirectory: URL,
         openInFinder: @escaping (URL) -> Void,
+        clearMediaCaches: @escaping () throws -> Void = {},
+        clearDiagnostics: @escaping () throws -> Void = {},
         chooseExportDestination: @escaping () -> URL?,
         exportDiagnostics: @escaping (URL) async throws -> Void
     ) {
@@ -211,6 +217,8 @@ public struct SettingsView: View {
             dataDirectory: dataDirectory,
             diagnosticsDirectory: diagnosticsDirectory,
             openInFinder: openInFinder,
+            clearMediaCaches: clearMediaCaches,
+            clearDiagnostics: clearDiagnostics,
             exportController: SettingsDiagnosticsExportController(
                 chooseExportDestination: chooseExportDestination,
                 exportDiagnostics: exportDiagnostics
@@ -224,6 +232,8 @@ public struct SettingsView: View {
         dataDirectory: URL,
         diagnosticsDirectory: URL,
         openInFinder: @escaping (URL) -> Void,
+        clearMediaCaches: @escaping () throws -> Void = {},
+        clearDiagnostics: @escaping () throws -> Void = {},
         exportController: SettingsDiagnosticsExportController
     ) {
         self.store = store
@@ -231,6 +241,8 @@ public struct SettingsView: View {
         self.dataDirectory = dataDirectory
         self.diagnosticsDirectory = diagnosticsDirectory
         self.openInFinder = openInFinder
+        self.clearMediaCaches = clearMediaCaches
+        self.clearDiagnostics = clearDiagnostics
         _exportController = State(initialValue: exportController)
     }
 
@@ -263,6 +275,27 @@ public struct SettingsView: View {
             Button("知道了") { store.dismissError() }
         } message: {
             Text(store.errorMessage ?? "")
+        }
+        .alert("无法清理本地数据", isPresented: Binding(
+            get: { cleanupError != nil },
+            set: { if !$0 { cleanupError = nil } }
+        )) {
+            Button("知道了") { cleanupError = nil }
+        } message: {
+            Text(cleanupError ?? "")
+        }
+        .confirmationDialog(
+            cleanupTarget?.title ?? "清理本地数据",
+            isPresented: Binding(
+                get: { cleanupTarget != nil },
+                set: { if !$0 { cleanupTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("确认清理", role: .destructive) { clearSelectedLocalData() }
+            Button("取消", role: .cancel) { cleanupTarget = nil }
+        } message: {
+            Text(cleanupTarget?.detail ?? "")
         }
     }
 
@@ -342,6 +375,14 @@ public struct SettingsView: View {
             Text("本地数据").font(.headline)
             directoryRow(title: "Wallume 数据", path: page.dataDirectoryPath, url: dataDirectory)
             directoryRow(title: "诊断数据", path: page.diagnosticsDirectoryPath, url: diagnosticsDirectory)
+            Divider()
+            HStack {
+                Button("清理预览缓存", systemImage: "trash") { cleanupTarget = .mediaCaches }
+                Button("清理诊断数据", systemImage: "trash") { cleanupTarget = .diagnostics }
+            }
+            Text("缓存可在下次使用时重新生成；诊断数据清理后无法恢复。锁屏资源请在“锁屏同步”中先确认系统已切换，再单独清理。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .wallumeCard()
     }
@@ -391,10 +432,37 @@ public struct SettingsView: View {
         }
     }
 
+    private func clearSelectedLocalData() {
+        guard let cleanupTarget else { return }
+        self.cleanupTarget = nil
+        do {
+            switch cleanupTarget {
+            case .mediaCaches: try clearMediaCaches()
+            case .diagnostics: try clearDiagnostics()
+            }
+        } catch {
+            cleanupError = error.localizedDescription
+        }
+    }
+
     private func migrateLegacyThemeIfNeeded() {
         let canonicalName = WallumeTheme.fromStoredValue(themeName).rawValue
         if themeName != canonicalName {
             themeName = canonicalName
+        }
+    }
+}
+
+private enum LocalDataCleanupTarget: Identifiable {
+    case mediaCaches
+    case diagnostics
+
+    var id: Self { self }
+    var title: String { self == .mediaCaches ? "清理预览缓存？" : "清理诊断数据？" }
+    var detail: String {
+        switch self {
+        case .mediaCaches: "将删除缩略图、封面图和中断导入的临时文件；不会删除素材库或显示器分配。"
+        case .diagnostics: "将删除本机保存的性能与锁屏诊断记录；不会删除素材库或墙纸设置。"
         }
     }
 }

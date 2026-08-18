@@ -229,6 +229,8 @@ public struct ApplicationShellView: View {
     private let settingsBuildInfo: SettingsBuildInfo
     private let settingsDataDirectory: URL
     private let settingsDiagnosticsDirectory: URL
+    private let clearMediaCaches: () throws -> Void
+    private let clearDiagnostics: () throws -> Void
     private let openInFinder: (URL) -> Void
     private let chooseDiagnosticsExportDestination: () -> URL?
     private let exportDiagnostics: (URL) async throws -> Void
@@ -248,6 +250,8 @@ public struct ApplicationShellView: View {
         settingsBuildInfo: SettingsBuildInfo = .unavailable,
         settingsDataDirectory: URL = URL(fileURLWithPath: "/"),
         settingsDiagnosticsDirectory: URL = URL(fileURLWithPath: "/"),
+        clearMediaCaches: @escaping () throws -> Void = {},
+        clearDiagnostics: @escaping () throws -> Void = {},
         openInFinder: @escaping (URL) -> Void = { _ in },
         chooseDiagnosticsExportDestination: @escaping () -> URL? = { nil },
         exportDiagnostics: @escaping (URL) async throws -> Void = { _ in },
@@ -267,6 +271,8 @@ public struct ApplicationShellView: View {
         self.settingsBuildInfo = settingsBuildInfo
         self.settingsDataDirectory = settingsDataDirectory
         self.settingsDiagnosticsDirectory = settingsDiagnosticsDirectory
+        self.clearMediaCaches = clearMediaCaches
+        self.clearDiagnostics = clearDiagnostics
         self.openInFinder = openInFinder
         self.chooseDiagnosticsExportDestination = chooseDiagnosticsExportDestination
         self.exportDiagnostics = exportDiagnostics
@@ -372,6 +378,8 @@ public struct ApplicationShellView: View {
                         dataDirectory: settingsDataDirectory,
                         diagnosticsDirectory: settingsDiagnosticsDirectory,
                         openInFinder: openInFinder,
+                        clearMediaCaches: clearMediaCaches,
+                        clearDiagnostics: clearDiagnostics,
                         chooseExportDestination: chooseDiagnosticsExportDestination,
                         exportDiagnostics: exportDiagnostics
                     )

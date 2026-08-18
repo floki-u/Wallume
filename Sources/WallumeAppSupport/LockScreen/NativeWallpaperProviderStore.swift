@@ -55,8 +55,11 @@ public final class NativeWallpaperProviderStore {
                 media: media,
                 providerIdentifier: "com.wallume.app.wallpaper"
             )
-            status = .preparedForSystemSelection
-            notifyActivationIfNeeded(false)
+            // Staging a replacement must not claim that it is active. The extension can still
+            // be rendering the previously selected item until the user selects this one in
+            // System Settings, so derive the visible state from the provider signal now rather
+            // than waiting for the polling cycle to correct it.
+            await reloadDeployment()
         } catch NativeWallpaperProviderLifecycleError.resetRequired {
             status = .failure("请先在系统壁纸设置中选择其他壁纸，再切换 Wallume 的动态视频。")
         } catch {

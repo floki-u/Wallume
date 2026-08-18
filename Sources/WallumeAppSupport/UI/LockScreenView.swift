@@ -116,6 +116,7 @@ public struct LockScreenView: View {
     @State private var presentsDiagnosticExporter = false
     @State private var diagnosticDocument: LockScreenDiagnosticDocument?
     @State private var presentsProviderReset = false
+    @State private var presentsSystemWallpaperInstructions = false
 
     public init(
         store: LockScreenFeatureStore,
@@ -165,6 +166,9 @@ public struct LockScreenView: View {
             Button("知道了") { store.dismissPageError() }
         } message: { Text(store.pageError ?? "") }
         .sheet(isPresented: $presentsProviderReset) { providerResetSheet(provider) }
+        .sheet(isPresented: $presentsSystemWallpaperInstructions) {
+            systemWallpaperInstructions(provider)
+        }
     }
 
     private func lockPreview(_ provider: NativeWallpaperProviderStore) -> some View {
@@ -217,6 +221,38 @@ public struct LockScreenView: View {
         }
         .padding(24)
         .frame(width: 480)
+    }
+
+    private func systemWallpaperInstructions(_ provider: NativeWallpaperProviderStore) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("在系统设置中确认锁屏素材").font(.title2.weight(.bold))
+            Text("Wallume 已将素材准备好，但不会替你改动系统墙纸。接下来请在“系统设置 → 墙纸”中选择 Wallume 的动态画面；完成后回到这里重新检查。")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                Label("1. 打开系统墙纸设置", systemImage: "1.circle")
+                Label("2. 选择 Wallume 中刚准备的动态画面", systemImage: "2.circle")
+                Label("3. 返回 Wallume 并重新检查状态", systemImage: "3.circle")
+            }
+            .font(.subheadline)
+            HStack {
+                Button("稍后再说") { presentsSystemWallpaperInstructions = false }
+                Spacer()
+                Button("打开系统墙纸设置", systemImage: "gearshape") {
+                    openSystemWallpaperSettings()
+                }
+                Button("我已选择，重新检查", systemImage: "arrow.clockwise") {
+                    Task {
+                        await provider.refreshSystemSelection()
+                        if provider.status == .activeInSystem {
+                            presentsSystemWallpaperInstructions = false
+                        }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(24)
+        .frame(width: 520)
     }
 
     @ViewBuilder
@@ -345,22 +381,18 @@ public struct LockScreenView: View {
             Button("用于锁屏", systemImage: "lock") {
                 Task {
                     await provider.prepareCurrentMedia()
-                    if provider.status == .preparedForSystemSelection { openSystemWallpaperSettings() }
+                    if case .failure = provider.status { return }
+                    presentsSystemWallpaperInstructions = true
                 }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
         case .preparedForSystemSelection:
-            Button("在系统设置中启用", systemImage: "gearshape") { openSystemWallpaperSettings() }
+            Button("在系统设置中启用", systemImage: "gearshape") { presentsSystemWallpaperInstructions = true }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
         case .systemSelectionNeedsUpdate:
-            Button("更新锁屏素材", systemImage: "arrow.triangle.2.circlepath") {
-                Task {
-                    await provider.prepareCurrentMedia()
-                    if provider.status == .preparedForSystemSelection { openSystemWallpaperSettings() }
-                }
-            }
+            Button("在系统设置中更新", systemImage: "gearshape") { presentsSystemWallpaperInstructions = true }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
         case .activeInSystem:

@@ -173,6 +173,19 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 settingsBuildInfo: Self.settingsBuildInfo(),
                 settingsDataDirectory: paths.displayAssignments.deletingLastPathComponent(),
                 settingsDiagnosticsDirectory: paths.displayAssignments.deletingLastPathComponent().appending(path: "Diagnostics"),
+                clearMediaCaches: {
+                    try LocalDataCleaner(directories: [
+                        paths.thumbnailsDirectory,
+                        paths.coversDirectory,
+                        paths.importWorkRoot,
+                    ], files: files).clear()
+                },
+                clearDiagnostics: {
+                    try LocalDataCleaner(
+                        directories: [paths.displayAssignments.deletingLastPathComponent().appending(path: "Diagnostics")],
+                        files: files
+                    ).clear()
+                },
                 openInFinder: { NSWorkspace.shared.activateFileViewerSelecting([$0]) },
                 chooseDiagnosticsExportDestination: Self.chooseDiagnosticsExportDestination,
                 exportDiagnostics: { destination in

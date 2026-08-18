@@ -1,40 +1,42 @@
 # Wallume
 
-Wallume imports local video wallpapers and, on macOS 26, stages the selected main-display video
-for Wallume's native wallpaper provider. macOS then renders the chosen video for both desktop and
-lock screen through System Settings.
+Wallume 是一个 macOS 本地动态墙纸实验项目：导入本地视频后，可分配至内建屏或外接屏；在 macOS 26 上，还可将主显示器素材准备给原生墙纸提供者，由用户在系统设置中确认应用到桌面和锁屏。
 
-## Build
+> 实验版：项目依赖 macOS 26 的非公开墙纸行为，仅用于本地验证。请勿将其视为可在所有 macOS 版本稳定运行的正式产品。
 
-This development build requires Xcode, an Apple Development signing identity, and a macOS 26 SDK.
+## 本地构建
+
+需要 Xcode、macOS 26 SDK，以及当前机器可用的 Apple Development 签名身份。
 
 ```bash
 ./build-app.sh
 open "$(swift build --show-bin-path)/Wallume.app"
 ```
 
-`build-app.sh` embeds the signed `com.wallume.app.wallpaper` extension into `Wallume.app` and
-removes Xcode's temporary extension registration. Override signing settings with
-`WALLUME_SIGNING_IDENTITY`, `WALLUME_XCODE_SIGNING_IDENTITY`, and `WALLUME_DEVELOPMENT_TEAM` when
-needed.
+构建脚本会嵌入并注册 `com.wallume.app.wallpaper` 扩展。可按需通过以下环境变量覆盖签名设置：
 
-## Native Wallpaper Flow
+```bash
+WALLUME_SIGNING_IDENTITY="Apple Development: 你的名称" \
+WALLUME_XCODE_SIGNING_IDENTITY="Apple Development" \
+WALLUME_DEVELOPMENT_TEAM="你的 Team ID" \
+./build-app.sh
+```
 
-1. Import a video and assign it to the main display in Wallume.
-2. Open **Lock Screen Sync** and choose **Prepare Current Video**.
-3. Open System Settings, choose the video under **Wallume**, and verify desktop and lock screen.
+## 使用锁屏素材
 
-Wallume never writes Apple's wallpaper Store directly. If dynamic playback cannot be selected, the
-same page exposes the generated static cover for manual selection. Before removing provider data,
-choose another wallpaper in System Settings, confirm the reset in Wallume, then clean provider
-resources. The main Wallume media library is retained.
+1. 导入视频，并在“显示器”中分配给主显示器。
+2. 在“锁屏同步”中点击“用于锁屏”，Wallume 只会准备私有副本。
+3. 按页面提示打开“系统设置 → 墙纸”，手动选择 Wallume 中准备好的动态画面。
+4. 返回 Wallume，点击“我已选择，重新检查”。只有检测到扩展回传的系统选择后，才会显示“锁屏已启用”。
 
-The native provider currently uses macOS 26 private framework behavior and is intended for local
-development validation while compatibility and distribution support are assessed.
+Wallume 不会直接改写 Apple 的墙纸存储。切换、重置或删除锁屏资源时，必须先在系统设置中选择非 Wallume 墙纸，再回到应用确认并清理。
 
-## Uninstalling
+## 清理
 
-Before removing Wallume, select a non-Wallume wallpaper in System Settings > Wallpaper. Then run
-`./.build/arm64-apple-macosx/debug/uninstall-wallume.sh --remove-app` after `./build-app.sh`.
-The helper clears only Wallume's native-provider cache and unregisters the embedded extension; it
-does not remove videos from Wallume's main library.
+- “设置 → 本地数据”可分别清理可再生成的预览缓存和不可恢复的诊断数据，不会删除素材库或显示器分配。
+- “锁屏同步 → 管理锁屏资源”会先检查系统是否不再使用 Wallume，之后才能清理锁屏副本。
+- 构建后的卸载辅助脚本位于 `$(swift build --show-bin-path)/uninstall-wallume.sh`。它只注销扩展并清理提供者数据；正式卸载的素材库清理策略尚未提供。
+
+## 仓库内容
+
+仓库只保存源码、构建/卸载脚本、应用图标和必要第三方许可。`.build`、Xcode 派生数据、应用包、DMG、证书和公证密钥均不会提交。
