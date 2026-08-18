@@ -65,6 +65,15 @@ mkdir -p "$CONTENTS/Extensions"
 cp "$BUILD_DIR/WallumeApp" "$MACOS/WallumeApp"
 cp "$BUILD_DIR/wallume-provider-cleanup" "$RESOURCES/wallume-provider-cleanup"
 cp "$PWD/Assets/Wallume.icns" "$RESOURCES/Wallume.icns"
+# SwiftPM keeps target resources in a separate bundle next to the executable.
+# Copy it into the app bundle as well; otherwise Bundle.module cannot resolve
+# WallumeAppSupport's localized UI resources after distribution.
+APP_SUPPORT_RESOURCES="$BUILD_DIR/Wallume_WallumeAppSupport.bundle"
+if [[ ! -d "$APP_SUPPORT_RESOURCES" ]]; then
+    echo "WallumeAppSupport resource bundle was not produced at $APP_SUPPORT_RESOURCES"
+    exit 1
+fi
+cp -R "$APP_SUPPORT_RESOURCES" "$RESOURCES/"
 cp -R "$NATIVE_EXTENSION" "$CONTENTS/Extensions/"
 cp "$PWD/uninstall-wallume.sh" "$BUILD_DIR/uninstall-wallume.sh"
 chmod +x "$BUILD_DIR/uninstall-wallume.sh"
