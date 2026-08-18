@@ -391,7 +391,16 @@ public struct LockScreenView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
         case .systemSelectionNeedsUpdate:
-            Button("在系统设置中更新", systemImage: "gearshape") { presentsSystemWallpaperInstructions = true }
+            Button("在系统设置中更新", systemImage: "gearshape") {
+                Task {
+                    // A newly selected desktop video is not visible to System Settings until
+                    // its provider-owned copy has been staged. Previously this path only
+                    // opened System Settings, leaving the first video as the sole choice.
+                    await provider.prepareCurrentMedia()
+                    if case .failure = provider.status { return }
+                    presentsSystemWallpaperInstructions = true
+                }
+            }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
         case .activeInSystem:

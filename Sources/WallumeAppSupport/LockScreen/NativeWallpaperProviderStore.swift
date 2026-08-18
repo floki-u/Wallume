@@ -73,13 +73,25 @@ public final class NativeWallpaperProviderStore {
 
     /// The caller has explicitly confirmed that System Settings no longer selects Wallume.
     public func confirmSystemReset() async {
-        do {
-            try await lifecycle.confirmSystemReset()
-            deployment = try await lifecycle.deployment()
-            status = .resetConfirmed
-            notifyActivationIfNeeded(false)
-        } catch {
-            status = .failure(error.localizedDescription)
+        // WallpaperAgent can retain the previous live surface briefly after the user chooses
+        // another wallpaper. Wait through that hand-off here instead of telling the user to
+        // repeat an action they have already completed in System Settings.
+        for attempt in 0..<10 {
+            do {
+                try await lifecycle.confirmSystemReset()
+                deployment = try await lifecycle.deployment()
+                status = .resetConfirmed
+                notifyActivationIfNeeded(false)
+                return
+            } catch NativeWallpaperProviderLifecycleError.resetRequired where attempt < 9 {
+                try? await Task.sleep(for: .seconds(2))
+            } catch NativeWallpaperProviderLifecycleError.resetRequired {
+                status = .failure("系统仍在结束 Wallume 的旧墙纸上下文。请确认已选择其他墙纸后稍候，再检查一次。")
+                return
+            } catch {
+                status = .failure(error.localizedDescription)
+                return
+            }
         }
     }
 

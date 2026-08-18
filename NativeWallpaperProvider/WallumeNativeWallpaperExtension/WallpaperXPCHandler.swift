@@ -61,12 +61,13 @@ private func scheduleTeardown(for key: DisplayKey) {
         Lifecycle.teardownTimers[key] = nil
         let torn = WallpaperState.shared.tearDownContext(for: key)
         extensionLog("  [teardown] grace fired for display \(key.displayID) → \(torn ? "stopped renderer + invalidated CAContext" : "nothing to tear down")")
-        if torn, WallpaperState.shared.activeContextCount == 0 {
-            // The system has moved every Wallume surface away. Persist this so the
-            // companion app resumes its desktop renderer and stops claiming that
-            // Wallume is still the lock-screen selection.
-            WallpaperPrefs.shared.setActive(false)
-            extensionLog("  [teardown] no Wallume contexts remain → marked inactive")
+        if torn {
+            // A Settings preview is not a selected wallpaper. Persist only whether a real
+            // desktop/lock-screen surface remains so the companion app can safely verify a
+            // user-initiated reset without waiting for preview contexts to disappear.
+            let isActive = WallpaperState.shared.hasLiveWallpaperContext
+            WallpaperPrefs.shared.setActive(isActive)
+            extensionLog("  [teardown] live Wallume context remains: \(isActive)")
         }
     }
     Lifecycle.teardownTimers[key] = item
@@ -304,7 +305,7 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
                 renderer.variantSelector = selector
                 renderer.switchVideo(to: videoURL)
                 WallpaperState.shared.updateVideoID(choiceConfiguration, for: key)
-                WallpaperPrefs.shared.setActive(true)
+                WallpaperPrefs.shared.setActive(WallpaperState.shared.hasLiveWallpaperContext)
                 reply(replyObj, nil)
             } else if WallpaperState.shared.claimRendererCreate(for: key) {
                 // Context exists but no renderer yet AND no create already in flight —
@@ -325,7 +326,7 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
                     renderer.variantSelector = selector
                     let old = WallpaperState.shared.setRenderer(renderer, videoID: choiceConfiguration, for: key)
                     old?.stop()
-                    WallpaperPrefs.shared.setActive(true)
+                    WallpaperPrefs.shared.setActive(WallpaperState.shared.hasLiveWallpaperContext)
                     renderer.start(onFirstFrameReady: { reply(boxedReply.value, nil) })
                 }
             } else {
@@ -426,7 +427,7 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
                 // (no black gap), and video plays over it.
                 renderer.variantSelector = selector
                 let old = WallpaperState.shared.setRenderer(renderer, videoID: choiceConfiguration, for: key)
-                WallpaperPrefs.shared.setActive(true)
+                WallpaperPrefs.shared.setActive(WallpaperState.shared.hasLiveWallpaperContext)
                 // Switch: reply only once the first video frame is composited (cold start
                 // already replied with the still). Either way, stop the old renderer once
                 // we've told the agent to swap off it.
@@ -744,16 +745,11 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
 
         extensionLog("=== CHOICE CHANGED === videoID: \(videoID)")
 
-        // Track the last user-picked video (for menu-bar UI / new-acquire fallback).
-        // The XPC API does NOT tell us which display this choice is for — only that
-        // the user picked it. We can't safely touch any renderer here; doing so used
-        // to flip the wrong display, because stopping all renderers forced macOS to
-        // re-acquire every display, and the racing acquires would pick up the wrong
-        // per-context choiceConfiguration. macOS issues `invalidate(oldID)` and
-        // `acquire(newID)` for the affected display on its own; let it.
-        WallpaperState.shared.currentVideoID = videoID
+        // This callback can describe a Settings preview as well as a real wallpaper change.
+        // Do not publish it as the active selection: only the subsequent non-preview acquire
+        // proves WallpaperAgent has installed that choice on a desktop or lock-screen surface.
+        // The acquire path receives the per-surface choice configuration and records it there.
         WallpaperState.shared.cachedThumbnailURL = nil
-        WallpaperPrefs.shared.updateCurrentVideo()
 
         // Invalidate Agent snapshots so the picker re-fetches with the new video.
         if let proxy = agentProxy {

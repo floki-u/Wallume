@@ -96,12 +96,13 @@ final class WallpaperPrefs: @unchecked Sendable {
     func updateCurrentVideo() {
         let videoID = WallpaperState.shared.currentVideoID
         let videoName = videoID.flatMap { VideoLibrary.shared.entry(for: $0)?.name }
-        let contexts = buildContextStates()
-        let state = StateFile(isActive: true, currentVideoID: videoID, currentVideoName: videoName, contexts: contexts)
+        let isActive = WallpaperState.shared.hasLiveWallpaperContext
+        let contexts = isActive ? buildContextStates() : nil
+        let state = StateFile(isActive: isActive, currentVideoID: videoID, currentVideoName: videoName, contexts: contexts)
         guard let data = try? JSONEncoder().encode(state) else { return }
         try? data.write(to: Self.stateURL, options: .atomic)
         postStateNotification()
-        traceLog("[WallpaperPrefs] updateCurrentVideo(\(videoName ?? "nil"))")
+        traceLog("[WallpaperPrefs] updateCurrentVideo(\(videoName ?? "nil"), active: \(isActive))")
     }
 
     private func buildContextStates() -> [ContextState] {

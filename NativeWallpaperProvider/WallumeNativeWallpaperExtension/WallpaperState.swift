@@ -278,6 +278,12 @@ final class WallpaperState: Sendable {
         lock.withLock { $0.contexts.count }
     }
 
+    /// Settings owns short-lived preview surfaces too. They must never make the companion app
+    /// believe Wallume remains selected after the user has switched back to a system wallpaper.
+    var hasLiveWallpaperContext: Bool {
+        lock.withLock { state in state.contexts.values.contains { !$0.isPreview } }
+    }
+
     /// Count of display slots with a running renderer.
     var liveContextCount: Int {
         lock.withLock { state in
