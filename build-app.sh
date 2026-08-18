@@ -85,7 +85,7 @@ chmod +x "$BUILD_DIR/uninstall-wallume.sh"
 # one embedded in Wallume.app, so keep the temporary path out of System Settings.
 pluginkit -r "$NATIVE_EXTENSION" >/dev/null 2>&1 || true
 
-cat > "$CONTENTS/Info.plist" << 'EOF'
+cat > "$CONTENTS/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -134,7 +134,7 @@ rm -rf "$SAVER_PATH"
 mkdir -p "$SAVER_MACOS"
 cp "$BUILD_DIR/libWallumeScreenSaver.dylib" "$SAVER_MACOS/libWallumeScreenSaver.dylib"
 
-cat > "$SAVER_CONTENTS/Info.plist" << 'EOF'
+cat > "$SAVER_CONTENTS/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
