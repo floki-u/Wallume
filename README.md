@@ -1,25 +1,41 @@
 # Wallume
 
-> 一款 macOS 本地视频动态墙纸实验应用：为内建屏和外接屏分别播放本地视频，并在 macOS 26 上协助你将素材交给系统墙纸设置。
+> 一款 macOS 本地视频动态墙纸实验应用：为内建屏和外接屏分别播放本地视频；在 macOS 26 上，还可协助你将素材交给系统墙纸设置。
 
 Wallume 只处理本地文件，不上传视频，也不会自行替你修改 macOS 的墙纸选择。原生动态墙纸与锁屏需要你在“系统设置 → 墙纸”中最后确认。
 
-> **实验版 / macOS 26**：项目依赖 macOS 26 的墙纸提供者行为，仍在验证多显示器、睡眠唤醒和锁屏切换。请把它当作测试软件使用，并保留原始视频文件。
+> **实验版**：桌面动态墙纸最低支持 macOS 14；macOS 26 的原生墙纸提供者、桌面/锁屏同步仍在验证多显示器、睡眠唤醒和锁屏切换。请把它当作测试软件使用，并保留原始视频文件。
 
 ## 适用范围
 
 - 导入本地视频，分别分配给内建屏和外接屏。
 - 在应用运行期间播放桌面动态墙纸。
-- 在 macOS 26 上准备主显示器素材，让用户在系统墙纸设置中确认后用于原生桌面与锁屏。
+- macOS 14 及以上：导入、分配和播放本地桌面动态墙纸。
+- macOS 26：准备主显示器素材，并在系统墙纸设置中由用户确认后用于原生桌面与锁屏。
 - 提供预览缓存、诊断数据和锁屏提供者副本的独立清理路径。
 
-当前不承诺所有 macOS 版本、所有显示器组合或所有视频编码格式都可稳定工作；原生锁屏是否生效始终以系统设置中的实际选择为准。
+当前不承诺所有显示器组合或所有视频编码格式都可稳定工作；macOS 14/15 不提供 macOS 26 的原生墙纸提供者功能，原生锁屏是否生效始终以系统设置中的实际选择为准。
 
-## 下载与安装（普通用户）
+## 下载与安装
 
-1. 打开仓库右侧的 [Releases](https://github.com/floki-u/Wallume/releases)，下载最新标为 **Pre-release** 的 `Wallume-Experimental-*-macos26.zip`。
-2. 解压后，将 `Wallume.app` 拖到“应用程序”。保留同目录的 `uninstall-wallume.sh`，卸载前需要它。
-3. 第一次打开前，在“终端”执行：
+1. 打开 [Releases](https://github.com/floki-u/Wallume/releases)，下载最新标为 **Pre-release** 的压缩包；当前版本为 `Wallume-Experimental-1.1.0-macos14-plus.zip`。
+2. **不要双击压缩包解压。** 打开“终端”，依次执行：
+
+   ```bash
+   cd ~/Downloads
+   mkdir -p Wallume-1.1.0
+   ditto -x -k Wallume-Experimental-1.1.0-macos14-plus.zip Wallume-1.1.0
+   ```
+
+   如果刚才已经双击且 Finder 一直显示“正在解压缩”，先终止它再执行上面命令：
+
+   ```bash
+   killall "Archive Utility" 2>/dev/null || true
+   ```
+
+   已经产生的半成品文件夹可手动移到废纸篓；这不会影响原始 ZIP 文件。
+3. 打开刚解压出的目录，将 `Wallume.app` 拖到“应用程序”。保留同目录的 `uninstall-wallume.sh`，卸载前需要它。
+4. 第一次打开前，在“终端”执行：
 
    ```bash
    xattr -dr com.apple.quarantine /Applications/Wallume.app
@@ -27,18 +43,7 @@ Wallume 只处理本地文件，不上传视频，也不会自行替你修改 ma
    ```
 
    实验版使用开发签名，尚未经过 Apple 公证；这一步只应对从本项目 Releases 下载的包执行。
-4. 若系统仍拦截打开，在 Finder 中按住 Control 点击 `Wallume.app`，选择“打开”，再确认一次。
-
-### 解压很慢或卡住
-
-Finder 的“归档实用工具”偶尔会在大型应用包上停留很久。可在“终端”中直接解压：
-
-```bash
-cd ~/Downloads
-ditto -x -k Wallume-Experimental-*-macos26.zip .
-```
-
-解压完成后再继续安装；不要从压缩包内直接运行应用。
+5. 若系统仍拦截打开，在 Finder 中按住 Control 点击 `Wallume.app`，选择“打开”，再确认一次。
 
 ## 快速开始
 
@@ -97,70 +102,10 @@ Wallume 不会越过系统直接替换锁屏。切换到新素材、改回系统
 
 拖入废纸篓不会让 macOS 执行卸载逻辑，原生墙纸扩展和提供者资源可能残留。请先运行上面的卸载脚本。
 
-## 从源码构建（开发者）
-
-需要：macOS 26 SDK、Xcode，以及本机可用的 Apple Development 签名身份。
-
-```bash
-git clone https://github.com/floki-u/Wallume.git
-cd Wallume
-
-WALLUME_SIGNING_IDENTITY="Apple Development: 你的名称" \
-WALLUME_XCODE_SIGNING_IDENTITY="Apple Development" \
-WALLUME_DEVELOPMENT_TEAM="你的 Team ID" \
-./build-app.sh
-
-open "$(swift build --show-bin-path)/Wallume.app"
-```
-
-仅在本机调试、且需要构建后立即预注册墙纸扩展时，额外设置 `WALLUME_REGISTER_EXTENSION=1`。分发构建不应设置它，以免把本机 `.build` 路径注册到系统设置。
-
-生成不提交到 Git 的实验包：
-
-```bash
-WALLUME_VERSION=1.1.0 ./build-app.sh
-./package-experimental.sh 1.1.0
-```
-
-产物位于 `.artifacts/`，并包含应用与卸载脚本。
-
-## 发布实验版（维护者）
-
-**使用 GitHub Releases，不使用 npm 或 GitHub Packages。** GitHub Release 既能将版本标签与源码对应，也能为普通用户提供一个固定下载页；npm 和 Packages 都不是 macOS 应用分发渠道。
-
-每次发布按以下顺序进行：
-
-1. 在干净工作区完成多显示器、睡眠唤醒、锁屏切换/删除/重置和重启恢复回归。
-2. 使用发布签名构建并在另一套干净状态下验证应用：
-
-   ```bash
-   WALLUME_VERSION=<版本号> ./build-app.sh
-   ./package-experimental.sh <版本号>
-   shasum -a 256 .artifacts/Wallume-Experimental-<版本号>-macos26.zip
-   ```
-
-3. 在 GitHub 的 **Releases → Draft a new release** 中创建标签 `v<版本号>`，标题写为 `Wallume <版本号> Experimental`，并勾选 **Set as a pre-release**。
-4. 上传 `.artifacts/Wallume-Experimental-<版本号>-macos26.zip`；将上一步 SHA-256 写进发行说明，并说明已验证的 macOS 版本、已知限制及卸载方式。
-5. 发布后，在一台没有开发环境痕迹的 Mac 上从 Release 下载、解压、安装、运行和卸载一次。
-
-也可使用 GitHub CLI 创建预发布：
-
-```bash
-gh release create v<版本号> \
-  .artifacts/Wallume-Experimental-<版本号>-macos26.zip \
-  --title "Wallume <版本号> Experimental" \
-  --prerelease \
-  --generate-notes
-```
-
-正式面向广泛用户前，应使用 Developer ID Application 签名并通过 Apple 公证；届时可将 Release 附件升级为 `.dmg`，但 GitHub Releases 仍是下载入口。
-
 ## 反馈
 
 提交 Issue 时请说明：macOS 版本、芯片类型、内建/外接屏数量、视频格式、复现步骤，以及是否发生在拔插显示器、睡眠唤醒或锁屏之后。请勿上传私人视频；可在“设置 → 本地数据”导出匿名诊断摘要。
 
-## 仓库约定
+## 使用限制
 
-仓库仅提交源码、构建/打包/卸载脚本、应用图标和必要第三方许可；`.build`、Xcode 派生数据、应用包、DMG、证书、公证密钥及 Release 产物均不提交。
-
-本仓库尚未声明开源许可证。复用或分发源码前，请先取得仓库所有者的明确许可。
+Wallume **不是开源软件**，且仅允许个人学习、体验与非商业测试。未经著作权人书面许可，不得将本项目的源码、应用、图标或任何衍生版本用于商业用途、销售、再分发或作为其他产品的一部分。
