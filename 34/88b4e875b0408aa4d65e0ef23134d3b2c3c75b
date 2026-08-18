@@ -1,0 +1,48 @@
+README.md
+  9b1dc746f8fa0c5b 21,27,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "3488b4e875b0408aa4d65e0ef23134d3b2c3c75b",
+  "prompts": {
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "9b1dc746f8fa0c5b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a00f38-74bd-77e0-ab65-589bdcfe9391",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "README.md": {
+          "additions": 3,
+          "deletions": 3,
+          "accepted_lines": 3
+        }
+      }
+    }
+  }
+}
