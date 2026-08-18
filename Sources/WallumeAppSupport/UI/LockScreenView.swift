@@ -149,6 +149,8 @@ public struct LockScreenView: View {
             .padding(.horizontal, 32)
             .padding(.vertical, 40)
 
+            nativeStaticFallbackCard(provider)
+
             if provider.deployment != nil {
                 Button("管理锁屏资源", systemImage: "arrow.counterclockwise") {
                     presentsProviderReset = true
@@ -168,6 +170,42 @@ public struct LockScreenView: View {
         .sheet(isPresented: $presentsProviderReset) { providerResetSheet(provider) }
         .sheet(isPresented: $presentsSystemWallpaperInstructions) {
             systemWallpaperInstructions(provider)
+        }
+    }
+
+    @ViewBuilder
+    private func nativeStaticFallbackCard(_ provider: NativeWallpaperProviderStore) -> some View {
+        if let media = provider.media, shouldOfferStaticFallback(for: provider.status) {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("改用静态封面", systemImage: "photo")
+                    .font(.headline)
+                Text("动态锁屏当前无法安全启用。你可以在系统墙纸设置中手动选择“\(media.displayName)”的静态封面；Wallume 不会自动替换系统墙纸。")
+                    .foregroundStyle(.secondary)
+                Text("清理锁屏动态资源不会删除此封面。若已将它设为系统墙纸，请先不要删除原素材。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("显示静态封面", systemImage: "folder") {
+                        revealStaticFallback(media.coverURL)
+                    }
+                    Button("打开系统墙纸设置", systemImage: "gearshape") {
+                        openSystemWallpaperSettings()
+                    }
+                }
+            }
+            .frame(maxWidth: 1_116, alignment: .leading)
+            .padding(.horizontal, 32)
+            .padding(.bottom, provider.deployment == nil ? 32 : 12)
+            .wallumeCard()
+        }
+    }
+
+    private func shouldOfferStaticFallback(for status: NativeWallpaperProviderStatus) -> Bool {
+        switch status {
+        case .unavailable, .failure:
+            true
+        default:
+            false
         }
     }
 
