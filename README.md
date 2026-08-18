@@ -118,7 +118,8 @@ open "$(swift build --show-bin-path)/Wallume.app"
 生成不提交到 Git 的实验包：
 
 ```bash
-./package-experimental.sh 1.2.9
+WALLUME_VERSION=1.1.0 ./build-app.sh
+./package-experimental.sh 1.1.0
 ```
 
 产物位于 `.artifacts/`，并包含应用与卸载脚本。
@@ -133,21 +134,21 @@ open "$(swift build --show-bin-path)/Wallume.app"
 2. 使用发布签名构建并在另一套干净状态下验证应用：
 
    ```bash
-   ./build-app.sh
-   ./package-experimental.sh 1.2.9
-   shasum -a 256 .artifacts/Wallume-Experimental-1.2.9-macos26.zip
+   WALLUME_VERSION=<版本号> ./build-app.sh
+   ./package-experimental.sh <版本号>
+   shasum -a 256 .artifacts/Wallume-Experimental-<版本号>-macos26.zip
    ```
 
-3. 在 GitHub 的 **Releases → Draft a new release** 中创建标签 `v1.2.9-experimental`，标题写为 `Wallume 1.2.9 Experimental`，并勾选 **Set as a pre-release**。
-4. 上传 `.artifacts/Wallume-Experimental-1.2.9-macos26.zip`；将上一步 SHA-256 写进发行说明，并说明已验证的 macOS 版本、已知限制及卸载方式。
+3. 在 GitHub 的 **Releases → Draft a new release** 中创建标签 `v<版本号>`，标题写为 `Wallume <版本号> Experimental`，并勾选 **Set as a pre-release**。
+4. 上传 `.artifacts/Wallume-Experimental-<版本号>-macos26.zip`；将上一步 SHA-256 写进发行说明，并说明已验证的 macOS 版本、已知限制及卸载方式。
 5. 发布后，在一台没有开发环境痕迹的 Mac 上从 Release 下载、解压、安装、运行和卸载一次。
 
 也可使用 GitHub CLI 创建预发布：
 
 ```bash
-gh release create v1.2.9-experimental \
-  .artifacts/Wallume-Experimental-1.2.9-macos26.zip \
-  --title "Wallume 1.2.9 Experimental" \
+gh release create v<版本号> \
+  .artifacts/Wallume-Experimental-<版本号>-macos26.zip \
+  --title "Wallume <版本号> Experimental" \
   --prerelease \
   --generate-notes
 ```

@@ -16,6 +16,8 @@ NATIVE_PROVIDER_APP="$NATIVE_PROVIDER_DERIVED_DATA/Build/Products/Debug/WallumeP
 NATIVE_EXTENSION="$NATIVE_PROVIDER_APP/Contents/Extensions/WallumeNativeWallpaperExtension.appex"
 DEVELOPMENT_TEAM="${WALLUME_DEVELOPMENT_TEAM:?Set WALLUME_DEVELOPMENT_TEAM to the Apple Development team used for this local build.}"
 XCODE_SIGNING_IDENTITY="${WALLUME_XCODE_SIGNING_IDENTITY:-Apple Development}"
+APP_VERSION="${WALLUME_VERSION:-1.1.0}"
+APP_BUILD_NUMBER="${WALLUME_BUILD_NUMBER:-1}"
 
 if [[ -n "${WALLUME_SIGNING_IDENTITY:-}" ]]; then
     SIGNING_IDENTITY="$WALLUME_SIGNING_IDENTITY"
@@ -50,6 +52,8 @@ xcodebuild \
     DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
     CODE_SIGN_STYLE=Automatic \
     CODE_SIGN_IDENTITY="$XCODE_SIGNING_IDENTITY" \
+    MARKETING_VERSION="$APP_VERSION" \
+    CURRENT_PROJECT_VERSION="$APP_BUILD_NUMBER" \
     build >/dev/null
 
 if [[ ! -d "$NATIVE_EXTENSION" ]]; then
@@ -97,9 +101,9 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>$APP_VERSION</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>$APP_BUILD_NUMBER</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>
@@ -143,8 +147,10 @@ cat > "$SAVER_CONTENTS/Info.plist" << 'EOF'
     <string>Wallume</string>
     <key>CFBundlePackageType</key>
     <string>savr</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$APP_VERSION</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>$APP_BUILD_NUMBER</string>
     <key>NSPrincipalClass</key>
     <string>WallumeScreenSaverView</string>
 </dict>

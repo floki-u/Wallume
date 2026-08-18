@@ -26,6 +26,13 @@ if [[ ! -d "$APP_PATH" || ! -x "$UNINSTALLER" ]]; then
     exit 1
 fi
 
+BUILT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")"
+if [[ "$BUILT_VERSION" != "$VERSION" ]]; then
+    echo "Wallume.app is version $BUILT_VERSION, but this package requests $VERSION." >&2
+    echo "Rebuild with WALLUME_VERSION=$VERSION ./build-app.sh" >&2
+    exit 1
+fi
+
 mkdir -p "$PAYLOAD_DIRECTORY" "$ARTIFACTS_DIRECTORY"
 ditto "$APP_PATH" "$PAYLOAD_DIRECTORY/Wallume.app"
 cp "$UNINSTALLER" "$PAYLOAD_DIRECTORY/uninstall-wallume.sh"
