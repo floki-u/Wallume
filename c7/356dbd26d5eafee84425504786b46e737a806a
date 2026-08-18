@@ -1,0 +1,61 @@
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/SnapshotCreation.swift
+  9b1dc746f8fa0c5b 19-21
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/BMPCache.swift
+  9b1dc746f8fa0c5b 6-8,71,75-76,88-91,176,196
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/WallpaperXPCHandler.swift
+  9b1dc746f8fa0c5b 114-117,132,621-622
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "c7356dbd26d5eafee84425504786b46e737a806a",
+  "prompts": {
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "9b1dc746f8fa0c5b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a00f38-74bd-77e0-ab65-589bdcfe9391",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 5,
+      "accepted_lines": 22,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/BMPCache.swift": {
+          "additions": 12,
+          "deletions": 3,
+          "accepted_lines": 12
+        },
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/SnapshotCreation.swift": {
+          "additions": 3,
+          "accepted_lines": 3
+        },
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/WallpaperXPCHandler.swift": {
+          "additions": 7,
+          "deletions": 2,
+          "accepted_lines": 7
+        }
+      }
+    }
+  }
+}
