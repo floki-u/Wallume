@@ -16,6 +16,9 @@ func createSnapshotViaRuntime(currentTime: CMTime? = nil) async -> AnyObject? {
     let asset = AVURLAsset(url: videoURL)
     let generator = AVAssetImageGenerator(asset: asset)
     generator.appliesPreferredTrackTransform = true
+    // Wallpaper Settings may request many snapshots while scrolling or rebuilding a preview.
+    // The snapshot is transient UI chrome, so cap it well below the source video resolution.
+    generator.maximumSize = CGSize(width: 1_280, height: 720)
 
     let requestTime: CMTime
     if let currentTime, currentTime.isValid, currentTime.seconds > 0 {

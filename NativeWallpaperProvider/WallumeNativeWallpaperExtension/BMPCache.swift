@@ -3,6 +3,9 @@ import CryptoKit
 import Foundation
 import ImageIO
 
+private let snapshotCacheVersion = 3
+private let maximumSnapshotSize = CGSize(width: 1_280, height: 720)
+
 /// Load the most recent cached BMP from the Agent's cache directory as a CGImage.
 /// Used to set rootLayer.contents as immediate visual content during transitions,
 /// matching Apple's "Using existing snapshot as initial wallpaper contents" pattern.
@@ -65,10 +68,12 @@ func writeBMPSnapshot(videoURL: URL, videoID: String? = nil, displayPixelWidth: 
     if let existing = try? FileManager.default.contentsOfDirectory(at: cacheDir, includingPropertiesForKeys: nil) {
         for bmp in existing where bmp.pathExtension == "bmp" && bmp.lastPathComponent.hasPrefix(hashHex) {
             let components = bmp.deletingPathExtension().lastPathComponent.components(separatedBy: "-")
-            // Filename format: <64-char-hash>-<width>-<height>-0-<timestamp>
+            // Filename format: <64-char-hash>-<width>-<height>-<cache-version>-<timestamp>
             if components.count == 5,
                let existingW = Int(components[1]),
                let existingH = Int(components[2]),
+               let version = Int(components[3]),
+               version == snapshotCacheVersion,
                existingW == displayPixelWidth,
                existingH == displayPixelHeight {
                 traceLog("  [BMPCache] Existing BMP matches \(displayPixelWidth)x\(displayPixelHeight) for \(videoID ?? "?"), skipping")
@@ -80,6 +85,10 @@ func writeBMPSnapshot(videoURL: URL, videoID: String? = nil, displayPixelWidth: 
     let asset = AVURLAsset(url: videoURL)
     let generator = AVAssetImageGenerator(asset: asset)
     generator.appliesPreferredTrackTransform = true
+    // A transition still only needs to cover the hand-off until the video renderer has its
+    // first frame. Decoding the source's full 4K/8K frame here creates large ImageIO and
+    // IOSurface allocations for every acquire, especially when Settings opens previews.
+    generator.maximumSize = maximumSnapshotSize
 
     let cgImage: CGImage
     do {
@@ -164,7 +173,7 @@ func writeBMPSnapshot(videoURL: URL, videoID: String? = nil, displayPixelWidth: 
 
     let timestamp = Date().timeIntervalSinceReferenceDate
     let timestampHex = String(format: "%016llx", timestamp.bitPattern)
-    let filename = "\(hashHex)-\(displayPixelWidth)-\(displayPixelHeight)-0-\(timestampHex).bmp"
+    let filename = "\(hashHex)-\(displayPixelWidth)-\(displayPixelHeight)-\(snapshotCacheVersion)-\(timestampHex).bmp"
 
     // Remove old BMP files for this video from cache
     if let contents = try? FileManager.default.contentsOfDirectory(at: cacheDir, includingPropertiesForKeys: nil) {
@@ -184,7 +193,7 @@ func writeBMPSnapshot(videoURL: URL, videoID: String? = nil, displayPixelWidth: 
     // Write cacheVersion.db
     let versionURL = cacheDir.appendingPathComponent("cacheVersion.db")
     do {
-        try Data("{\"version\":2}".utf8).write(to: versionURL, options: .atomic)
+        try Data("{\"version\":\(snapshotCacheVersion)}".utf8).write(to: versionURL, options: .atomic)
     } catch {
         traceLog("  [BMPCache] cacheVersion.db failed: \(error)")
     }

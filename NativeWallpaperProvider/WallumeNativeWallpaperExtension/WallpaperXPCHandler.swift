@@ -111,6 +111,10 @@ private func inspectAcquireRequest(_ request: Any?) -> AcquireRequestDetails {
 /// MUST be called on `Lifecycle.queue`.
 private func scheduleTeardown(for key: DisplayKey) {
     Lifecycle.teardownTimers[key]?.cancel()
+    // Settings previews are disposable and can churn rapidly while the user scrolls. They do
+    // not need the desktop/lock-screen wake grace, which would otherwise retain many remote
+    // contexts and their IOSurfaces at once.
+    let grace = WallpaperState.shared.context(for: key)?.isPreview == true ? 3.0 : Lifecycle.teardownGrace
     let item = DispatchWorkItem {
         Lifecycle.teardownTimers[key] = nil
         let torn = WallpaperState.shared.tearDownContext(for: key)
@@ -125,7 +129,7 @@ private func scheduleTeardown(for key: DisplayKey) {
         }
     }
     Lifecycle.teardownTimers[key] = item
-    Lifecycle.queue.asyncAfter(deadline: .now() + Lifecycle.teardownGrace, execute: item)
+    Lifecycle.queue.asyncAfter(deadline: .now() + grace, execute: item)
 }
 
 /// Cancel a display's pending teardown because it was re-acquired (woke / switched).
@@ -614,7 +618,8 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
         }
         WallpaperState.shared.forgetWallpaperID(uuid)
         scheduleTeardown(for: key)
-        extensionLog("=== INVALIDATE === UUID \(uuid) → tear down surface on display \(key.displayID) in \(Lifecycle.teardownGrace)s unless re-acquired")
+        let grace = WallpaperState.shared.context(for: key)?.isPreview == true ? 3.0 : Lifecycle.teardownGrace
+        extensionLog("=== INVALIDATE === UUID \(uuid) → tear down surface on display \(key.displayID) in \(grace)s unless re-acquired")
         reply(nil)
     }
 
