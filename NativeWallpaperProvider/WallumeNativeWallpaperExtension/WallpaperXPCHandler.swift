@@ -53,6 +53,60 @@ enum Lifecycle {
     static let teardownGrace: TimeInterval = 15.0
 }
 
+/// The private request object has changed its nesting between desktop and Settings-preview
+/// acquires across Tahoe builds. Keep reflection limited to the named fields we own instead of
+/// assuming that `rawValue.destination` is always exactly two levels deep.
+private struct AcquireRequestDetails {
+    var destinationSize = CGSize(width: 2_560, height: 1_440)
+    var scaleFactor: CGFloat = 2.0
+    var isPreview = false
+    var displayID: UInt32?
+    var cacheDirectory: URL?
+}
+
+private func inspectAcquireRequest(_ request: Any?) -> AcquireRequestDetails {
+    var details = AcquireRequestDetails()
+
+    func inspectDestination(_ value: Any, depth: Int) {
+        guard depth > 0 else { return }
+        let mirror = Mirror(reflecting: value)
+        for child in mirror.children {
+            switch child.label {
+            case "size":
+                if let size = child.value as? CGSize, size.width > 0, size.height > 0 {
+                    details.destinationSize = size
+                }
+            case "scaleFactor":
+                if let scale = child.value as? CGFloat, scale > 0 { details.scaleFactor = scale }
+            case "directDisplayID":
+                if let displayID = child.value as? UInt32 { details.displayID = displayID }
+            default:
+                inspectDestination(child.value, depth: depth - 1)
+            }
+        }
+    }
+
+    func inspect(_ value: Any, depth: Int) {
+        guard depth > 0 else { return }
+        let mirror = Mirror(reflecting: value)
+        for child in mirror.children {
+            switch child.label {
+            case "destination":
+                inspectDestination(child.value, depth: 4)
+            case "isPreview":
+                if let preview = child.value as? Bool { details.isPreview = preview }
+            case "cacheDirectory":
+                if let url = child.value as? URL { details.cacheDirectory = url }
+            default:
+                inspect(child.value, depth: depth - 1)
+            }
+        }
+    }
+
+    if let request { inspect(request, depth: 6) }
+    return details
+}
+
 /// Arm (or re-arm) the teardown timer for a display whose live wallpaper was invalidated.
 /// MUST be called on `Lifecycle.queue`.
 private func scheduleTeardown(for key: DisplayKey) {
@@ -148,36 +202,13 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
     private func acquireBody(id: Any?, request: Any?, reply: @escaping @Sendable (Any?, (any Error)?) -> Void) {
         traceLog("=== ACQUIRE ===")
 
-        // Extract destination size from WallpaperCreationRequestXPC
-        var destSize = CGSize(width: 2_560, height: 1_440) // fallback
-        var scaleFactor: CGFloat = 2.0
-        var isPreview = false
-        var displayID: UInt32?
-        if let reqObj = request as? NSObject {
-            let mirror = Mirror(reflecting: reqObj)
-            for child in mirror.children {
-                let reqMirror = Mirror(reflecting: child.value)
-                for prop in reqMirror.children {
-                    if prop.label == "destination" {
-                        let destMirror = Mirror(reflecting: prop.value)
-                        for destProp in destMirror.children {
-                            if destProp.label == "size", let size = destProp.value as? CGSize {
-                                destSize = size
-                            } else if destProp.label == "scaleFactor", let sf = destProp.value as? CGFloat {
-                                scaleFactor = sf
-                            } else if destProp.label == "directDisplayID", let did = destProp.value as? UInt32 {
-                                displayID = did
-                            }
-                        }
-                    } else if prop.label == "isPreview", let preview = prop.value as? Bool {
-                        isPreview = preview
-                    } else if prop.label == "cacheDirectory" {
-                        if let url = prop.value as? URL {
-                            WallpaperState.shared.cacheDirectoryURL = url
-                        }
-                    }
-                }
-            }
+        let requestDetails = inspectAcquireRequest(request)
+        let destSize = requestDetails.destinationSize
+        let scaleFactor = requestDetails.scaleFactor
+        let isPreview = requestDetails.isPreview
+        let displayID = requestDetails.displayID
+        if let cacheDirectory = requestDetails.cacheDirectory {
+            WallpaperState.shared.cacheDirectoryURL = cacheDirectory
         }
         // Extract choice configuration and files from descriptor via Mirror traversal
         // Path: WallpaperCreationRequestXPC.rawValue.descriptor.{configuration, files}
@@ -264,15 +295,19 @@ final class WallpaperXPCHandler: NSObject, WallpaperExtensionXPCProtocol {
             // of the now-larger panel (issue #21). Re-frame the root + renderer layers to the
             // new destination before re-hosting. Unchanged geometry (the common wake/revisit
             // re-acquire) returns nil and skips the relayout.
-            if let resized = WallpaperState.shared.updateGeometryIfChanged(destSize: destSize, scaleFactor: scaleFactor, for: key) {
+            let resized = WallpaperState.shared.updateGeometryIfChanged(destSize: destSize, scaleFactor: scaleFactor, for: key)
+            // Settings can rebuild the host while retaining the same reported geometry. Force
+            // its layer tree back to the preview destination on every preview acquire; otherwise
+            // an old backing-scale layout can appear as a small video on a black surface.
+            if let surface = resized ?? (isPreview ? existing : nil) {
                 CATransaction.begin()
                 CATransaction.setDisableActions(true)
-                resized.rootLayer.frame = CGRect(origin: .zero, size: destSize)
-                resized.rootLayer.contentsScale = scaleFactor
+                surface.rootLayer.frame = CGRect(origin: .zero, size: destSize)
+                surface.rootLayer.contentsScale = scaleFactor
                 CATransaction.commit()
                 CATransaction.flush()
-                resized.renderer?.resize(to: destSize, scale: scaleFactor)
-                extensionLog("  [acquire] REUSE geometry changed → resized surface on display \(key.displayID) to \(destSize) @\(scaleFactor)x")
+                surface.renderer?.resize(to: destSize, scale: scaleFactor)
+                extensionLog("  [acquire] \(isPreview ? "preview" : "surface") layout → \(destSize) @\(scaleFactor)x on display \(key.displayID)")
             }
 
             guard let replyObj = createRemoteContextXPC(contextId: existing.contextId) else {
