@@ -1,0 +1,61 @@
+README.md
+  9b1dc746f8fa0c5b 121-122,137-139,142-143,149-151
+build-app.sh
+  9b1dc746f8fa0c5b 19-20,55-56,104,106,150-151,153
+package-experimental.sh
+  9b1dc746f8fa0c5b 29-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "cc0542230da2ddacfc9957db2c003ccc955c0232",
+  "prompts": {
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "9b1dc746f8fa0c5b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a00f38-74bd-77e0-ab65-589bdcfe9391",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 26,
+      "total_deletions": 12,
+      "accepted_lines": 26,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "README.md": {
+          "additions": 10,
+          "deletions": 9,
+          "accepted_lines": 10
+        },
+        "package-experimental.sh": {
+          "additions": 7,
+          "accepted_lines": 7
+        },
+        "build-app.sh": {
+          "additions": 9,
+          "deletions": 3,
+          "accepted_lines": 9
+        }
+      }
+    }
+  }
+}
