@@ -1,0 +1,68 @@
+uninstall-wallume.sh
+  9b1dc746f8fa0c5b 5-14,17-19,23,25-27,32-36,39-41,45,49-53,58,69-91,93-94,96-97
+package-experimental.sh
+  9b1dc746f8fa0c5b 1-36
+build-app.sh
+  9b1dc746f8fa0c5b 119-126
+README.md
+  9b1dc746f8fa0c5b 16,22,26-33,45-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "d9f2b61535e2402bca2eca7aa4f0a6645627e738",
+  "prompts": {
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "9b1dc746f8fa0c5b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a00f38-74bd-77e0-ab65-589bdcfe9391",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 155,
+      "total_deletions": 58,
+      "accepted_lines": 154,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "README.md": {
+          "additions": 13,
+          "deletions": 4,
+          "accepted_lines": 13
+        },
+        "build-app.sh": {
+          "additions": 8,
+          "deletions": 3,
+          "accepted_lines": 8
+        },
+        "package-experimental.sh": {
+          "additions": 36,
+          "accepted_lines": 36
+        },
+        "uninstall-wallume.sh": {
+          "additions": 98,
+          "deletions": 51,
+          "accepted_lines": 97
+        }
+      }
+    }
+  }
+}
