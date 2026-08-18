@@ -32,7 +32,20 @@ public struct GalleryView: View {
             if let error = gallery.loadError {
                 ContentUnavailableView("无法读取图库", systemImage: "exclamationmark.triangle", description: Text(error))
             } else if gallery.items.isEmpty {
-                ContentUnavailableView("导入第一段动态画面", systemImage: "film.stack", description: Text("支持 MOV 和 MP4；导入后可直接分配到显示器。"))
+                VStack(spacing: 20) {
+                    ContentUnavailableView(
+                        "导入第一段动态画面",
+                        systemImage: "film.stack",
+                        description: Text("支持 MOV 和 MP4；也可以选择文件夹，Wallume 会递归识别其中的视频。")
+                    )
+                    HStack(spacing: 12) {
+                        Button("导入视频", systemImage: "film") { onImportFiles() }
+                            .buttonStyle(.borderedProminent)
+                            .tint(WallumeDesign.accent)
+                        Button("导入文件夹", systemImage: "folder") { onImportFolder() }
+                            .buttonStyle(.bordered)
+                    }
+                }
             } else {
                 ScrollView {
                     VStack(spacing: 0) {

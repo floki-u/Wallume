@@ -280,7 +280,6 @@ public struct LockScreenView: View {
                     Image(nsImage: image).resizable().scaledToFill()
                 } else {
                     Color(nsColor: .underPageBackgroundColor)
-                        .overlay(Image(systemName: "lock.display").font(.system(size: 42)).foregroundStyle(.secondary))
                 }
             }
             .frame(maxWidth: .infinity)

@@ -289,7 +289,8 @@ public struct ApplicationShellView: View {
                 ProjectionTopbar(
                     features: FeatureRegistry.availableFeatures(hasSettingsStore: settings != nil),
                     selection: $navigation.selection,
-                    onImport: onImportFiles,
+                    onImportFiles: onImportFiles,
+                    onImportFolder: onImportFolder,
                     themeName: $themeName,
                     languageName: $languageName,
                     onTheme: { showsThemePicker = true },
@@ -393,7 +394,8 @@ public struct ApplicationShellView: View {
 private struct ProjectionTopbar: View {
     let features: [WallumeFeature]
     @Binding var selection: WallumeFeatureID
-    let onImport: () -> Void
+    let onImportFiles: () -> Void
+    let onImportFolder: () -> Void
     @Binding var themeName: String
     @Binding var languageName: String
     let onTheme: () -> Void
@@ -452,9 +454,7 @@ private struct ProjectionTopbar: View {
                     .buttonStyle(.borderless)
                     .help(wallumeLocalized("设置"))
             }
-            Button(wallumeLocalized("导入视频"), systemImage: "plus", action: onImport)
-                .buttonStyle(.borderedProminent)
-                .tint(WallumeDesign.accent)
+            importMenu
         }
         .animation(.easeOut(duration: 0.16), value: selection)
     }
@@ -482,15 +482,20 @@ private struct ProjectionTopbar: View {
             Button(action: onTheme) { Image(systemName: "circle.lefthalf.filled").frame(width: 32, height: 32) }
                 .buttonStyle(.borderless)
                 .help(wallumeLocalized("主题"))
-            Button(action: onImport) {
-                Image(systemName: "plus")
-                    .frame(width: 36, height: 36)
-                    .foregroundStyle(.black)
-                    .background(palette.accent, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            }
-            .buttonStyle(.plain)
-                .help(wallumeLocalized("导入视频"))
+            importMenu
         }
+    }
+
+    private var importMenu: some View {
+        Menu {
+            Button(wallumeLocalized("导入视频"), systemImage: "film") { onImportFiles() }
+            Button(wallumeLocalized("导入文件夹"), systemImage: "folder") { onImportFolder() }
+        } label: {
+            Label(wallumeLocalized("导入"), systemImage: "plus")
+        }
+        .menuStyle(.borderedButton)
+        .tint(WallumeDesign.accent)
+        .help(wallumeLocalized("导入视频或文件夹"))
     }
 
     private func projectionTitle(for id: WallumeFeatureID) -> String {
