@@ -1,0 +1,75 @@
+Sources/WallumeAppSupport/LockScreen/NativeWallpaperProviderStore.swift
+  9b1dc746f8fa0c5b 76-94
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/WallpaperState.swift
+  9b1dc746f8fa0c5b 281-286
+Sources/WallumeAppSupport/UI/LockScreenView.swift
+  9b1dc746f8fa0c5b 394-403
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/WallpaperPrefs.swift
+  9b1dc746f8fa0c5b 99-101,105
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/WallpaperXPCHandler.swift
+  9b1dc746f8fa0c5b 64-70,308,329,430,748-751
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "b227f17daf745ab5ae6d944c19a7c1041d01e77c",
+  "prompts": {
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "9b1dc746f8fa0c5b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a00f38-74bd-77e0-ab65-589bdcfe9391",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 53,
+      "total_deletions": 29,
+      "accepted_lines": 53,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/WallpaperXPCHandler.swift": {
+          "additions": 14,
+          "deletions": 18,
+          "accepted_lines": 14
+        },
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/WallpaperState.swift": {
+          "additions": 6,
+          "accepted_lines": 6
+        },
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/WallpaperPrefs.swift": {
+          "additions": 4,
+          "deletions": 3,
+          "accepted_lines": 4
+        },
+        "Sources/WallumeAppSupport/UI/LockScreenView.swift": {
+          "additions": 10,
+          "deletions": 1,
+          "accepted_lines": 10
+        },
+        "Sources/WallumeAppSupport/LockScreen/NativeWallpaperProviderStore.swift": {
+          "additions": 19,
+          "deletions": 7,
+          "accepted_lines": 19
+        }
+      }
+    }
+  }
+}
