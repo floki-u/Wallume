@@ -18,13 +18,13 @@ Wallume 只处理本地文件，不上传视频，也不会自行替你修改 ma
 
 ## 下载与安装
 
-1. 打开 [Releases](https://github.com/floki-u/Wallume/releases)，下载最新标为 **Pre-release** 的压缩包；当前版本为 `Wallume-Experimental-1.1.0-macos14-plus.zip`。
+1. 打开 [Releases](https://github.com/floki-u/Wallume/releases)，下载最新标为 **Pre-release** 的压缩包；当前版本为 `Wallume-1.1.0.zip`。
 2. **不要双击压缩包解压。** 打开“终端”，依次执行：
 
    ```bash
    cd ~/Downloads
    mkdir -p Wallume-1.1.0
-   ditto -x -k Wallume-Experimental-1.1.0-macos14-plus.zip Wallume-1.1.0
+   ditto -x -k Wallume-1.1.0.zip Wallume-1.1.0
    ```
 
    如果刚才已经双击且 Finder 一直显示“正在解压缩”，先终止它再执行上面命令：
