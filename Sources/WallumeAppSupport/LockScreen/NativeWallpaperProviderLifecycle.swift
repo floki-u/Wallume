@@ -219,10 +219,19 @@ public actor NativeWallpaperProviderLifecycle {
         )
     }
 
-    /// Verifies that no Wallume provider surface remains before allowing cleanup.
+    /// Records the user's confirmation that System Settings no longer selects Wallume.
+    ///
+    /// WallpaperAgent does not notify the provider when a user selects another wallpaper, so an
+    /// extension's last persisted `isActive` value is only a stale hint at this point. The caller
+    /// obtains an explicit confirmation after directing the user to System Settings; clear that
+    /// hint before marking the deployment inactive so cleanup can make progress.
     public func confirmSystemReset() throws {
-        guard try !hasActiveSystemSelection() else {
-            throw NativeWallpaperProviderLifecycleError.resetRequired
+        if files.exists(paths.providerStateFile) {
+            guard try files.hasNoSymlinkComponents(paths.providerStateFile),
+                  try files.identity(of: paths.providerStateFile).isRegularFile else {
+                throw NativeWallpaperProviderLifecycleError.unsupportedState
+            }
+            try files.remove(paths.providerStateFile)
         }
         guard let record = try deployment() else { return }
         try json.write(
