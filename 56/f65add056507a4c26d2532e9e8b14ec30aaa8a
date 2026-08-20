@@ -1,0 +1,48 @@
+NativeWallpaperProvider/WallumeNativeWallpaperProvider.xcodeproj/project.pbxproj
+  759cfd31977bff9c 222,256,429,476
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "56f65add056507a4c26d2532e9e8b14ec30aaa8a",
+  "prompts": {
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "759cfd31977bff9c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01e4c-f07a-7e91-ac2a-955b36061a6b",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 4,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeNativeWallpaperProvider.xcodeproj/project.pbxproj": {
+          "additions": 4,
+          "deletions": 4,
+          "accepted_lines": 4
+        }
+      }
+    }
+  }
+}
