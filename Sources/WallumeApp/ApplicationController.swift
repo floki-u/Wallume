@@ -25,6 +25,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private let settingsExportTerminationOwner: SettingsDiagnosticsExportTerminationOwner
     private let lockScreenDiagnosticsSnapshot: LockScreenDiagnosticsSnapshot
     private let screenSaverConfigurationPublisher: ScreenSaverConfigurationPublisher
+    private let nativeWallpaperPreferencePublisher: NativeWallpaperPreferencePublisher
     private let navigation = ApplicationNavigation()
     private let panels = ImportPanelController()
     private let notifier: any CompletionNotifying
@@ -49,6 +50,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         let settingsSnapshot = ApplicationSettingsSnapshot()
         let lockScreenDiagnosticsSnapshot = LockScreenDiagnosticsSnapshot()
         let screenSaverConfigurationPublisher = ScreenSaverConfigurationPublisher(homeDirectory: home, files: files)
+        let nativeWallpaperPreferencePublisher = NativeWallpaperPreferencePublisher(homeDirectory: home, files: files)
         let environmentMonitor = RuntimeEnvironmentMonitor()
         let settingsStore = SettingsStore(
             onSettingsChanged: { settingsSnapshot.update($0) },
@@ -154,6 +156,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         self.settingsExportTerminationOwner = settingsExportTerminationOwner
         self.lockScreenDiagnosticsSnapshot = lockScreenDiagnosticsSnapshot
         self.screenSaverConfigurationPublisher = screenSaverConfigurationPublisher
+        self.nativeWallpaperPreferencePublisher = nativeWallpaperPreferencePublisher
         gallery = GalleryStore(
             library: library,
             usage: PersistedMediaUsageChecker(url: paths.displayAssignments, files: files, store: jsonStore)
@@ -310,6 +313,11 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 assignmentConfigurationLoaded = false
                 displayStore.reportPageError("显示器配置无法读取：\(error.localizedDescription)")
             }
+            do {
+                try nativeWallpaperPreferencePublisher.publish(userPaused: latestAssignments.userPaused)
+            } catch {
+                displayStore.reportPageError("无法同步播放状态：\(error.localizedDescription)")
+            }
             await refreshDisplayAndLockScreenState()
             if nativeWallpaperProviderStore.status != .activeInSystem {
                 runtimeService.start(assignments: latestAssignments)
@@ -337,6 +345,11 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             for await snapshot in stream {
                 guard let self else { return }
                 latestAssignments = snapshot
+                do {
+                    try nativeWallpaperPreferencePublisher.publish(userPaused: snapshot.userPaused)
+                } catch {
+                    displayStore.reportPageError("无法同步播放状态：\(error.localizedDescription)")
+                }
                 if nativeWallpaperProviderStore.status != .activeInSystem {
                     runtimeService.apply(assignments: snapshot)
                 }
