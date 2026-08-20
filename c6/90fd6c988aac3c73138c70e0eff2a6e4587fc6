@@ -1,0 +1,55 @@
+Sources/WallumeApp/ApplicationController.swift
+  759cfd31977bff9c 28,53,159,316-319,348-352
+Sources/WallumeAppSupport/LockScreen/NativeWallpaperPreferencePublisher.swift
+  759cfd31977bff9c 1-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "c690fd6c988aac3c73138c70e0eff2a6e4587fc6",
+  "prompts": {
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "759cfd31977bff9c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01e4c-f07a-7e91-ac2a-955b36061a6b",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 70,
+      "total_deletions": 5,
+      "accepted_lines": 65,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/LockScreen/NativeWallpaperPreferencePublisher.swift": {
+          "additions": 56,
+          "deletions": 4,
+          "accepted_lines": 52
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "additions": 14,
+          "deletions": 1,
+          "accepted_lines": 13
+        }
+      }
+    }
+  }
+}
