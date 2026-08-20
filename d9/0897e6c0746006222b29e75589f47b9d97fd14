@@ -1,0 +1,83 @@
+Sources/WallumeCore/AppKitRuntime/RuntimeEnvironmentMonitor.swift
+  759cfd31977bff9c 42,159
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/PlaybackPolicy.swift
+  759cfd31977bff9c 20-21,40
+Sources/WallumeAppSupport/Settings/SettingsStore.swift
+  759cfd31977bff9c 36
+Sources/WallumeApp/ApplicationController.swift
+  759cfd31977bff9c 506
+Sources/WallumeAppSupport/UI/SettingsView.swift
+  759cfd31977bff9c 38
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/PowerMonitor.swift
+  759cfd31977bff9c 24-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "d90897e6c0746006222b29e75589f47b9d97fd14",
+  "prompts": {
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "759cfd31977bff9c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01e4c-f07a-7e91-ac2a-955b36061a6b",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 17,
+      "accepted_lines": 10,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/PlaybackPolicy.swift": {
+          "additions": 3,
+          "deletions": 10,
+          "accepted_lines": 3
+        },
+        "Sources/WallumeCore/AppKitRuntime/RuntimeEnvironmentMonitor.swift": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 2
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        "Sources/WallumeAppSupport/UI/SettingsView.swift": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        "Sources/WallumeAppSupport/Settings/SettingsStore.swift": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/PowerMonitor.swift": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 2
+        }
+      }
+    }
+  }
+}
