@@ -36,21 +36,12 @@ enum PlaybackPolicy: Int, Comparable {
 
         // --- paused tier ---
         if userPaused { worst = max(worst, .paused) }
-        if thermalState == .critical { worst = max(worst, .paused) }
-        if isOnBattery, batteryLevel <= 5 { worst = max(worst, .paused) }
         if activityState.contains("suspended") { worst = max(worst, .paused) }
         // WallpaperAgent transiently reports `idle` while it is moving a live
         // surface between the desktop and lock screen. Treating that state as a
         // pause causes visible stop/start hitches even though the surface is
         // still being composited. Only an explicit suspended state may stop
         // playback here.
-        if isGameModeActive { worst = max(worst, .paused) }
-        // User dimmed the backlight to ~zero. The display is technically still
-        // "awake" so `screensDidSleep` doesn't fire and the WallpaperAgent never
-        // switches to "idle", but the user can't see any of it.
-        if displayBrightness < PowerMonitor.PowerState.brightnessPauseThreshold {
-            worst = max(worst, .paused)
-        }
         // Desktop occlusion is irrelevant on the lock screen — the wallpaper
         // is always fully visible there regardless of desktop window state.
         if pauseWhenOccluded, desktopOccluded, presentationMode != "locked" { worst = max(worst, .paused) }
