@@ -39,7 +39,7 @@ public final class RuntimeEnvironmentMonitor {
     private var screenLocked = false
     private var systemSleeping = false
     private var lowPowerMode = false
-    private var lowPowerPauseEnabled = true
+    private var lowPowerPauseEnabled = false
     private var thermalPressure = false
 
     public init(
@@ -156,7 +156,7 @@ public final class RuntimeEnvironmentMonitor {
     }
 
     private static func hasThermalPressure(_ state: ProcessInfo.ThermalState) -> Bool {
-        state == .serious || state == .critical
+        state == .critical
     }
 
     private func emit() {

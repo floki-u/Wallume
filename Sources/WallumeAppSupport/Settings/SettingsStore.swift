@@ -33,7 +33,7 @@ public final class SettingsStore {
         settings = ApplicationSettings(
             launchAtLogin: launchAtLogin,
             openGalleryAtLaunch: defaults.bool(forKey: Keys.openGalleryAtLaunch),
-            pauseInLowPowerMode: defaults.object(forKey: Keys.pauseInLowPowerMode) as? Bool ?? true
+            pauseInLowPowerMode: defaults.object(forKey: Keys.pauseInLowPowerMode) as? Bool ?? false
         )
     }
 

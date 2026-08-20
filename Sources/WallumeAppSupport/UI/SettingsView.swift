@@ -35,7 +35,7 @@ public enum SettingsPreferenceControl: String, CaseIterable, Identifiable, Senda
         switch self {
         case .launchAtLogin: "登录时启动 Wallume"
         case .openGalleryAtLaunch: "启动时打开图库"
-        case .pauseInLowPowerMode: "低电量模式时暂停播放"
+        case .pauseInLowPowerMode: "低电量模式时暂停播放（可选）"
         }
     }
 }

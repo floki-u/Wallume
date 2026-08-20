@@ -503,7 +503,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
 
 private final class ApplicationSettingsSnapshot: @unchecked Sendable {
     private let lock = NSLock()
-    private var storage = ApplicationSettings(launchAtLogin: false, openGalleryAtLaunch: false, pauseInLowPowerMode: true)
+    private var storage = ApplicationSettings(launchAtLogin: false, openGalleryAtLaunch: false, pauseInLowPowerMode: false)
 
     var value: ApplicationSettings {
         lock.withLock { storage }

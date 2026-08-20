@@ -21,8 +21,8 @@ final class PowerMonitor: Sendable {
         var displayBrightness: Float = 1.0
 
         var shouldPause: Bool {
-            if thermalState == .critical || thermalState == .serious { return true }
-            if isOnBattery, batteryLevel < 20 { return true }
+            if thermalState == .critical { return true }
+            if isOnBattery, batteryLevel <= 5 { return true }
             if displayBrightness < Self.brightnessPauseThreshold { return true }
             return false
         }

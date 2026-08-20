@@ -17,7 +17,8 @@ enum PlaybackPolicy: Int, Comparable {
     /// `alwaysPauseDesktop`: when true, wallpaper only plays on the lock screen.
     /// On the desktop (unlocked), it pauses with a ramp animation.
     ///
-    /// Lock screen never reduces FPS by itself — only power/thermal conditions do.
+    /// Playback is experience-first by default. Quality reduction is reserved for
+    /// an explicit low-power mode rather than normal battery or thermal changes.
     static func compute(
         presentationMode: String,
         activityState: String,
@@ -36,7 +37,7 @@ enum PlaybackPolicy: Int, Comparable {
         // --- paused tier ---
         if userPaused { worst = max(worst, .paused) }
         if thermalState == .critical { worst = max(worst, .paused) }
-        if batteryLevel < 10 { worst = max(worst, .paused) }
+        if isOnBattery, batteryLevel <= 5 { worst = max(worst, .paused) }
         if activityState.contains("suspended") { worst = max(worst, .paused) }
         // WallpaperAgent transiently reports `idle` while it is moving a live
         // surface between the desktop and lock screen. Treating that state as a
@@ -54,14 +55,6 @@ enum PlaybackPolicy: Int, Comparable {
         // is always fully visible there regardless of desktop window state.
         if pauseWhenOccluded, desktopOccluded, presentationMode != "locked" { worst = max(worst, .paused) }
         if alwaysPauseDesktop, presentationMode != "locked" { worst = max(worst, .paused) }
-
-        // --- minimal tier ---
-        if thermalState == .serious { worst = max(worst, .minimal) }
-        if isOnBattery, batteryLevel < 20 { worst = max(worst, .minimal) }
-
-        // --- reduced tier ---
-        if thermalState == .fair { worst = max(worst, .reduced) }
-        if isOnBattery { worst = max(worst, .reduced) }
 
         return worst
     }
