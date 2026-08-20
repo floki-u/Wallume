@@ -119,9 +119,10 @@ public struct AVFoundationMediaTranscoder: MediaTranscoding {
         progress?(1)
 
         let output = try await inspector.inspect(destination)
-        guard output.codec == "hvc1",
-              max(output.pixelWidth, output.pixelHeight) <= 3840,
-              output.frameRate <= 60 else {
+        // Preserve the imported master exactly as exported by AVFoundation. Playback adapts the
+        // layer geometry to each display; imposing a global resolution or frame-rate ceiling here
+        // permanently degrades the only source the native wallpaper provider can use.
+        guard output.codec == "hvc1" else {
             try? FileManager.default.removeItem(at: destination)
             throw AVFoundationMediaError.exportFailed(destination)
         }
@@ -137,19 +138,14 @@ public struct AVFoundationMediaTranscoder: MediaTranscoding {
         let transformedRect = CGRect(origin: .zero, size: naturalSize).applying(transform)
         let displayWidth = abs(transformedRect.width)
         let displayHeight = abs(transformedRect.height)
-        let longestEdge = max(displayWidth, displayHeight)
-        let scale = min(1, 3840 / longestEdge)
         let renderSize = CGSize(
-            width: max(1, (displayWidth * scale).rounded()),
-            height: max(1, (displayHeight * scale).rounded())
+            width: max(1, displayWidth.rounded()),
+            height: max(1, displayHeight.rounded())
         )
 
         let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
         var normalized = transform
         normalized = normalized.translatedBy(x: -transformedRect.minX, y: -transformedRect.minY)
-        if scale < 1 {
-            normalized = normalized.scaledBy(x: scale, y: scale)
-        }
         layer.setTransform(normalized, at: .zero)
 
         let instruction = AVMutableVideoCompositionInstruction()
@@ -159,7 +155,7 @@ public struct AVFoundationMediaTranscoder: MediaTranscoding {
         let composition = AVMutableVideoComposition()
         composition.instructions = [instruction]
         composition.renderSize = renderSize
-        composition.frameDuration = CMTime(value: 1, timescale: CMTimeScale(min(max(frameRate, 1), 60)))
+        composition.frameDuration = CMTime(value: 1, timescale: CMTimeScale(max(frameRate, 1)))
         return composition
     }
 }
