@@ -51,10 +51,6 @@ public struct AVFoundationMediaInspector: MediaInspecting {
 
 public struct AVFoundationMediaTranscoder: MediaTranscoding {
     private let inspector = AVFoundationMediaInspector()
-    /// A single imported asset can be decoded once per active wallpaper surface. 2560 px
-    /// covers a 1440p desktop without making two simultaneous 4K/60 HEVC decoders the
-    /// default on multi-display Macs.
-    private static let smoothPlaybackLongestEdge: CGFloat = 2560
 
     public init() {}
 
@@ -124,7 +120,7 @@ public struct AVFoundationMediaTranscoder: MediaTranscoding {
 
         let output = try await inspector.inspect(destination)
         guard output.codec == "hvc1",
-              max(output.pixelWidth, output.pixelHeight) <= Int(Self.smoothPlaybackLongestEdge),
+              max(output.pixelWidth, output.pixelHeight) <= 3840,
               output.frameRate <= 60 else {
             try? FileManager.default.removeItem(at: destination)
             throw AVFoundationMediaError.exportFailed(destination)
@@ -142,7 +138,7 @@ public struct AVFoundationMediaTranscoder: MediaTranscoding {
         let displayWidth = abs(transformedRect.width)
         let displayHeight = abs(transformedRect.height)
         let longestEdge = max(displayWidth, displayHeight)
-        let scale = min(1, Self.smoothPlaybackLongestEdge / longestEdge)
+        let scale = min(1, 3840 / longestEdge)
         let renderSize = CGSize(
             width: max(1, (displayWidth * scale).rounded()),
             height: max(1, (displayHeight * scale).rounded())
