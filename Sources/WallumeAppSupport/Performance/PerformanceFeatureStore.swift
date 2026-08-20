@@ -42,13 +42,22 @@ public struct PerformanceFeatureCommands: Sendable {
 @MainActor @Observable
 public final class PerformanceFeatureStore {
     public private(set) var snapshot: PerformanceDiagnosticsSnapshot
+    public private(set) var nativeRendererMetrics: NativeRendererMetrics
     public private(set) var pageError: String?
 
     private let commands: PerformanceFeatureCommands
+    private let nativeRendererMetricsReader: NativeRendererMetricsReader
     private let observation = PerformanceFeatureObservation()
+    private var nativeMetricsObservationTask: Task<Void, Never>?
 
-    public init(service: PerformanceDiagnosticsService, commands: PerformanceFeatureCommands? = nil) {
+    public init(
+        service: PerformanceDiagnosticsService,
+        commands: PerformanceFeatureCommands? = nil,
+        nativeRendererMetricsReader: NativeRendererMetricsReader = NativeRendererMetricsReader()
+    ) {
         self.commands = commands ?? .service(service)
+        self.nativeRendererMetricsReader = nativeRendererMetricsReader
+        nativeRendererMetrics = nativeRendererMetricsReader.read()
         snapshot = PerformanceDiagnosticsSnapshot(
             realtimeSummary: PerformanceSummary(samples: []),
             runtime: PerformanceRuntimeContext(snapshot: .empty),
@@ -72,10 +81,17 @@ public final class PerformanceFeatureStore {
 
     deinit { observation.cancel() }
 
-    public func pageAppeared() async { await perform { try await commands.beginRealtime() } }
+    public func pageAppeared() async {
+        await perform { try await commands.beginRealtime() }
+        startNativeMetricsObservation()
+    }
 
     /// Does not cancel diagnostics: their lifecycle belongs to the service/application.
-    public func pageDisappeared() async { await perform { try await commands.endRealtime() } }
+    public func pageDisappeared() async {
+        nativeMetricsObservationTask?.cancel()
+        nativeMetricsObservationTask = nil
+        await perform { try await commands.endRealtime() }
+    }
 
     public func startDiagnostic(scenario: PerformanceDiagnosticScenario) async {
         await perform { try await commands.startDiagnostic(scenario) }
@@ -101,6 +117,18 @@ public final class PerformanceFeatureStore {
         snapshot = value
         if let error = value.realtimeError ?? value.diagnosticError ?? value.reportSaveError {
             pageError = error.userVisibleDescription
+        }
+    }
+
+    private func startNativeMetricsObservation() {
+        guard nativeMetricsObservationTask == nil else { return }
+        nativeRendererMetrics = nativeRendererMetricsReader.read()
+        nativeMetricsObservationTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self else { return }
+                self.nativeRendererMetrics = self.nativeRendererMetricsReader.read()
+            }
         }
     }
 

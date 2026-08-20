@@ -78,6 +78,7 @@ public struct PerformanceView: View {
             .frame(height: 180, alignment: .bottom)
             Divider()
             HStack { metric("显示器", value: store.snapshot.runtime.activeDisplayCount.formatted()); metric("CPU", value: percent(store.snapshot.realtimeSummary.currentCPUPercent)); metric("内存", value: bytes(store.snapshot.realtimeSummary.currentResidentBytes)) }
+            nativeRendererMetricsCard
             diagnosticCard(page)
         }
         .padding(24)
@@ -141,6 +142,22 @@ public struct PerformanceView: View {
             Text("共享资源 \(runtime.sharedResourceCount)（引用 \(runtime.sharedResourceReferenceCount)）· 已创建资源 \(runtime.resourceCreationCount)")
             Text(runtime.pauseReasons.isEmpty ? "暂停原因：无" : "暂停原因：\(runtime.pauseReasons.map(\.rawValue).joined(separator: "、"))")
                 .foregroundStyle(.secondary)
+        }.wallumeCard()
+    }
+
+    private var nativeRendererMetricsCard: some View {
+        let metrics = store.nativeRendererMetrics
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("原生墙纸渲染器").font(.title3.bold())
+            if metrics.updatedAt == nil {
+                Text("系统墙纸尚未启用 Wallume，暂无原生渲染数据。")
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("活动渲染器 \(metrics.activeRenderers) · 已提交帧 \(metrics.enqueuedFrames) · 读取器循环 \(metrics.readerExhaustions)")
+                Text("每秒刷新；仅显示本机计数，不包含视频名称或路径。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }.wallumeCard()
     }
 
