@@ -335,9 +335,6 @@ final class VideoRenderer: @unchecked Sendable {
         cancelDeepPauseTimer()
         stillFrameLayer.opacity = 0
         if currentReader == nil {
-            // Woke from deep pause — readers were freed. Recreate CONTINUING from the paused
-            // position (seamless, no black) so a screen-lock/display-sleep wake resumes the
-            // same video instead of restarting it.
             queue.async { [weak self] in
                 guard let self, isRunning else { return }
                 recreatePlayback(seamlessResume: true)
@@ -428,8 +425,6 @@ final class VideoRenderer: @unchecked Sendable {
         stillFrameLayer.opacity = 0
 
         if currentReader == nil {
-            // Deep-paused: no frames to ramp into. Wake instantly (continuing from the paused
-            // position, seamless) instead of running a 2-second ramp against an empty pipeline.
             queue.async { [weak self] in
                 guard let self, isRunning else { return }
                 recreatePlayback(seamlessResume: true)
@@ -473,13 +468,9 @@ final class VideoRenderer: @unchecked Sendable {
 
     // MARK: - Deep Pause
 
-    //
-    // After a sustained pause (lock screen overnight, brightness at zero, etc.)
-    // the asset reader still holds decoded buffers and the underlying video
-    // decoder. Tearing them down frees memory and lets the system fully idle.
-    // On resume we recreate the pipeline from scratch via `recreatePlayback()`.
-
-    private static let deepPauseDelay: TimeInterval = 30
+    // Keep the decoder warm across ordinary lock/unlock and display-transition
+    // pauses. Only a long inactive period releases it to bound resource use.
+    private static let deepPauseDelay: TimeInterval = 10 * 60
 
     private func scheduleDeepPause() {
         cancelDeepPauseTimer()
@@ -497,7 +488,6 @@ final class VideoRenderer: @unchecked Sendable {
         deepPauseTimer = nil
     }
 
-    /// Runs on the renderer queue when the deep-pause timer fires.
     private func enterDeepPause() {
         deepPauseTimer = nil
         guard isRunning, isPaused, currentReader != nil else { return }
@@ -511,14 +501,8 @@ final class VideoRenderer: @unchecked Sendable {
         extensionLog("  [Renderer] Deep-paused — freed asset readers")
     }
 
-    /// Rebuild the playback pipeline on the renderer queue. Two modes:
-    /// - `seamlessResume: true` (deep-pause wake): CONTINUE from the paused timebase
-    ///   position, keeping the last frame on screen — no black flash, no restart-from-0.
-    ///   This is what a screen-lock/display-sleep wake uses so the video resumes where it
-    ///   left off (Kiri: "show the same video continuously", not blink-and-restart).
-    /// - `seamlessResume: false` (error recovery): hard reset to time 0 and clear the
-    ///   (possibly corrupt) displayed frame.
-    /// Caller restores the timebase rate.
+    /// Rebuild the playback pipeline after a long pause or renderer failure.
+    /// A long-pause resume continues from the held timebase position.
     private func recreatePlayback(seamlessResume: Bool = false) {
         traceLog("  [recreatePlayback #\(debugID)] seamless=\(seamlessResume) asset=\(asset.url.lastPathComponent)")
         renderer.stopRequestingMediaData()
@@ -529,7 +513,6 @@ final class VideoRenderer: @unchecked Sendable {
 
         let resumeTime = CMTimebaseGetTime(timebase)
         let continuing = seamlessResume && resumeTime.isNumeric && resumeTime > .zero
-        // Keep the last displayed frame when continuing (no black); clear it on error reset.
         renderer.flush(removingDisplayedImage: !continuing)
 
         guard let reader = try? AVAssetReader(asset: asset) else {
@@ -539,8 +522,6 @@ final class VideoRenderer: @unchecked Sendable {
             return
         }
         if continuing {
-            // Resume reading from the paused position (AVAssetReader seeks to the enclosing
-            // keyframe and emits from here) so playback continues instead of restarting.
             reader.timeRange = CMTimeRange(start: resumeTime, duration: .positiveInfinity)
         }
         let output = AVAssetReaderTrackOutput(track: videoTrack, outputSettings: nil)
@@ -556,8 +537,7 @@ final class VideoRenderer: @unchecked Sendable {
             CMTimebaseSetTime(timebase, time: .zero)
         }
 
-        // Enqueue the first frame tagged DisplayImmediately so it replaces the held frame the
-        // instant it decodes — seamless when continuing, and no wait-on-timebase on reset.
+        // Replace the held frame immediately without waiting on the timebase.
         if let first = output.copyNextSampleBuffer() {
             Self.setDisplayImmediately(first)
             renderer.enqueue(first)

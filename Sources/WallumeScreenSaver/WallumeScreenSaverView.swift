@@ -22,7 +22,7 @@ public final class WallumeScreenSaverView: ScreenSaverView {
     }
 
     private func configureLayer() {
-        animationTimeInterval = 1 / 30
+        updateAnimationInterval()
         wantsLayer = true
         playerLayer.videoGravity = .resizeAspectFill
         playerLayer.frame = bounds
@@ -42,6 +42,16 @@ public final class WallumeScreenSaverView: ScreenSaverView {
     public override func layout() {
         super.layout()
         playerLayer.frame = bounds
+    }
+
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateAnimationInterval()
+    }
+
+    private func updateAnimationInterval() {
+        let refreshRate = max(window?.screen?.maximumFramesPerSecond ?? 60, 1)
+        animationTimeInterval = 1 / TimeInterval(refreshRate)
     }
 
     private func loadConfiguredVideo() {
