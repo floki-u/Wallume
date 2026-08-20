@@ -201,6 +201,7 @@ final class VideoRenderer: @unchecked Sendable {
 
             currentReader = reader
             currentOutput = output
+            RendererMetrics.rendererStarted()
             ptsOffset = .zero
             lastEnqueuedEnd = .zero
 
@@ -310,6 +311,7 @@ final class VideoRenderer: @unchecked Sendable {
         cancelDeepPauseTimer()
         queue.sync {
             isRunning = false
+            RendererMetrics.rendererStopped()
             renderer.stopRequestingMediaData()
             currentReader?.cancelReading()
             nextReader?.cancelReading()
@@ -767,7 +769,9 @@ final class VideoRenderer: @unchecked Sendable {
                     }
 
                     renderer.enqueue(adjusted)
+                    RendererMetrics.frameEnqueued()
                 } else {
+                    RendererMetrics.readerExhausted()
                     // Dispatch async: requestMediaDataWhenReady is not reentrant.
                     if feedLogBudget > 0 {
                         traceLog("  [feed #\(debugID)] reader exhausted after enqueuing this tick=\(enqueuedThisTick); status=\(renderer.status.rawValue) → swapToNextReader")
