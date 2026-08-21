@@ -118,6 +118,9 @@ cat > "$CONTENTS/Info.plist" << EOF
 </dict>
 </plist>
 EOF
+# The cleanup helper lives in Resources rather than a nested bundle, so sign it explicitly.
+# `--deep` on the enclosing app does not reliably replace an ad-hoc signature on this Mach-O.
+codesign --force --sign "$SIGNING_IDENTITY" "$RESOURCES/wallume-provider-cleanup" >/dev/null
 codesign --force --deep --sign "$SIGNING_IDENTITY" "$APP_PATH" >/dev/null
 codesign --verify --deep --strict "$APP_PATH"
 # System Settings must never point to Xcode's DerivedData product, which disappears on the next

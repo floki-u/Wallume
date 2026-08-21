@@ -49,6 +49,11 @@ if [[ ! -x "$CLEANUP_TOOL" ]]; then
     exit 1
 fi
 
+# A release ZIP retains macOS's quarantine attribute. The helper is executed by this script,
+# before the user has necessarily opened the bundled app, so clear quarantine from the package
+# we are explicitly running rather than letting Gatekeeper terminate the helper with SIGKILL.
+xattr -dr com.apple.quarantine "$TOOL_APP_PATH" >/dev/null 2>&1 || true
+
 echo "Wallume 即将退出，然后移除原生墙纸扩展。"
 osascript -e 'tell application id "com.wallume.app" to quit' >/dev/null 2>&1 || true
 sleep 1
