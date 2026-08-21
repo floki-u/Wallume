@@ -246,9 +246,12 @@ public actor NativeWallpaperProviderLifecycle {
     }
 
     /// Removes only the deterministic Wallume provider directory. It never removes media from
-    /// the main Wallume library and refuses cleanup while a system selection may still reference it.
+    /// the main Wallume library. `confirmSystemReset()` is the user-confirmed authorization
+    /// boundary: WallpaperAgent can keep an extension process alive briefly after a wallpaper
+    /// change and let it rewrite a stale provider-state hint. Do not re-evaluate that racy hint
+    /// here, or a confirmed uninstall can never make progress.
     public func cleanupAfterReset() throws {
-        if try hasActiveSystemSelection() || (try deployment()?.isActiveInSystem == true) {
+        if try deployment()?.isActiveInSystem == true {
             throw NativeWallpaperProviderLifecycleError.resetRequired
         }
         guard files.exists(paths.root) else { return }
