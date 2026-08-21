@@ -1,0 +1,77 @@
+Sources/WallumeAppSupport/Resources/en.lproj/Localizable.strings
+  759cfd31977bff9c 52-55
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/RendererMetrics.swift
+  759cfd31977bff9c 15-21,25-26,29,31,37-43
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/PhospheneExtension.swift
+  759cfd31977bff9c 9
+Sources/WallumeAppSupport/UI/PerformanceView.swift
+  759cfd31977bff9c 156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "1e8f03f2d692d54e2df8ef7b1997ba6a4978a613",
+  "prompts": {
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "759cfd31977bff9c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01e4c-f07a-7e91-ac2a-955b36061a6b",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 814,
+      "total_deletions": 299,
+      "accepted_lines": 78,
+      "overriden_lines": 20,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/SharedVideoFrameSource.swift": {
+          "additions": 500,
+          "deletions": 141
+        },
+        "Sources/WallumeAppSupport/UI/PerformanceView.swift": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/RendererMetrics.swift": {
+          "additions": 18,
+          "deletions": 3,
+          "accepted_lines": 18
+        },
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/VideoRenderer.swift": {
+          "additions": 290,
+          "deletions": 154,
+          "accepted_lines": 54,
+          "overriden_lines": 20
+        },
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/PhospheneExtension.swift": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        "Sources/WallumeAppSupport/Resources/en.lproj/Localizable.strings": {
+          "additions": 4,
+          "accepted_lines": 4
+        }
+      }
+    }
+  }
+}
