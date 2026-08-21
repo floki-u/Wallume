@@ -33,15 +33,19 @@ if [[ ! -d "$DEFAULT_APP" && -d "/Applications/Wallume.app" ]]; then
     DEFAULT_APP="/Applications/Wallume.app"
 fi
 APP_PATH="${1:-$DEFAULT_APP}"
-CLEANUP_TOOL="$APP_PATH/Contents/Resources/wallume-provider-cleanup"
+# The script may be newer than the app it is uninstalling. Always run the helper embedded in
+# this package, otherwise invoking a newly downloaded uninstaller against an older app silently
+# executes the older app's buggy helper again.
+TOOL_APP_PATH="$SCRIPT_DIRECTORY/Wallume.app"
+CLEANUP_TOOL="$TOOL_APP_PATH/Contents/Resources/wallume-provider-cleanup"
 EXTENSION_PATH="$APP_PATH/Contents/Extensions/WallumeNativeWallpaperExtension.appex"
 APPLICATION_SUPPORT="$HOME/Library/Application Support/Wallume"
 CACHE_DIRECTORY="$HOME/Library/Caches/app.wallume.Wallume"
 PREFERENCES_FILE="$HOME/Library/Preferences/com.wallume.app.plist"
 
 if [[ ! -x "$CLEANUP_TOOL" ]]; then
-    echo "未在此处找到 Wallume 清理工具：$APP_PATH" >&2
-    echo "请在将 Wallume.app 移到废纸篓前运行此脚本。" >&2
+    echo "未在此安装包中找到 Wallume 清理工具：$TOOL_APP_PATH" >&2
+    echo "请从完整的 Wallume 安装包目录运行此脚本。" >&2
     exit 1
 fi
 
