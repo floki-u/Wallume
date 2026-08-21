@@ -153,7 +153,7 @@ public struct PerformanceView: View {
                 Text("系统墙纸尚未启用 Wallume，暂无原生渲染数据。")
                     .foregroundStyle(.secondary)
             } else {
-                Text("活动渲染器 \(metrics.activeRenderers) · 已提交帧 \(metrics.enqueuedFrames) · 读取器循环 \(metrics.readerExhaustions)")
+                Text("活动原生表面 \(metrics.activeRenderers) · 已提交帧 \(metrics.enqueuedFrames) · 读取器循环 \(metrics.readerExhaustions)")
                 Text("每秒刷新；仅显示本机计数，不包含视频名称或路径。")
                     .font(.caption)
                     .foregroundStyle(.secondary)

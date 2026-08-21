@@ -49,6 +49,10 @@
 "正在消耗" = "Current usage";
 "常驻内存" = "Resident memory";
 "壁纸运行时" = "Wallpaper runtime";
+"原生墙纸渲染器" = "Native wallpaper renderer";
+"系统墙纸尚未启用 Wallume，暂无原生渲染数据。" = "Wallume isn't selected as the system wallpaper, so no native rendering data is available.";
+"活动原生表面 %lld · 已提交帧 %lld · 读取器循环 %lld" = "Active native surfaces %lld · Submitted frames %lld · Reader loops %lld";
+"每秒刷新；仅显示本机计数，不包含视频名称或路径。" = "Updates once per second. Counts stay on this Mac and never include video names or paths.";
 "30 秒本地诊断" = "30-second local diagnostics";
 "取消当前诊断" = "Cancel diagnostics";
 "重试保存本地报告" = "Retry saving local report";
