@@ -58,12 +58,14 @@ if [[ "$ANSWER" != "y" && "$ANSWER" != "Y" ]]; then
     exit 0
 fi
 
-"$CLEANUP_TOOL" confirm-system-reset
-"$CLEANUP_TOOL" cleanup
-
+# Stop the extension before recording the reset. Otherwise WallpaperAgent may let a stale
+# extension process write one last "active" hint during cleanup.
 if [[ -d "$EXTENSION_PATH" ]]; then
     pluginkit -r "$EXTENSION_PATH" >/dev/null 2>&1 || true
 fi
+
+"$CLEANUP_TOOL" confirm-system-reset
+"$CLEANUP_TOOL" cleanup
 
 if [[ $PURGE_DATA -eq 1 ]]; then
     echo

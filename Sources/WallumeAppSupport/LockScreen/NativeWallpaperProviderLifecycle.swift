@@ -11,6 +11,7 @@ public struct NativeWallpaperProviderPaths: Sendable, Equatable {
     public let root: URL
     public let stateFile: URL
     public let providerStateFile: URL
+    public let resetConfirmationFile: URL
     public let mediaDirectory: URL
 
     public init(
@@ -22,6 +23,7 @@ public struct NativeWallpaperProviderPaths: Sendable, Equatable {
             .appending(path: "Library/Containers/\(providerIdentifier)/Data/Documents", directoryHint: .isDirectory)
         stateFile = root.appending(path: "wallume-deployment.json")
         providerStateFile = root.appending(path: "wallume-provider-state.json")
+        resetConfirmationFile = root.appending(path: "wallume-reset-confirmed.json")
         mediaDirectory = root.appending(path: "videos", directoryHint: .isDirectory)
     }
 
@@ -243,6 +245,11 @@ public actor NativeWallpaperProviderLifecycle {
             ),
             to: paths.stateFile
         )
+        // WallpaperAgent can keep the extension process alive long enough to recreate its
+        // best-effort `providerStateFile` and re-mark the deployment active. The uninstall
+        // prompt is the deliberate safety boundary, so persist that explicit confirmation
+        // independently of extension-owned liveness hints.
+        try json.write(ResetConfirmation(confirmedAt: now()), to: paths.resetConfirmationFile)
     }
 
     /// Removes only the deterministic Wallume provider directory. It never removes media from
@@ -251,7 +258,8 @@ public actor NativeWallpaperProviderLifecycle {
     /// change and let it rewrite a stale provider-state hint. Do not re-evaluate that racy hint
     /// here, or a confirmed uninstall can never make progress.
     public func cleanupAfterReset() throws {
-        if try deployment()?.isActiveInSystem == true {
+        let resetConfirmed = try hasResetConfirmation()
+        if !resetConfirmed, try deployment()?.isActiveInSystem == true {
             throw NativeWallpaperProviderLifecycleError.resetRequired
         }
         guard files.exists(paths.root) else { return }
@@ -275,6 +283,16 @@ public actor NativeWallpaperProviderLifecycle {
     private func isSafeRegularFile(_ url: URL) throws -> Bool {
         guard url.isFileURL, files.exists(url), try files.hasNoSymlinkComponents(url) else { return false }
         return try files.identity(of: url).isRegularFile
+    }
+
+    private func hasResetConfirmation() throws -> Bool {
+        guard files.exists(paths.resetConfirmationFile) else { return false }
+        guard try files.hasNoSymlinkComponents(paths.resetConfirmationFile),
+              try files.identity(of: paths.resetConfirmationFile).isRegularFile else {
+            throw NativeWallpaperProviderLifecycleError.unsupportedState
+        }
+        _ = try json.read(ResetConfirmation.self, from: paths.resetConfirmationFile)
+        return true
     }
 
     private func postLibraryChangedNotification() {
@@ -303,4 +321,8 @@ private struct ProviderVideoMetadata: Codable, Sendable {
 private struct ProviderSelectionState: Codable, Sendable {
     let isActive: Bool
     let currentVideoID: String?
+}
+
+private struct ResetConfirmation: Codable, Sendable {
+    let confirmedAt: Date
 }
