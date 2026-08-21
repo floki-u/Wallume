@@ -91,8 +91,9 @@ if [[ $PURGE_DATA -eq 1 ]]; then
         if [[ -e "$target" ]]; then
             osascript - "$target" <<'APPLESCRIPT'
 on run argv
+    set targetItem to POSIX file (item 1 of argv) as alias
     tell application "Finder"
-        delete POSIX file (item 1 of argv)
+        delete targetItem
     end tell
 end run
 APPLESCRIPT
