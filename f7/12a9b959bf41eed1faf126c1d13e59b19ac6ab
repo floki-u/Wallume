@@ -1,0 +1,48 @@
+uninstall-wallume.sh
+  759cfd31977bff9c 94,96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "f712a9b959bf41eed1faf126c1d13e59b19ac6ab",
+  "prompts": {
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "759cfd31977bff9c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01e4c-f07a-7e91-ac2a-955b36061a6b",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 1,
+      "accepted_lines": 2,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "uninstall-wallume.sh": {
+          "additions": 2,
+          "deletions": 1,
+          "accepted_lines": 2
+        }
+      }
+    }
+  }
+}
