@@ -62,37 +62,37 @@ public final class StatusItemController {
         let menu = NSMenu()
         menu.addItem(withTitle: Self.title(for: state), action: nil, keyEquivalent: "")
         if let current = snapshot.items.first(where: { $0.attempts.last?.status == .running }), let attempt = current.attempts.last {
-            menu.addItem(withTitle: "\(current.source.lastPathComponent) · \(attempt.stage?.rawValue ?? "准备中")", action: nil, keyEquivalent: "")
+            menu.addItem(withTitle: wallumeLocalized("%@ · %@", current.source.lastPathComponent, wallumeLocalized(attempt.stage?.rawValue ?? "准备中")), action: nil, keyEquivalent: "")
             if let progress = attempt.progress {
-                menu.addItem(withTitle: "进度 \(Int((progress * 100).rounded()))%", action: nil, keyEquivalent: "")
+                menu.addItem(withTitle: wallumeLocalized("进度 %lld%%", Int((progress * 100).rounded())), action: nil, keyEquivalent: "")
             }
         }
         let summary = snapshot.summary
         if !snapshot.isActive, summary.total > 0 {
-            menu.addItem(withTitle: "成功 \(summary.imported) · 重复 \(summary.duplicate) · 失败 \(summary.failed) · 取消 \(summary.cancelled)", action: nil, keyEquivalent: "")
+            menu.addItem(withTitle: wallumeLocalized("成功 %lld · 重复 %lld · 失败 %lld · 取消 %lld", summary.imported, summary.duplicate, summary.failed, summary.cancelled), action: nil, keyEquivalent: "")
         }
         menu.addItem(.separator())
-        menu.addItem(actionItem("打开图库", action: #selector(openGallery)))
-        menu.addItem(actionItem("打开显示器", action: #selector(openDisplays)))
+        menu.addItem(actionItem(wallumeLocalized("打开图库"), action: #selector(openGallery)))
+        menu.addItem(actionItem(wallumeLocalized("打开显示器"), action: #selector(openDisplays)))
         if state.activeDisplayCount > 0 {
             if !state.pauseReasons.isEmpty, !state.userPaused {
-                menu.addItem(withTitle: "已因系统状态暂停", action: nil, keyEquivalent: "")
+                menu.addItem(withTitle: wallumeLocalized("已因系统状态暂停"), action: nil, keyEquivalent: "")
             }
-            menu.addItem(actionItem(state.userPaused ? "继续播放" : "暂停播放", action: #selector(togglePlayback)))
+            menu.addItem(actionItem(wallumeLocalized(state.userPaused ? "继续播放" : "暂停播放"), action: #selector(togglePlayback)))
         }
         if snapshot.isActive {
-            menu.addItem(actionItem("取消当前项", action: #selector(cancelCurrent)))
-            menu.addItem(actionItem("取消全部", action: #selector(cancelAll)))
+            menu.addItem(actionItem(wallumeLocalized("取消当前项"), action: #selector(cancelCurrent)))
+            menu.addItem(actionItem(wallumeLocalized("取消全部"), action: #selector(cancelAll)))
         }
         menu.addItem(.separator())
-        menu.addItem(actionItem("退出 Wallume", action: #selector(quit)))
+        menu.addItem(actionItem(wallumeLocalized("退出 Wallume"), action: #selector(quit)))
         item.menu = menu
     }
 
     public nonisolated static func title(for snapshot: ImportQueueSnapshot) -> String {
         let summary = snapshot.summary
-        if snapshot.isActive { return "导入 \(summary.processed)/\(summary.total)" }
-        if summary.failed > 0 { return "\(summary.failed) 个导入失败" }
+        if snapshot.isActive { return wallumeLocalized("导入 %lld/%lld", summary.processed, summary.total) }
+        if summary.failed > 0 { return wallumeLocalized("%lld 个导入失败", summary.failed) }
         return "Wallume"
     }
 
@@ -101,8 +101,8 @@ public final class StatusItemController {
         if state.imports.isActive || importTitle != "Wallume" { return importTitle }
         guard state.activeDisplayCount > 0 else { return "Wallume" }
         return state.pauseReasons.isEmpty
-            ? "播放中 · \(state.activeDisplayCount) 台显示器"
-            : "已暂停 · \(state.activeDisplayCount) 台显示器"
+            ? wallumeLocalized("播放中 · %lld 台显示器", state.activeDisplayCount)
+            : wallumeLocalized("已暂停 · %lld 台显示器", state.activeDisplayCount)
     }
 
     /// The menu bar stays compact; live status is available after opening the icon menu.

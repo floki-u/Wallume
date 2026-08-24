@@ -19,6 +19,10 @@ enum RendererMetrics {
     /// memory and publish their snapshot at a human-observable cadence instead.
     private static let persistenceLock = OSAllocatedUnfairLock(initialState: Date.distantPast)
     private static let minimumWriteInterval: TimeInterval = 1
+    /// Rendering callbacks must never wait for diagnostics I/O. A serial utility
+    /// queue preserves snapshot ordering while keeping JSON encoding and the
+    /// atomic replacement off the AVSampleBuffer renderer queue.
+    private static let persistenceQueue = DispatchQueue(label: "wallume.renderer-metrics", qos: .utility)
     private static let url = FileManager.default.homeDirectoryForCurrentUser
         .appending(path: "Library/Containers/com.wallume.app.wallpaper/Data/Documents/wallume-renderer-metrics.json")
 
@@ -41,8 +45,10 @@ enum RendererMetrics {
             return true
         }
         guard shouldPersist else { return }
-        guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? data.write(to: url, options: .atomic)
+        persistenceQueue.async {
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? data.write(to: url, options: .atomic)
+        }
     }
 }

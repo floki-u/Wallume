@@ -30,19 +30,19 @@ public struct GalleryView: View {
     public var body: some View {
         Group {
             if let error = gallery.loadError {
-                ContentUnavailableView("无法读取图库", systemImage: "exclamationmark.triangle", description: Text(error))
+                ContentUnavailableView(wallumeLocalized("无法读取图库"), systemImage: "exclamationmark.triangle", description: Text(error))
             } else if gallery.items.isEmpty {
                 VStack(spacing: 20) {
                     ContentUnavailableView(
-                        "导入第一段动态画面",
+                        wallumeLocalized("导入第一段动态画面"),
                         systemImage: "film.stack",
-                        description: Text("支持 MOV 和 MP4；也可以选择文件夹，Wallume 会递归识别其中的视频。")
+                        description: wallumeText("支持 MOV 和 MP4；也可以选择文件夹，Wallume 会递归识别其中的视频。")
                     )
                     HStack(spacing: 12) {
-                        Button("导入视频", systemImage: "film") { onImportFiles() }
+                        Button(wallumeLocalized("导入视频"), systemImage: "film") { onImportFiles() }
                             .buttonStyle(.borderedProminent)
                             .tint(WallumeDesign.accent)
-                        Button("导入文件夹", systemImage: "folder") { onImportFolder() }
+                        Button(wallumeLocalized("导入文件夹"), systemImage: "folder") { onImportFolder() }
                             .buttonStyle(.bordered)
                     }
                 }
@@ -51,7 +51,7 @@ public struct GalleryView: View {
                     VStack(spacing: 0) {
                     projectionLibrary
                     if gallery.filteredItems.isEmpty {
-                        ContentUnavailableView("没有匹配的视频", systemImage: "magnifyingglass", description: Text("尝试其他关键词。"))
+                        ContentUnavailableView(wallumeLocalized("没有匹配的视频"), systemImage: "magnifyingglass", description: wallumeText("尝试其他关键词。"))
                             .frame(maxWidth: .infinity, minHeight: 280)
                     } else {
                         projectionFilmstrip
@@ -73,13 +73,13 @@ public struct GalleryView: View {
         }
         .sheet(item: $gallery.selectedItem, onDismiss: presentPendingAssignmentIfNeeded) { item in detailSheet(item) }
         .sheet(item: $assignmentItem) { item in assignmentSheet(item) }
-        .alert("媒体正在使用中", isPresented: Binding(
+        .alert(wallumeLocalized("媒体正在使用中"), isPresented: Binding(
             get: { gallery.deletionBlock != nil },
             set: { if !$0 { gallery.dismissDeletionBlock() } }
         )) {
-            Button("知道了") { gallery.dismissDeletionBlock() }
+            Button(wallumeLocalized("知道了")) { gallery.dismissDeletionBlock() }
         } message: {
-            Text("请先在显示器页面更换壁纸：\(gallery.deletionBlock?.displays.map(\.name).joined(separator: "、") ?? "")")
+            Text(wallumeLocalized("请先在显示器页面更换壁纸：%@", gallery.deletionBlock?.displays.map(\.name).joined(separator: "、") ?? ""))
         }
         .onAppear { ensureCarouselSelection() }
         .onChange(of: gallery.filteredItems.map(\.id)) { _, _ in ensureCarouselSelection() }
@@ -109,12 +109,12 @@ public struct GalleryView: View {
 
     private var projectionCopy: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("选一段画面，\n留住此刻的空间。")
+            wallumeText("选一段画面，\n留住此刻的空间。")
                 .font(.system(size: 44, weight: .bold, design: .serif))
                 .fixedSize(horizontal: false, vertical: true)
-            Text("本地素材不会上传。预览一段画面，再将它投放到指定显示器。")
+            wallumeText("本地素材不会上传。预览一段画面，再将它投放到指定显示器。")
                 .foregroundStyle(.secondary).frame(maxWidth: 350, alignment: .leading)
-            Button("预览当前画面", systemImage: "play.fill") { if let item = carouselItem { gallery.selectedItem = item } }
+            Button(wallumeLocalized("预览当前画面"), systemImage: "play.fill") { if let item = carouselItem { gallery.selectedItem = item } }
                 .buttonStyle(.borderedProminent).tint(WallumeDesign.accent)
         }
         .frame(width: 420, alignment: .leading)
@@ -128,10 +128,10 @@ public struct GalleryView: View {
             .aspectRatio(16 / 9, contentMode: .fit)
             HStack(spacing: 8) {
                 carouselButton("chevron.left", action: previousCarouselItem)
-                Text("画面轮播")
+                wallumeText("画面轮播")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button(isAutoCycling ? "暂停轮播" : "自动轮播", systemImage: isAutoCycling ? "pause.fill" : "play.fill") { isAutoCycling.toggle() }
+                Button(wallumeLocalized(isAutoCycling ? "暂停轮播" : "自动轮播"), systemImage: isAutoCycling ? "pause.fill" : "play.fill") { isAutoCycling.toggle() }
                     .buttonStyle(.bordered)
                 carouselButton("chevron.right", action: nextCarouselItem)
                 Spacer()
@@ -144,11 +144,11 @@ public struct GalleryView: View {
         VStack(spacing: 14) {
             HStack {
                 HStack(spacing: 7) {
-                    Text("本地画面").font(.caption).foregroundStyle(.secondary)
+                    wallumeText("本地画面").font(.caption).foregroundStyle(.secondary)
                     Text(gallery.filteredItems.count.formatted()).font(.caption.weight(.bold)).foregroundStyle(WallumeDesign.accent)
                 }
                 Spacer()
-                Text("全部").font(.caption.weight(.semibold))
+                wallumeText("全部").font(.caption.weight(.semibold))
                     .padding(.bottom, 5)
                     .overlay(alignment: .bottom) { Rectangle().fill(WallumeDesign.accent).frame(height: 1) }
             }
@@ -180,7 +180,7 @@ public struct GalleryView: View {
                 .frame(width: 36, height: 36)
         }
         .buttonStyle(.bordered)
-        .help(systemImage == "chevron.left" ? "上一段视频" : "下一段视频")
+        .help(wallumeLocalized(systemImage == "chevron.left" ? "上一段视频" : "下一段视频"))
     }
 
     private func ensureCarouselSelection() {
@@ -239,7 +239,7 @@ public struct GalleryView: View {
         pendingAssignmentItem = nil
         guard let displays else { return }
         guard let target = displays.assignmentTargets.first(where: \.isMain) ?? displays.assignmentTargets.first else {
-            displays.reportPageError("未找到可用显示器。")
+            displays.reportPageError(wallumeLocalized("未找到可用显示器。"))
             return
         }
         Task {
@@ -373,7 +373,7 @@ private struct GalleryCarouselSlide: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 7) {
                     Circle().fill(.green).frame(width: 7, height: 7)
-                    Text("正在放映").font(.caption.weight(.semibold))
+                    wallumeText("正在放映").font(.caption.weight(.semibold))
                     if let displayName {
                         Text(displayName).font(.caption).foregroundStyle(.white.opacity(0.6))
                     }

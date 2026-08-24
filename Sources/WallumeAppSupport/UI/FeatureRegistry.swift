@@ -13,11 +13,11 @@ public struct WallumeFeature: Identifiable, Equatable, Sendable {
 
 public enum FeatureRegistry {
     public static let features: [WallumeFeature] = [
-        .init(id: .gallery, title: "图库", systemImage: "square.grid.2x2", isEnabled: true),
-        .init(id: .displays, title: "显示器", systemImage: "display.2", isEnabled: true),
-        .init(id: .lockScreen, title: "锁屏", systemImage: "lock.display", isEnabled: true),
-        .init(id: .performance, title: "性能", systemImage: "gauge.with.dots.needle.67percent", isEnabled: true),
-        .init(id: .settings, title: "设置", systemImage: "gearshape", isEnabled: true),
+        .init(id: .gallery, title: wallumeLocalized("图库"), systemImage: "square.grid.2x2", isEnabled: true),
+        .init(id: .displays, title: wallumeLocalized("显示器"), systemImage: "display.2", isEnabled: true),
+        .init(id: .lockScreen, title: wallumeLocalized("锁屏"), systemImage: "lock.display", isEnabled: true),
+        .init(id: .performance, title: wallumeLocalized("性能"), systemImage: "gauge.with.dots.needle.67percent", isEnabled: true),
+        .init(id: .settings, title: wallumeLocalized("设置"), systemImage: "gearshape", isEnabled: true),
     ]
 
     public static func availableFeatures(hasSettingsStore: Bool) -> [WallumeFeature] {

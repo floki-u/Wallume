@@ -32,7 +32,7 @@ public struct MediaDetailView: View {
                 .frame(maxWidth: .infinity)
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .clipped()
-                Button("播放", systemImage: "play.fill") { preview.play(item.variantURL) }
+                Button(wallumeLocalized("播放"), systemImage: "play.fill") { preview.play(item.variantURL) }
                     .buttonStyle(.borderedProminent)
                     .tint(WallumeDesign.accent)
                     .padding(18)
@@ -58,21 +58,21 @@ public struct MediaDetailView: View {
                 }
 
                 Grid(alignment: .leading, horizontalSpacing: 30, verticalSpacing: 8) {
-                    GridRow { Text("时长").foregroundStyle(.secondary); Text(item.durationSeconds.formatted()) }
-                    GridRow { Text("文件大小").foregroundStyle(.secondary); Text(ByteCountFormatter.string(fromByteCount: item.sourceByteCount, countStyle: .file)) }
-                    GridRow { Text("源文件").foregroundStyle(.secondary); Text(item.sourceURL.path).lineLimit(1).textSelection(.enabled) }
+                    GridRow { wallumeText("时长").foregroundStyle(.secondary); Text(item.durationSeconds.formatted()) }
+                    GridRow { wallumeText("文件大小").foregroundStyle(.secondary); Text(ByteCountFormatter.string(fromByteCount: item.sourceByteCount, countStyle: .file)) }
+                    GridRow { wallumeText("源文件").foregroundStyle(.secondary); Text(item.sourceURL.path).lineLimit(1).textSelection(.enabled) }
                 }
 
                 HStack {
-                    Button("在 Finder 中显示", systemImage: "folder") {
-                        if !onReveal() { revealError = "无法在 Finder 中显示源文件" }
+                    Button(wallumeLocalized("在 Finder 中显示"), systemImage: "folder") {
+                        if !onReveal() { revealError = wallumeLocalized("无法在 Finder 中显示源文件") }
                     }
                     if let onChooseDisplay {
                         Button(wallumeLocalized("选择投放屏幕"), systemImage: "display.2", action: onChooseDisplay)
                     }
                     Spacer()
-                    Button("删除", systemImage: "trash", role: .destructive, action: onDelete)
-                    Button("关闭") { dismiss() }
+                    Button(wallumeLocalized("删除"), systemImage: "trash", role: .destructive, action: onDelete)
+                    Button(wallumeLocalized("关闭")) { dismiss() }
                 }
             }
             .padding(24)
@@ -80,8 +80,8 @@ public struct MediaDetailView: View {
         .frame(minWidth: 700, minHeight: 560)
         .background(Color(nsColor: .windowBackgroundColor))
         .onDisappear { preview.releasePlayer() }
-        .alert("操作失败", isPresented: Binding(get: { revealError != nil }, set: { if !$0 { revealError = nil } })) {
-            Button("知道了") { revealError = nil }
+        .alert(wallumeLocalized("操作失败"), isPresented: Binding(get: { revealError != nil }, set: { if !$0 { revealError = nil } })) {
+            Button(wallumeLocalized("知道了")) { revealError = nil }
         } message: { Text(revealError ?? "") }
     }
 }

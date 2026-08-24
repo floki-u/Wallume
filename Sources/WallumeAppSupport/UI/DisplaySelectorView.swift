@@ -11,7 +11,7 @@ public struct DisplaySelectorModel: Equatable {
     }
 
     public var canConfirm: Bool { !selectedIDs.isEmpty }
-    public var summary: String { "将应用到 \(selectedIDs.count) 台显示器" }
+    public var summary: String { wallumeLocalized("将应用到 %lld 台显示器", selectedIDs.count) }
     public mutating func selectAll() { selectedIDs = Set(targets.map(\.id)) }
     public mutating func clearAll() { selectedIDs.removeAll() }
     public mutating func toggle(_ id: DisplayID) {
@@ -49,7 +49,7 @@ public struct DisplaySelectorView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(wallumeLocalized("投放到屏幕"))
                     .font(.title2.weight(.bold))
-                Text("选择要应用“\(mediaName)”的显示器。每块屏幕会保留自己的显示方式。")
+                Text(wallumeLocalized("选择要应用“%@”的显示器。每块屏幕会保留自己的显示方式。", mediaName))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -78,7 +78,7 @@ public struct DisplaySelectorView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack(spacing: 6) {
                                         Text(target.name).font(.subheadline.weight(.semibold))
-                                        if target.isMain { WallumeStatusBadge("主显示器", systemImage: "star.fill", tint: WallumeDesign.accent) }
+                                        if target.isMain { WallumeStatusBadge(wallumeLocalized("主显示器"), systemImage: "star.fill", tint: WallumeDesign.accent) }
                                     }
                                     Text(currentAssignments[target.id].map { wallumeLocalized("当前播放：") + $0 } ?? wallumeLocalized("尚未设置画面"))
                                         .font(.caption)

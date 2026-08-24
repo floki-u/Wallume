@@ -49,8 +49,8 @@ public struct PerformanceView: View {
         .wallumePageBackground()
         .task { await store.pageAppeared() }
         .onDisappear { Task { await store.pageDisappeared() } }
-        .alert("性能诊断操作失败", isPresented: Binding(get: { store.pageError != nil }, set: { if !$0 { store.dismissPageError() } })) {
-            Button("知道了") { store.dismissPageError() }
+        .alert(wallumeLocalized("性能诊断操作失败"), isPresented: Binding(get: { store.pageError != nil }, set: { if !$0 { store.dismissPageError() } })) {
+            Button(wallumeLocalized("知道了")) { store.dismissPageError() }
         } message: { Text(store.pageError ?? "") }
         .fileExporter(isPresented: $presentsExporter, document: document, contentType: .json, defaultFilename: "Wallume-performance-diagnostics") { result in
             if case let .failure(error) = result { store.reportPageError(error.localizedDescription) }
@@ -59,8 +59,8 @@ public struct PerformanceView: View {
 
     private func statusCopy(_ page: PerformancePageViewState) -> some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("安静地，\n保持运行。").font(.system(size: 46, weight: .bold, design: .serif))
-            Text("实时数据只留在内存中；诊断报告只在你手动导出时落盘。")
+            wallumeText("安静地，\n保持运行。").font(.system(size: 46, weight: .bold, design: .serif))
+            wallumeText("实时数据只留在内存中；诊断报告只在你手动导出时落盘。")
                 .foregroundStyle(.secondary).frame(maxWidth: 360, alignment: .leading)
             WallumeStatusBadge(statusBadgeText(page.mode), systemImage: statusBadgeIcon(page.mode), tint: statusBadgeTint(page.mode))
         }
@@ -69,7 +69,7 @@ public struct PerformanceView: View {
 
     private func signalPanel(_ page: PerformancePageViewState) -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            HStack { Text("实时采样").font(.caption).foregroundStyle(.secondary); Spacer(); Text("LIVE").font(.caption.weight(.bold)).foregroundStyle(WallumeDesign.accent) }
+            HStack { wallumeText("实时采样").font(.caption).foregroundStyle(.secondary); Spacer(); Text("LIVE").font(.caption.weight(.bold)).foregroundStyle(WallumeDesign.accent) }
             HStack(alignment: .bottom, spacing: 8) {
                 ForEach(0..<12, id: \.self) { index in
                     Capsule().fill(WallumeDesign.accent.opacity(0.75)).frame(maxWidth: .infinity).frame(height: CGFloat(52 + (index * 23) % 110))
@@ -77,7 +77,7 @@ public struct PerformanceView: View {
             }
             .frame(height: 180, alignment: .bottom)
             Divider()
-            HStack { metric("显示器", value: store.snapshot.runtime.activeDisplayCount.formatted()); metric("CPU", value: percent(store.snapshot.realtimeSummary.currentCPUPercent)); metric("内存", value: bytes(store.snapshot.realtimeSummary.currentResidentBytes)) }
+            HStack { metric(wallumeLocalized("显示器"), value: store.snapshot.runtime.activeDisplayCount.formatted()); metric("CPU", value: percent(store.snapshot.realtimeSummary.currentCPUPercent)); metric(wallumeLocalized("内存"), value: bytes(store.snapshot.realtimeSummary.currentResidentBytes)) }
             nativeRendererMetricsCard
             diagnosticCard(page)
         }
@@ -100,7 +100,7 @@ public struct PerformanceView: View {
                 .background(statusBadgeTint(page.mode).opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
                 Text(statusText(page.mode)).font(.headline)
-            Text("实时采样仅保存在内存中，最多保留最近 60 项。诊断会连续采样 30 秒并只保存匿名汇总数据。")
+            wallumeText("实时采样仅保存在内存中，最多保留最近 60 项。诊断会连续采样 30 秒并只保存匿名汇总数据。")
                     .font(.caption)
                 .foregroundStyle(.secondary)
             }
@@ -118,7 +118,7 @@ public struct PerformanceView: View {
                         .font(.system(size: 32, weight: .semibold, design: .rounded))
                         .fontDesign(.rounded)
                         .monospacedDigit()
-                    Text("平均 \(percent(metrics.averageCPUPercent)) · 峰值 \(percent(metrics.peakCPUPercent))")
+                    Text(wallumeLocalized("平均 %@ · 峰值 %@", percent(metrics.averageCPUPercent), percent(metrics.peakCPUPercent)))
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Divider().frame(height: 58)
@@ -127,7 +127,7 @@ public struct PerformanceView: View {
                     Text(bytes(metrics.currentResidentBytes))
                         .font(.title2.weight(.semibold))
                         .monospacedDigit()
-                    Text("平均 \(bytes(metrics.averageResidentBytes)) · 峰值 \(bytes(metrics.peakResidentBytes))")
+                    Text(wallumeLocalized("平均 %@ · 峰值 %@", bytes(metrics.averageResidentBytes), bytes(metrics.peakResidentBytes)))
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -137,10 +137,10 @@ public struct PerformanceView: View {
     private var runtimeCard: some View {
         let runtime = store.snapshot.runtime
         return VStack(alignment: .leading, spacing: 6) {
-            Text("壁纸运行时").font(.title3.bold())
-            Text("显示器 \(runtime.activeDisplayCount) · 会话 \(runtime.activeSessionCount) · 资源 \(runtime.activeResourceCount)")
-            Text("共享资源 \(runtime.sharedResourceCount)（引用 \(runtime.sharedResourceReferenceCount)）· 已创建资源 \(runtime.resourceCreationCount)")
-            Text(runtime.pauseReasons.isEmpty ? "暂停原因：无" : "暂停原因：\(runtime.pauseReasons.map(\.rawValue).joined(separator: "、"))")
+            wallumeText("壁纸运行时").font(.title3.bold())
+            Text(wallumeLocalized("显示器 %lld · 会话 %lld · 资源 %lld", runtime.activeDisplayCount, runtime.activeSessionCount, runtime.activeResourceCount))
+            Text(wallumeLocalized("共享资源 %lld（引用 %lld）· 已创建资源 %lld", runtime.sharedResourceCount, runtime.sharedResourceReferenceCount, runtime.resourceCreationCount))
+            Text(runtime.pauseReasons.isEmpty ? wallumeLocalized("暂停原因：无") : wallumeLocalized("暂停原因：%@", runtime.pauseReasons.map(\.rawValue).joined(separator: "、")))
                 .foregroundStyle(.secondary)
         }.wallumeCard()
     }
@@ -148,13 +148,13 @@ public struct PerformanceView: View {
     private var nativeRendererMetricsCard: some View {
         let metrics = store.nativeRendererMetrics
         return VStack(alignment: .leading, spacing: 6) {
-            Text("原生墙纸渲染器").font(.title3.bold())
+            wallumeText("原生墙纸渲染器").font(.title3.bold())
             if metrics.updatedAt == nil {
-                Text("系统墙纸尚未启用 Wallume，暂无原生渲染数据。")
+                wallumeText("系统墙纸尚未启用 Wallume，暂无原生渲染数据。")
                     .foregroundStyle(.secondary)
             } else {
-                Text("活动原生表面 \(metrics.activeRenderers) · 已提交帧 \(metrics.enqueuedFrames) · 读取器循环 \(metrics.readerExhaustions)")
-                Text("每秒刷新；仅显示本机计数，不包含视频名称或路径。")
+                Text(wallumeLocalized("活动原生表面 %lld · 已提交帧 %lld · 读取器循环 %lld", metrics.activeRenderers, metrics.enqueuedFrames, metrics.readerExhaustions))
+                wallumeText("每秒刷新；仅显示本机计数，不包含视频名称或路径。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -163,20 +163,20 @@ public struct PerformanceView: View {
 
     private func diagnosticCard(_ page: PerformancePageViewState) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("30 秒本地诊断").font(.title3.bold())
+            wallumeText("30 秒本地诊断").font(.title3.bold())
             if page.mode == .running {
-                ProgressView(value: page.progress) { Text("已采样 \(store.snapshot.diagnosticSampleCount) / \(store.snapshot.diagnosticSampleLimit)") }
-                Button("取消当前诊断", role: .destructive) { Task { await store.cancelDiagnostic() } }
+                ProgressView(value: page.progress) { Text(wallumeLocalized("已采样 %lld / %lld", store.snapshot.diagnosticSampleCount, store.snapshot.diagnosticSampleLimit)) }
+                Button(wallumeLocalized("取消当前诊断"), role: .destructive) { Task { await store.cancelDiagnostic() } }
             } else {
-                Menu("开始诊断") {
+                Menu(wallumeLocalized("开始诊断")) {
                     ForEach(PerformanceDiagnosticScenario.allCases, id: \.self) { scenario in
                         Button(scenarioTitle(scenario)) { Task { await store.startDiagnostic(scenario: scenario) } }
                     }
                 }.disabled(!page.canStartDiagnostic)
             }
-            if page.canRetrySave { Button("重试保存本地报告") { Task { await store.retrySave() } } }
+            if page.canRetrySave { Button(wallumeLocalized("重试保存本地报告")) { Task { await store.retrySave() } } }
             if page.canExportReport {
-                Button("导出匿名 JSON 报告") {
+                Button(wallumeLocalized("导出匿名 JSON 报告")) {
                     do { document = PerformanceDiagnosticDocument(data: try store.makeDiagnosticExportData()); presentsExporter = true }
                     catch { store.reportPageError(error.localizedDescription) }
                 }
@@ -186,22 +186,22 @@ public struct PerformanceView: View {
 
     private func statusText(_ mode: PerformancePageViewState.Mode) -> String {
         switch mode {
-        case .idle: "等待开始实时性能采样。"
-        case .realtime: "正在每秒采集实时性能指标。"
-        case .running: "正在执行 30 秒本地性能诊断。"
-        case .completed: "诊断已完成，本地报告可导出。"
-        case .saveFailed: "诊断已完成，但本地保存失败；可重试或直接导出。"
-        case .failed: "性能采样遇到问题，请重试。"
+        case .idle: wallumeLocalized("等待开始实时性能采样。")
+        case .realtime: wallumeLocalized("正在每秒采集实时性能指标。")
+        case .running: wallumeLocalized("正在执行 30 秒本地性能诊断。")
+        case .completed: wallumeLocalized("诊断已完成，本地报告可导出。")
+        case .saveFailed: wallumeLocalized("诊断已完成，但本地保存失败；可重试或直接导出。")
+        case .failed: wallumeLocalized("性能采样遇到问题，请重试。")
         }
     }
 
     private func statusBadgeText(_ mode: PerformancePageViewState.Mode) -> String {
         switch mode {
-        case .idle: "空闲"
-        case .realtime: "正在采样"
-        case .running: "正在诊断"
-        case .completed: "已完成"
-        case .saveFailed, .failed: "需要处理"
+        case .idle: wallumeLocalized("空闲")
+        case .realtime: wallumeLocalized("正在采样")
+        case .running: wallumeLocalized("正在诊断")
+        case .completed: wallumeLocalized("已完成")
+        case .saveFailed, .failed: wallumeLocalized("需要处理")
         }
     }
 
@@ -223,7 +223,7 @@ public struct PerformanceView: View {
         case .idle: .secondary
         }
     }
-    private func scenarioTitle(_ scenario: PerformanceDiagnosticScenario) -> String { switch scenario { case .singleDisplay: "单显示器"; case .twoDisplays: "双显示器"; case .paused: "暂停状态" } }
+    private func scenarioTitle(_ scenario: PerformanceDiagnosticScenario) -> String { switch scenario { case .singleDisplay: wallumeLocalized("单显示器"); case .twoDisplays: wallumeLocalized("双显示器"); case .paused: wallumeLocalized("暂停状态") } }
     private func percent(_ value: Double) -> String { String(format: "%.1f%%", value) }
     private func bytes(_ value: UInt64) -> String { ByteCountFormatter.string(fromByteCount: Int64(clamping: value), countStyle: .memory) }
 }

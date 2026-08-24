@@ -13,7 +13,7 @@ public struct SettingsBuildInfo: Equatable, Sendable {
 
     public static let unavailable = SettingsBuildInfo(productVersion: "unavailable", buildNumber: "unavailable")
 
-    public var displayText: String { "版本 \(productVersion).\(buildNumber)" }
+    public var displayText: String { wallumeLocalized("版本 %@.%@", productVersion, buildNumber) }
 }
 
 public enum SettingsDiagnosticsExportState: Equatable, Sendable {
@@ -33,9 +33,9 @@ public enum SettingsPreferenceControl: String, CaseIterable, Identifiable, Senda
 
     public var title: String {
         switch self {
-        case .launchAtLogin: "登录时启动 Wallume"
-        case .openGalleryAtLaunch: "启动时打开图库"
-        case .pauseInLowPowerMode: "低电量模式时暂停播放（可选）"
+        case .launchAtLogin: wallumeLocalized("登录时启动 Wallume")
+        case .openGalleryAtLaunch: wallumeLocalized("启动时打开图库")
+        case .pauseInLowPowerMode: wallumeLocalized("低电量模式时暂停播放（可选）")
         }
     }
 }
@@ -129,7 +129,7 @@ public struct SettingsPageViewState: Equatable, Sendable {
     }
 
     public var exportSuccessMessage: String? {
-        exportState == .succeeded ? "诊断信息已导出。" : nil
+        exportState == .succeeded ? wallumeLocalized("诊断信息已导出。") : nil
     }
 }
 
@@ -255,7 +255,7 @@ public struct SettingsView: View {
         )
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                WallumePageHeader("设置", subtitle: "启动、播放与本地数据") { EmptyView() }
+                WallumePageHeader(wallumeLocalized("设置"), subtitle: wallumeLocalized("启动、播放与本地数据")) { EmptyView() }
                 appearanceCard
                 languageCard
                 preferencesCard(page)
@@ -268,32 +268,32 @@ public struct SettingsView: View {
         }
         .wallumePageBackground()
         .onAppear(perform: migrateLegacyThemeIfNeeded)
-        .alert("设置操作失败", isPresented: Binding(
+        .alert(wallumeLocalized("设置操作失败"), isPresented: Binding(
             get: { store.errorMessage != nil },
             set: { if !$0 { store.dismissError() } }
         )) {
-            Button("知道了") { store.dismissError() }
+            Button(wallumeLocalized("知道了")) { store.dismissError() }
         } message: {
             Text(store.errorMessage ?? "")
         }
-        .alert("无法清理本地数据", isPresented: Binding(
+        .alert(wallumeLocalized("无法清理本地数据"), isPresented: Binding(
             get: { cleanupError != nil },
             set: { if !$0 { cleanupError = nil } }
         )) {
-            Button("知道了") { cleanupError = nil }
+            Button(wallumeLocalized("知道了")) { cleanupError = nil }
         } message: {
             Text(cleanupError ?? "")
         }
         .confirmationDialog(
-            cleanupTarget?.title ?? "清理本地数据",
+            cleanupTarget?.title ?? wallumeLocalized("清理本地数据"),
             isPresented: Binding(
                 get: { cleanupTarget != nil },
                 set: { if !$0 { cleanupTarget = nil } }
             ),
             titleVisibility: .visible
         ) {
-            Button("确认清理", role: .destructive) { clearSelectedLocalData() }
-            Button("取消", role: .cancel) { cleanupTarget = nil }
+            Button(wallumeLocalized("确认清理"), role: .destructive) { clearSelectedLocalData() }
+            Button(wallumeLocalized("取消"), role: .cancel) { cleanupTarget = nil }
         } message: {
             Text(cleanupTarget?.detail ?? "")
         }
@@ -338,7 +338,7 @@ public struct SettingsView: View {
 
     private func preferencesCard(_ page: SettingsPageViewState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("启动与播放").font(.headline)
+            wallumeText("启动与播放").font(.headline)
             ForEach(page.preferenceControls) { presentation in
                 if case let .setPreference(control) = presentation.action {
                     Toggle(presentation.title, isOn: preferenceBinding(for: control))
@@ -372,15 +372,15 @@ public struct SettingsView: View {
 
     private func directoriesCard(_ page: SettingsPageViewState) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("本地数据").font(.headline)
-            directoryRow(title: "Wallume 数据", path: page.dataDirectoryPath, url: dataDirectory)
-            directoryRow(title: "诊断数据", path: page.diagnosticsDirectoryPath, url: diagnosticsDirectory)
+            wallumeText("本地数据").font(.headline)
+            directoryRow(title: wallumeLocalized("Wallume 数据"), path: page.dataDirectoryPath, url: dataDirectory)
+            directoryRow(title: wallumeLocalized("诊断数据"), path: page.diagnosticsDirectoryPath, url: diagnosticsDirectory)
             Divider()
             HStack {
-                Button("清理预览缓存", systemImage: "trash") { cleanupTarget = .mediaCaches }
-                Button("清理诊断数据", systemImage: "trash") { cleanupTarget = .diagnostics }
+                Button(wallumeLocalized("清理预览缓存"), systemImage: "trash") { cleanupTarget = .mediaCaches }
+                Button(wallumeLocalized("清理诊断数据"), systemImage: "trash") { cleanupTarget = .diagnostics }
             }
-            Text("缓存可在下次使用时重新生成；诊断数据清理后无法恢复。锁屏资源请在“锁屏同步”中先确认系统已切换，再单独清理。")
+            wallumeText("缓存可在下次使用时重新生成；诊断数据清理后无法恢复。锁屏资源请在“锁屏同步”中先确认系统已切换，再单独清理。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -394,14 +394,14 @@ public struct SettingsView: View {
                 Text(path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }
             Spacer()
-            Button("在访达中显示", systemImage: "folder") { openInFinder(url) }
+            Button(wallumeLocalized("在访达中显示"), systemImage: "folder") { openInFinder(url) }
         }
     }
 
     private func diagnosticsCard(_ page: SettingsPageViewState) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("诊断信息").font(.headline)
-            Text("导出仅包含设置、锁屏状态和匿名性能汇总，不包含媒体路径或缩略图。")
+            wallumeText("诊断信息").font(.headline)
+            wallumeText("导出仅包含设置、锁屏状态和匿名性能汇总，不包含媒体路径或缩略图。")
                 .foregroundStyle(.secondary)
             if let message = page.exportErrorMessage {
                 Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
@@ -458,11 +458,11 @@ private enum LocalDataCleanupTarget: Identifiable {
     case diagnostics
 
     var id: Self { self }
-    var title: String { self == .mediaCaches ? "清理预览缓存？" : "清理诊断数据？" }
+    var title: String { wallumeLocalized(self == .mediaCaches ? "清理预览缓存？" : "清理诊断数据？") }
     var detail: String {
         switch self {
-        case .mediaCaches: "将删除缩略图、封面图和中断导入的临时文件；不会删除素材库或显示器分配。"
-        case .diagnostics: "将删除本机保存的性能与锁屏诊断记录；不会删除素材库或墙纸设置。"
+        case .mediaCaches: wallumeLocalized("将删除缩略图、封面图和中断导入的临时文件；不会删除素材库或显示器分配。")
+        case .diagnostics: wallumeLocalized("将删除本机保存的性能与锁屏诊断记录；不会删除素材库或墙纸设置。")
         }
     }
 }

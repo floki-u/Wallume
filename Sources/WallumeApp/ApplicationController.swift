@@ -280,8 +280,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 let alert = NSAlert()
                 alert.messageText = "导入仍在进行"
                 alert.informativeText = "退出会取消当前项和所有等待项目，已完成的导入会保留。"
-                alert.addButton(withTitle: "取消导入并退出")
-                alert.addButton(withTitle: "继续后台导入")
+                alert.addButton(withTitle: wallumeLocalized("取消导入并退出"))
+                alert.addButton(withTitle: wallumeLocalized("继续后台导入"))
                 guard alert.runModal() == .alertFirstButtonReturn else {
                     NSApplication.shared.reply(toApplicationShouldTerminate: false)
                     return

@@ -41,7 +41,7 @@ public struct LockScreenPageViewState: Equatable, Sendable {
         let slots = state.probe?.availableSlots ?? []
         let isTahoe = state.probe?.generation == .tahoe
         selectedSlotName = isTahoe && state.selectedAerialID != nil
-            ? "Wallume 专属动态资源"
+            ? wallumeLocalized("Wallume 专属动态资源")
             : slots.first(where: { $0.id == state.selectedAerialID })?.displayName ?? state.selectedAerialID
         syncedMediaName = state.syncedMedia?.displayName
         syncedAt = state.lastSyncedAt
@@ -64,44 +64,44 @@ public struct LockScreenPageViewState: Equatable, Sendable {
 
         switch state.phase {
         case .unconfigured, .probing:
-            statusText = "正在准备锁屏同步检测。"
+            statusText = wallumeLocalized("正在准备锁屏同步检测。")
             slotGuidance = nil
             nextAction = .refresh
         case .readyToConfigure where slots.isEmpty:
-            statusText = "尚未检测到可安全使用的动态壁纸槽。"
-            slotGuidance = "请先在系统壁纸设置中下载并选择动态壁纸，然后返回刷新检测。"
+            statusText = wallumeLocalized("尚未检测到可安全使用的动态壁纸槽。")
+            slotGuidance = wallumeLocalized("请先在系统壁纸设置中下载并选择动态壁纸，然后返回刷新检测。")
             nextAction = .openSystemWallpaperSettings
         case .readyToConfigure where state.selectedAerialID == nil:
-            statusText = "请选择一个专用 Aerial 槽；选择本身不会启用同步。"
-            slotGuidance = "选择后仍需查看风险说明并明确确认，Wallume 不会自动启用。"
+            statusText = wallumeLocalized("请选择一个专用 Aerial 槽；选择本身不会启用同步。")
+            slotGuidance = wallumeLocalized("选择后仍需查看风险说明并明确确认，Wallume 不会自动启用。")
             nextAction = .chooseSlot
         case .readyToConfigure:
-            statusText = "已选择专用 Aerial 槽，等待你的风险确认。"
-            slotGuidance = "确认后才会保存启用意图，并在主显示器有可用壁纸时同步。"
+            statusText = wallumeLocalized("已选择专用 Aerial 槽，等待你的风险确认。")
+            slotGuidance = wallumeLocalized("确认后才会保存启用意图，并在主显示器有可用壁纸时同步。")
             nextAction = .confirmEnable
         case .waitingForMainWallpaper:
-            statusText = "等待主显示器的可用壁纸；当前不会写入或恢复系统文件。"
+            statusText = wallumeLocalized("等待主显示器的可用壁纸；当前不会写入或恢复系统文件。")
             slotGuidance = nil
             nextAction = .waitingForMainWallpaper
         case .syncing:
-            statusText = "正在同步锁屏，请保持 Wallume 运行。"
+            statusText = wallumeLocalized("正在同步锁屏，请保持 Wallume 运行。")
             slotGuidance = nil
             nextAction = .none
         case .synced:
-            statusText = "已写入系统锁屏注册；请锁屏确认视频已播放。"
+            statusText = wallumeLocalized("已写入系统锁屏注册；请锁屏确认视频已播放。")
             slotGuidance = nil
             nextAction = canRestore ? .restore : .none
         case .restoring:
-            statusText = "正在恢复系统锁屏壁纸，请勿关闭应用。"
+            statusText = wallumeLocalized("正在恢复系统锁屏壁纸，请勿关闭应用。")
             slotGuidance = nil
             nextAction = .none
         case .needsRepair:
-            statusText = "锁屏同步已安全停止，桌面壁纸不受影响。"
-            slotGuidance = "请先恢复系统壁纸；若恢复不可用，请重新检测后重试。"
+            statusText = wallumeLocalized("锁屏同步已安全停止，桌面壁纸不受影响。")
+            slotGuidance = wallumeLocalized("请先恢复系统壁纸；若恢复不可用，请重新检测后重试。")
             nextAction = canRestore ? .restore : (canRetry ? .retry : .refresh)
         case .unsupported:
-            statusText = "当前系统环境不支持由 Wallume 写入锁屏。"
-            slotGuidance = "可打开系统壁纸设置使用 macOS 的内置选项。"
+            statusText = wallumeLocalized("当前系统环境不支持由 Wallume 写入锁屏。")
+            slotGuidance = wallumeLocalized("可打开系统壁纸设置使用 macOS 的内置选项。")
             nextAction = .openSystemWallpaperSettings
         }
     }
@@ -152,7 +152,7 @@ public struct LockScreenView: View {
             nativeStaticFallbackCard(provider)
 
             if provider.deployment != nil {
-                Button("管理锁屏资源", systemImage: "arrow.counterclockwise") {
+                Button(wallumeLocalized("管理锁屏资源"), systemImage: "arrow.counterclockwise") {
                     presentsProviderReset = true
                 }
                 .buttonStyle(.plain)
@@ -161,11 +161,11 @@ public struct LockScreenView: View {
             }
         }
         .wallumePageBackground()
-        .alert("无法打开系统壁纸设置", isPresented: Binding(
+        .alert(wallumeLocalized("无法打开系统壁纸设置"), isPresented: Binding(
             get: { store.pageError != nil },
             set: { if !$0 { store.dismissPageError() } }
         )) {
-            Button("知道了") { store.dismissPageError() }
+            Button(wallumeLocalized("知道了")) { store.dismissPageError() }
         } message: { Text(store.pageError ?? "") }
         .sheet(isPresented: $presentsProviderReset) { providerResetSheet(provider) }
         .sheet(isPresented: $presentsSystemWallpaperInstructions) {
@@ -177,18 +177,18 @@ public struct LockScreenView: View {
     private func nativeStaticFallbackCard(_ provider: NativeWallpaperProviderStore) -> some View {
         if let media = provider.media, shouldOfferStaticFallback(for: provider.status) {
             VStack(alignment: .leading, spacing: 10) {
-                Label("改用静态封面", systemImage: "photo")
+                Label(wallumeLocalized("改用静态封面"), systemImage: "photo")
                     .font(.headline)
-                Text("动态锁屏当前无法安全启用。你可以在系统墙纸设置中手动选择“\(media.displayName)”的静态封面；Wallume 不会自动替换系统墙纸。")
+                Text(wallumeLocalized("动态锁屏当前无法安全启用。你可以在系统墙纸设置中手动选择“%@”的静态封面；Wallume 不会自动替换系统墙纸。", media.displayName))
                     .foregroundStyle(.secondary)
-                Text("清理锁屏动态资源不会删除此封面。若已将它设为系统墙纸，请先不要删除原素材。")
+                wallumeText("清理锁屏动态资源不会删除此封面。若已将它设为系统墙纸，请先不要删除原素材。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack {
-                    Button("显示静态封面", systemImage: "folder") {
+                    Button(wallumeLocalized("显示静态封面"), systemImage: "folder") {
                         revealStaticFallback(media.coverURL)
                     }
-                    Button("打开系统墙纸设置", systemImage: "gearshape") {
+                    Button(wallumeLocalized("打开系统墙纸设置"), systemImage: "gearshape") {
                         openSystemWallpaperSettings()
                     }
                 }
@@ -223,10 +223,10 @@ public struct LockScreenView: View {
 
     private func lockCopy(_ provider: NativeWallpaperProviderStore) -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("让画面\n自然延续。")
+            wallumeText("让画面\n自然延续。")
                 .font(.system(size: 46, weight: .bold, design: .serif))
             nativeSafetyRail(provider)
-            Text("Wallume 仅会写入你确认的专属资源槽，并保留可验证的恢复锚点。")
+            wallumeText("Wallume 仅会写入你确认的专属资源槽，并保留可验证的恢复锚点。")
                 .foregroundStyle(.secondary).frame(maxWidth: 360, alignment: .leading)
             nativePrimaryAction(provider)
         }
@@ -235,17 +235,17 @@ public struct LockScreenView: View {
 
     private func providerResetSheet(_ provider: NativeWallpaperProviderStore) -> some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("管理锁屏资源").font(.title2.weight(.bold))
-            Text("如需移除系统设置中的 Wallume 项目，先在系统壁纸设置中选择其他壁纸。Wallume 会检查系统状态后再清理锁屏副本，素材库不会被删除。")
+            wallumeText("管理锁屏资源").font(.title2.weight(.bold))
+            wallumeText("如需移除系统设置中的 Wallume 项目，先在系统壁纸设置中选择其他壁纸。Wallume 会检查系统状态后再清理锁屏副本，素材库不会被删除。")
                 .foregroundStyle(.secondary)
             resetStatusMessage(provider.status)
             HStack {
-                Button("取消") { presentsProviderReset = false }
+                Button(wallumeLocalized("取消")) { presentsProviderReset = false }
                 Spacer()
-                Button("检查系统状态", systemImage: "checkmark.shield") {
+                Button(wallumeLocalized("检查系统状态"), systemImage: "checkmark.shield") {
                     Task { await provider.confirmSystemReset() }
                 }
-                Button("清理锁屏副本", systemImage: "trash", role: .destructive) {
+                Button(wallumeLocalized("清理锁屏副本"), systemImage: "trash", role: .destructive) {
                     Task {
                         await provider.cleanupAfterReset()
                         if case .failure = provider.status {
@@ -263,22 +263,22 @@ public struct LockScreenView: View {
 
     private func systemWallpaperInstructions(_ provider: NativeWallpaperProviderStore) -> some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("在系统设置中确认锁屏素材").font(.title2.weight(.bold))
-            Text("Wallume 已将素材准备好，但不会替你改动系统墙纸。接下来请在“系统设置 → 墙纸”中选择 Wallume 的动态画面；完成后回到这里重新检查。")
+            wallumeText("在系统设置中确认锁屏素材").font(.title2.weight(.bold))
+            wallumeText("Wallume 已将素材准备好，但不会替你改动系统墙纸。接下来请在“系统设置 → 墙纸”中选择 Wallume 的动态画面；完成后回到这里重新检查。")
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 8) {
-                Label("1. 打开系统墙纸设置", systemImage: "1.circle")
-                Label("2. 选择 Wallume 中刚准备的动态画面", systemImage: "2.circle")
-                Label("3. 返回 Wallume 并重新检查状态", systemImage: "3.circle")
+                Label(wallumeLocalized("1. 打开系统墙纸设置"), systemImage: "1.circle")
+                Label(wallumeLocalized("2. 选择 Wallume 中刚准备的动态画面"), systemImage: "2.circle")
+                Label(wallumeLocalized("3. 返回 Wallume 并重新检查状态"), systemImage: "3.circle")
             }
             .font(.subheadline)
             HStack {
-                Button("稍后再说") { presentsSystemWallpaperInstructions = false }
+                Button(wallumeLocalized("稍后再说")) { presentsSystemWallpaperInstructions = false }
                 Spacer()
-                Button("打开系统墙纸设置", systemImage: "gearshape") {
+                Button(wallumeLocalized("打开系统墙纸设置"), systemImage: "gearshape") {
                     openSystemWallpaperSettings()
                 }
-                Button("我已选择，重新检查", systemImage: "arrow.clockwise") {
+                Button(wallumeLocalized("我已选择，重新检查"), systemImage: "arrow.clockwise") {
                     Task {
                         await provider.refreshSystemSelection()
                         if provider.status == .activeInSystem {
@@ -297,7 +297,7 @@ public struct LockScreenView: View {
     private func resetStatusMessage(_ status: NativeWallpaperProviderStatus) -> some View {
         switch status {
         case .resetConfirmed:
-            Label("系统已不再使用 Wallume 素材，可以清理锁屏副本。", systemImage: "checkmark.circle.fill")
+            Label(wallumeLocalized("系统已不再使用 Wallume 素材，可以清理锁屏副本。"), systemImage: "checkmark.circle.fill")
                 .font(.subheadline)
                 .foregroundStyle(.green)
         case .failure(let message):
@@ -305,7 +305,7 @@ public struct LockScreenView: View {
                 .font(.subheadline)
                 .foregroundStyle(.red)
         default:
-            Label("选择其他壁纸后，点“检查系统状态”继续。", systemImage: "info.circle")
+            Label(wallumeLocalized("选择其他壁纸后，点“检查系统状态”继续。"), systemImage: "info.circle")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -385,25 +385,25 @@ public struct LockScreenView: View {
 
     private func nativeSafetyTitle(_ status: NativeWallpaperProviderStatus) -> String {
         switch status {
-        case .activeInSystem: "锁屏已启用且可验证"
-        case .readyToPrepare: "已准备安全投放"
-        case .preparedForSystemSelection: "等待系统设置确认"
-        case .systemSelectionNeedsUpdate: "需要更新系统锁屏素材"
-        case .needsMedia: "等待主显示器选择素材"
-        case .resetConfirmed: "系统状态已确认，可安全清理"
-        case .unavailable, .failure: "锁屏同步暂不可用"
+        case .activeInSystem: wallumeLocalized("锁屏已启用且可验证")
+        case .readyToPrepare: wallumeLocalized("已准备安全投放")
+        case .preparedForSystemSelection: wallumeLocalized("等待系统设置确认")
+        case .systemSelectionNeedsUpdate: wallumeLocalized("需要更新系统锁屏素材")
+        case .needsMedia: wallumeLocalized("等待主显示器选择素材")
+        case .resetConfirmed: wallumeLocalized("系统状态已确认，可安全清理")
+        case .unavailable, .failure: wallumeLocalized("锁屏同步暂不可用")
         }
     }
 
     private func nativeSafetyDetail(_ status: NativeWallpaperProviderStatus) -> String {
         switch status {
-        case .activeInSystem: "Wallume 会保留恢复锚点，方便在需要时恢复原有资源。"
-        case .readyToPrepare: "只会使用已经确认的 Wallume 专属资源槽。"
-        case .preparedForSystemSelection: "请在系统设置中选择 Wallume 的动态画面。"
-        case .systemSelectionNeedsUpdate: "当前画面已变化；更新后会再次引导你确认。"
-        case .needsMedia: "先为主显示器投放一段画面，再继续锁屏同步。"
-        case .resetConfirmed: "系统已不再使用 Wallume 的锁屏资源。"
-        case .unavailable, .failure: "桌面壁纸不受影响；可以稍后重试或查看诊断。"
+        case .activeInSystem: wallumeLocalized("Wallume 会保留恢复锚点，方便在需要时恢复原有资源。")
+        case .readyToPrepare: wallumeLocalized("只会使用已经确认的 Wallume 专属资源槽。")
+        case .preparedForSystemSelection: wallumeLocalized("请在系统设置中选择 Wallume 的动态画面。")
+        case .systemSelectionNeedsUpdate: wallumeLocalized("当前画面已变化；更新后会再次引导你确认。")
+        case .needsMedia: wallumeLocalized("先为主显示器投放一段画面，再继续锁屏同步。")
+        case .resetConfirmed: wallumeLocalized("系统已不再使用 Wallume 的锁屏资源。")
+        case .unavailable, .failure: wallumeLocalized("桌面壁纸不受影响；可以稍后重试或查看诊断。")
         }
     }
 
@@ -411,11 +411,11 @@ public struct LockScreenView: View {
     private func nativePrimaryAction(_ provider: NativeWallpaperProviderStore) -> some View {
         switch provider.status {
         case .needsMedia:
-            Label("先在显示器页选择素材", systemImage: "display")
+            Label(wallumeLocalized("先在显示器页选择素材"), systemImage: "display")
                 .foregroundStyle(.secondary)
                 .wallumeCard()
         case .readyToPrepare:
-            Button("用于锁屏", systemImage: "lock") {
+            Button(wallumeLocalized("用于锁屏"), systemImage: "lock") {
                 Task {
                     await provider.prepareCurrentMedia()
                     if case .failure = provider.status { return }
@@ -425,11 +425,11 @@ public struct LockScreenView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
         case .preparedForSystemSelection:
-            Button("在系统设置中启用", systemImage: "gearshape") { presentsSystemWallpaperInstructions = true }
+            Button(wallumeLocalized("在系统设置中启用"), systemImage: "gearshape") { presentsSystemWallpaperInstructions = true }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
         case .systemSelectionNeedsUpdate:
-            Button("在系统设置中更新", systemImage: "gearshape") {
+            Button(wallumeLocalized("在系统设置中更新"), systemImage: "gearshape") {
                 Task {
                     // A newly selected desktop video is not visible to System Settings until
                     // its provider-owned copy has been staged. Previously this path only
@@ -443,13 +443,13 @@ public struct LockScreenView: View {
             .controlSize(.large)
         case .activeInSystem:
             HStack {
-                Label("锁屏已启用", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                Label(wallumeLocalized("锁屏已启用"), systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                 Spacer()
-                Button("刷新", systemImage: "arrow.clockwise") { Task { await provider.refreshSystemSelection() } }
+                Button(wallumeLocalized("刷新"), systemImage: "arrow.clockwise") { Task { await provider.refreshSystemSelection() } }
             }
             .wallumeCard()
         case .resetConfirmed:
-            Button("清理锁屏资源", systemImage: "trash", role: .destructive) { Task { await provider.cleanupAfterReset() } }
+            Button(wallumeLocalized("清理锁屏资源"), systemImage: "trash", role: .destructive) { Task { await provider.cleanupAfterReset() } }
         case .unavailable, .failure:
             EmptyView()
         }
@@ -459,7 +459,7 @@ public struct LockScreenView: View {
         let page = LockScreenPageViewState(state: store.state)
         return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                WallumePageHeader("锁屏同步", subtitle: "仅在系统安全支持时写入锁屏配置") { EmptyView() }
+                WallumePageHeader(wallumeLocalized("锁屏同步"), subtitle: wallumeLocalized("仅在系统安全支持时写入锁屏配置")) { EmptyView() }
                 statusCard(page)
                 probeCard(page)
                 slotsCard(page)
@@ -471,11 +471,11 @@ public struct LockScreenView: View {
             .padding()
         }
         .wallumePageBackground()
-        .alert("锁屏操作失败", isPresented: Binding(
+        .alert(wallumeLocalized("锁屏操作失败"), isPresented: Binding(
             get: { store.pageError != nil },
             set: { if !$0 { store.dismissPageError() } }
         )) {
-            Button("知道了") { store.dismissPageError() }
+            Button(wallumeLocalized("知道了")) { store.dismissPageError() }
         } message: {
             Text(store.pageError ?? "")
         }
@@ -497,10 +497,10 @@ public struct LockScreenView: View {
             Label(page.statusText, systemImage: statusIcon)
                 .font(.headline)
             if let media = page.syncedMediaName {
-                Text("当前锁屏媒体：\(media)")
+                Text(wallumeLocalized("当前锁屏媒体：%@", media))
             }
             if let time = page.syncTimeText {
-                Text("状态更新时间：\(time)").foregroundStyle(.secondary)
+                Text(wallumeLocalized("状态更新时间：%@", time)).foregroundStyle(.secondary)
             }
             if let error = page.errorText {
                 Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
@@ -514,19 +514,19 @@ public struct LockScreenView: View {
 
     private func probeCard(_ page: LockScreenPageViewState) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("环境检测").font(.title3.bold())
+            wallumeText("环境检测").font(.title3.bold())
             if let probe = store.state.probe {
                 Text("macOS：\(generationName(probe.generation))")
-                Text("写入权限：\(probe.writesPermitted ? "可用" : "不可用")")
-                Text("Aerial 清单：\(probe.manifestExists ? "已找到" : "未找到")；壁纸索引：\(probe.indexExists ? "已找到" : "未找到")")
+                Text(wallumeLocalized("写入权限：%@", wallumeLocalized(probe.writesPermitted ? "可用" : "不可用")))
+                Text(wallumeLocalized("Aerial 清单：%@；壁纸索引：%@", wallumeLocalized(probe.manifestExists ? "已找到" : "未找到"), wallumeLocalized(probe.indexExists ? "已找到" : "未找到")))
                 if !probe.foreignBackupNames.isEmpty {
-                    Text("检测到外部备份冲突，不能继续写入。").foregroundStyle(.red)
+                    wallumeText("检测到外部备份冲突，不能继续写入。").foregroundStyle(.red)
                 }
             } else {
-                Text("尚未完成检测，请先刷新。 ").foregroundStyle(.secondary)
+                wallumeText("尚未完成检测，请先刷新。").foregroundStyle(.secondary)
             }
             if page.canRefresh {
-                Button("刷新检测") { Task { await store.refreshProbe() } }
+                Button(wallumeLocalized("刷新检测")) { Task { await store.refreshProbe() } }
             }
         }
         .wallumeCard()
@@ -534,16 +534,16 @@ public struct LockScreenView: View {
 
     private func slotsCard(_ page: LockScreenPageViewState) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("专用 Aerial 槽").font(.title3.bold())
+            wallumeText("专用 Aerial 槽").font(.title3.bold())
             if let selected = page.selectedSlotName {
-                Text("已选择：\(selected)")
+                Text(wallumeLocalized("已选择：%@", selected))
             }
             let slots = store.state.probe?.availableSlots ?? []
             if page.isAwaitingDetection {
-                Text("等待检测完成后再显示可用的 Aerial 槽。")
+                wallumeText("等待检测完成后再显示可用的 Aerial 槽。")
                     .foregroundStyle(.secondary)
             } else if page.showsSystemWallpaperSettings {
-                Button("打开系统壁纸设置") { openSystemWallpaperSettings() }
+                Button(wallumeLocalized("打开系统壁纸设置")) { openSystemWallpaperSettings() }
             } else {
                 ForEach(slots, id: \.id) { slot in
                     Button {
@@ -559,7 +559,7 @@ public struct LockScreenView: View {
                 }
             }
             if page.canRequestEnable {
-                Button("查看启用确认") { presentsConfirmation = true }
+                Button(wallumeLocalized("查看启用确认")) { presentsConfirmation = true }
             }
         }
         .wallumeCard()
@@ -567,25 +567,25 @@ public struct LockScreenView: View {
 
     private func recoveryCard(_ page: LockScreenPageViewState) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("备份与恢复").font(.title3.bold())
-            Text("启用后，Wallume 会为专用视频槽、锁屏封面和壁纸索引保留恢复材料。关闭同步或切换媒体时，会先验证恢复完成。")
+            wallumeText("备份与恢复").font(.title3.bold())
+            wallumeText("启用后，Wallume 会为专用视频槽、锁屏封面和壁纸索引保留恢复材料。关闭同步或切换媒体时，会先验证恢复完成。")
                 .foregroundStyle(.secondary)
             if store.state.activeTransactionID != nil {
-                Text("当前存在可恢复的锁屏事务。").foregroundStyle(.secondary)
+                wallumeText("当前存在可恢复的锁屏事务。").foregroundStyle(.secondary)
             }
             if page.canRestore {
-                Button("恢复系统锁屏壁纸", role: .destructive) {
+                Button(wallumeLocalized("恢复系统锁屏壁纸"), role: .destructive) {
                     Task { await store.disableAndRestore() }
                 }
             }
             if page.canRetry {
-                Button("重新检测并重试") { Task { await store.retry() } }
+                Button(wallumeLocalized("重新检测并重试")) { Task { await store.retry() } }
             }
             if page.canResynchronize {
-                Button("重新同步") { Task { await store.resynchronize() } }
+                Button(wallumeLocalized("重新同步")) { Task { await store.resynchronize() } }
             }
             if page.canExportDiagnostics {
-                Button("导出本地诊断") {
+                Button(wallumeLocalized("导出本地诊断")) {
                     do {
                         diagnosticDocument = LockScreenDiagnosticDocument(
                             data: try store.makeDiagnosticExportData()
@@ -605,15 +605,15 @@ public struct LockScreenView: View {
         if (store.state.phase == .unsupported || store.state.phase == .needsRepair),
            let imageURL = page.staticFallbackImageURL {
             VStack(alignment: .leading, spacing: 8) {
-                Text("静态图片降级").font(.title3.bold())
-                Text("动态锁屏目前无法安全设置。Wallume 已为当前视频生成静态封面；你可以在系统壁纸设置中手动选择它，也可以先恢复或重置后再尝试动态锁屏。")
+                wallumeText("静态图片降级").font(.title3.bold())
+                wallumeText("动态锁屏目前无法安全设置。Wallume 已为当前视频生成静态封面；你可以在系统壁纸设置中手动选择它，也可以先恢复或重置后再尝试动态锁屏。")
                     .foregroundStyle(.secondary)
                 if let name = page.staticFallbackName {
-                    Text("封面来源：\(name)").foregroundStyle(.secondary)
+                    Text(wallumeLocalized("封面来源：%@", name)).foregroundStyle(.secondary)
                 }
                 HStack {
-                    Button("显示静态封面") { revealStaticFallback(imageURL) }
-                    Button("打开系统壁纸设置") { openSystemWallpaperSettings() }
+                    Button(wallumeLocalized("显示静态封面")) { revealStaticFallback(imageURL) }
+                    Button(wallumeLocalized("打开系统壁纸设置")) { openSystemWallpaperSettings() }
                 }
             }
             .wallumeCard()
@@ -623,26 +623,26 @@ public struct LockScreenView: View {
     private func actionRow(_ page: LockScreenPageViewState) -> some View {
         HStack {
             if page.nextAction == .refresh {
-                Button("开始检测") { Task { await store.refreshProbe() } }
+                Button(wallumeLocalized("开始检测")) { Task { await store.refreshProbe() } }
             } else if page.nextAction == .openSystemWallpaperSettings {
-                Button("打开系统壁纸设置") { openSystemWallpaperSettings() }
+                Button(wallumeLocalized("打开系统壁纸设置")) { openSystemWallpaperSettings() }
             }
             Spacer()
-            Text("选择槽不会启用同步；必须在确认页明确同意。")
+            wallumeText("选择槽不会启用同步；必须在确认页明确同意。")
                 .font(.footnote).foregroundStyle(.secondary)
         }
     }
 
     private var confirmationSheet: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("确认启用锁屏同步").font(.title2.bold())
-            Text("Wallume 会在每次修改前保存恢复材料。")
-            Text("启用后，锁屏会跟随主显示器的当前壁纸。切换媒体或关闭同步时，Wallume 会先恢复此前的系统内容。")
+            wallumeText("确认启用锁屏同步").font(.title2.bold())
+            wallumeText("Wallume 会在每次修改前保存恢复材料。")
+            wallumeText("启用后，锁屏会跟随主显示器的当前壁纸。切换媒体或关闭同步时，Wallume 会先恢复此前的系统内容。")
                 .foregroundStyle(.secondary)
             HStack {
-                Button("取消") { presentsConfirmation = false }
+                Button(wallumeLocalized("取消")) { presentsConfirmation = false }
                 Spacer()
-                Button("确认启用") {
+                Button(wallumeLocalized("确认启用")) {
                     presentsConfirmation = false
                     Task { await store.confirmEnable() }
                 }
@@ -664,40 +664,40 @@ public struct LockScreenView: View {
 
     private func nativeStatusTitle(_ status: NativeWallpaperProviderStatus) -> String {
         switch status {
-        case .unavailable: "此版本暂不支持锁屏"
-        case .needsMedia: "还没有可用于锁屏的素材"
-        case .readyToPrepare: "当前素材可用于锁屏"
-        case .preparedForSystemSelection: "等待你在系统设置中启用"
-        case .systemSelectionNeedsUpdate: "锁屏仍在使用另一段素材"
-        case .activeInSystem: "锁屏已启用"
-        case .resetConfirmed: "可以清理锁屏资源"
+        case .unavailable: wallumeLocalized("此版本暂不支持锁屏")
+        case .needsMedia: wallumeLocalized("还没有可用于锁屏的素材")
+        case .readyToPrepare: wallumeLocalized("当前素材可用于锁屏")
+        case .preparedForSystemSelection: wallumeLocalized("等待你在系统设置中启用")
+        case .systemSelectionNeedsUpdate: wallumeLocalized("锁屏仍在使用另一段素材")
+        case .activeInSystem: wallumeLocalized("锁屏已启用")
+        case .resetConfirmed: wallumeLocalized("可以清理锁屏资源")
         case let .failure(message): message
         }
     }
 
     private func nativeStatusDetail(_ status: NativeWallpaperProviderStatus) -> String {
         switch status {
-        case .unavailable: "可在系统设置中使用其他壁纸。"
-        case .needsMedia: "先为主显示器应用一个素材。"
-        case .readyToPrepare: "启用后，当前素材会同时用于桌面与锁屏。"
-        case .preparedForSystemSelection: "系统设置已打开后，在 Wallume 分类中选择当前素材。"
-        case .systemSelectionNeedsUpdate: "已选择的新素材可立即用于桌面；更新锁屏后，在系统设置中选择它即可完成切换。"
-        case .activeInSystem: "当前素材正在用于桌面和锁屏。"
-        case .resetConfirmed: "清理不会删除你的素材库。"
-        case .failure: "可使用静态封面，或重置后再试。"
+        case .unavailable: wallumeLocalized("可在系统设置中使用其他壁纸。")
+        case .needsMedia: wallumeLocalized("先为主显示器应用一个素材。")
+        case .readyToPrepare: wallumeLocalized("启用后，当前素材会同时用于桌面与锁屏。")
+        case .preparedForSystemSelection: wallumeLocalized("系统设置已打开后，在 Wallume 分类中选择当前素材。")
+        case .systemSelectionNeedsUpdate: wallumeLocalized("已选择的新素材可立即用于桌面；更新锁屏后，在系统设置中选择它即可完成切换。")
+        case .activeInSystem: wallumeLocalized("当前素材正在用于桌面和锁屏。")
+        case .resetConfirmed: wallumeLocalized("清理不会删除你的素材库。")
+        case .failure: wallumeLocalized("可使用静态封面，或重置后再试。")
         }
     }
 
     private func nativeShortStatus(_ status: NativeWallpaperProviderStatus) -> String {
         switch status {
-        case .unavailable: "不可用"
-        case .needsMedia: "需要视频"
-        case .readyToPrepare: "可以准备"
-        case .preparedForSystemSelection: "等待系统选择"
-        case .systemSelectionNeedsUpdate: "需要更新"
-        case .activeInSystem: "已生效"
-        case .resetConfirmed: "可以清理"
-        case .failure: "需要处理"
+        case .unavailable: wallumeLocalized("不可用")
+        case .needsMedia: wallumeLocalized("需要视频")
+        case .readyToPrepare: wallumeLocalized("可以准备")
+        case .preparedForSystemSelection: wallumeLocalized("等待系统选择")
+        case .systemSelectionNeedsUpdate: wallumeLocalized("需要更新")
+        case .activeInSystem: wallumeLocalized("已生效")
+        case .resetConfirmed: wallumeLocalized("可以清理")
+        case .failure: wallumeLocalized("需要处理")
         }
     }
 

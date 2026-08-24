@@ -207,9 +207,9 @@ public struct PlaybackToolbarState: Equatable, Sendable {
     }
 
     public var statusText: String? {
-        !pauseReasons.isEmpty && !userPaused ? "已因系统状态暂停" : nil
+        !pauseReasons.isEmpty && !userPaused ? wallumeLocalized("已因系统状态暂停") : nil
     }
-    public var actionTitle: String { userPaused ? "继续播放" : "暂停播放" }
+    public var actionTitle: String { wallumeLocalized(userPaused ? "继续播放" : "暂停播放") }
 }
 
 public struct ApplicationShellView: View {
@@ -478,7 +478,7 @@ private struct ProjectionTopbar: View {
             Button(action: onSearch) { Image(systemName: "magnifyingglass").frame(width: 32, height: 32) }
                 .buttonStyle(.borderless)
                 .keyboardShortcut("k", modifiers: .command)
-                .help("搜索")
+                .help(wallumeLocalized("搜索"))
             Button(action: onTheme) { Image(systemName: "circle.lefthalf.filled").frame(width: 32, height: 32) }
                 .buttonStyle(.borderless)
                 .help(wallumeLocalized("主题"))
@@ -527,12 +527,12 @@ private final class HeaderDoubleClickView: NSView {
 private struct ProjectionThemeSheet: View {
     @Binding var themeName: String
     let dismiss: () -> Void
-    var body: some View { VStack(alignment: .leading, spacing: 18) { Text("选择放映氛围").font(.system(size: 28, weight: .bold, design: .serif)); Text("主题会保存到这台 Mac；默认跟随夜幕。").foregroundStyle(.secondary); ForEach(WallumeTheme.allCases) { theme in Button { themeName = theme.rawValue; dismiss() } label: { HStack { Circle().fill(theme == .dawn ? .teal : WallumeDesign.accent).frame(width: 12, height: 12); VStack(alignment: .leading) { Text(theme.title); Text(theme.detail).font(.caption).foregroundStyle(.secondary) }; Spacer(); if themeName == theme.rawValue { Image(systemName: "checkmark") } }.padding(12).background(.primary.opacity(0.05)) }.buttonStyle(.plain) } }.padding(28).frame(width: 460).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous)).overlay { RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(.white.opacity(0.2)) }.shadow(color: .black.opacity(0.35), radius: 32, y: 14) }
+    var body: some View { VStack(alignment: .leading, spacing: 18) { wallumeText("选择放映氛围").font(.system(size: 28, weight: .bold, design: .serif)); wallumeText("主题会保存到这台 Mac；默认跟随夜幕。").foregroundStyle(.secondary); ForEach(WallumeTheme.allCases) { theme in Button { themeName = theme.rawValue; dismiss() } label: { HStack { Circle().fill(theme == .dawn ? .teal : WallumeDesign.accent).frame(width: 12, height: 12); VStack(alignment: .leading) { Text(theme.title); Text(theme.detail).font(.caption).foregroundStyle(.secondary) }; Spacer(); if themeName == theme.rawValue { Image(systemName: "checkmark") } }.padding(12).background(.primary.opacity(0.05)) }.buttonStyle(.plain) } }.padding(28).frame(width: 460).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous)).overlay { RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(.white.opacity(0.2)) }.shadow(color: .black.opacity(0.35), radius: 32, y: 14) }
 }
 
 private struct ProjectionSearchSheet: View {
     @Binding var query: String
     @Binding var selection: WallumeFeatureID
     let dismiss: () -> Void
-    var body: some View { VStack(alignment: .leading, spacing: 16) { TextField("搜索画面、显示器或操作…", text: $query).textFieldStyle(.roundedBorder); ForEach([WallumeFeatureID.gallery, .displays, .lockScreen, .performance], id: \.self) { id in Button { selection = id; dismiss() } label: { Label(id == .gallery ? "画面库" : id == .displays ? "显示器" : id == .lockScreen ? "锁屏同步" : "状态", systemImage: id == .gallery ? "square.grid.2x2" : id == .displays ? "display.2" : id == .lockScreen ? "lock" : "waveform.path.ecg").frame(maxWidth: .infinity, alignment: .leading).padding(8) }.buttonStyle(.plain) } }.padding(24).frame(width: 420).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous)).overlay { RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(.white.opacity(0.2)) }.shadow(color: .black.opacity(0.35), radius: 32, y: 14) }
+    var body: some View { VStack(alignment: .leading, spacing: 16) { TextField(wallumeLocalized("搜索画面、显示器或操作…"), text: $query).textFieldStyle(.roundedBorder); ForEach([WallumeFeatureID.gallery, .displays, .lockScreen, .performance], id: \.self) { id in Button { selection = id; dismiss() } label: { Label(wallumeLocalized(id == .gallery ? "画面库" : id == .displays ? "显示器" : id == .lockScreen ? "锁屏同步" : "状态"), systemImage: id == .gallery ? "square.grid.2x2" : id == .displays ? "display.2" : id == .lockScreen ? "lock" : "waveform.path.ecg").frame(maxWidth: .infinity, alignment: .leading).padding(8) }.buttonStyle(.plain) } }.padding(24).frame(width: 420).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous)).overlay { RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(.white.opacity(0.2)) }.shadow(color: .black.opacity(0.35), radius: 32, y: 14) }
 }

@@ -14,6 +14,21 @@ public func wallumeLocalized(_ key: String) -> String {
     return strings[key] ?? key
 }
 
+/// Formats a localized string with the currently selected in-app language.
+/// SwiftUI's `LocalizedStringKey` resolves through the host bundle, while this
+/// package owns its strings in `Bundle.module`; keeping formatting here makes
+/// dynamic copy follow the same language switch as static copy.
+public func wallumeLocalized(_ format: String, _ arguments: CVarArg...) -> String {
+    String(format: wallumeLocalized(format), locale: WallumeAppLanguage.current.locale, arguments: arguments)
+}
+
+/// Use for visible static copy in this package. It deliberately takes a
+/// `String`, rather than a `LocalizedStringKey`, so the in-app language picker
+/// always resolves against `Bundle.module`.
+public func wallumeText(_ key: String) -> Text {
+    Text(wallumeLocalized(key))
+}
+
 public enum WallumeTheme: String, CaseIterable, Identifiable {
     case nocturne
     case dawn
@@ -35,19 +50,19 @@ public enum WallumeTheme: String, CaseIterable, Identifiable {
 
     public var title: String {
         switch self {
-        case .nocturne: "夜幕"
-        case .dawn: "晨雾"
-        case .ember: "余烬"
-        case .system: "跟随系统"
+        case .nocturne: wallumeLocalized("夜幕")
+        case .dawn: wallumeLocalized("晨雾")
+        case .ember: wallumeLocalized("余烬")
+        case .system: wallumeLocalized("跟随系统")
         }
     }
 
     public var detail: String {
         switch self {
-        case .nocturne: "深色幕布与暖金强调，适合专注观看。"
-        case .dawn: "轻盈的雾白与青绿，适合明亮桌面。"
-        case .ember: "在当前 macOS 外观中加入温暖的余烬色调。"
-        case .system: "完全跟随 macOS 的浅色与深色外观。"
+        case .nocturne: wallumeLocalized("深色幕布与暖金强调，适合专注观看。")
+        case .dawn: wallumeLocalized("轻盈的雾白与青绿，适合明亮桌面。")
+        case .ember: wallumeLocalized("在当前 macOS 外观中加入温暖的余烬色调。")
+        case .system: wallumeLocalized("完全跟随 macOS 的浅色与深色外观。")
         }
     }
 
@@ -107,6 +122,10 @@ public enum WallumeAppLanguage: String, CaseIterable, Identifiable {
     case english = "en"
 
     public var id: String { rawValue }
+
+    public static var current: Self {
+        Self(rawValue: UserDefaults.standard.string(forKey: "wallume.language") ?? "") ?? .chinese
+    }
 
     public var title: String {
         switch self {
