@@ -1,0 +1,148 @@
+Sources/WallumeAppSupport/UI/WallumeDesign.swift
+  759cfd31977bff9c 17-31,53-56,62-65,126-128
+Sources/WallumeAppSupport/UI/DisplaysView.swift
+  759cfd31977bff9c 8-10,35,37,43-44,57,61,84,86,96,102,105,116,118,142,144,154,165,170,180,190,193,224,266,270,275
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  759cfd31977bff9c 210,212,481,530,537
+Sources/WallumeAppSupport/UI/DisplaySelectorView.swift
+  759cfd31977bff9c 14,52,81
+Sources/WallumeAppSupport/AppKit/StatusItemController.swift
+  759cfd31977bff9c 65,67,72,75-76,79,81,84-85,88,94-95,104-105
+Sources/WallumeApp/ApplicationController.swift
+  759cfd31977bff9c 283-284
+Sources/WallumeAppSupport/UI/MediaDetailView.swift
+  759cfd31977bff9c 35,61-63,67-68,74-75,83-84
+Sources/WallumeAppSupport/UI/LockScreenView.swift
+  759cfd31977bff9c 44,67,71-72,75-76,79-80,83,87,91,95,99-100,103-104,155,164,168,180,182,184,188,191,226,229,238-239,243,245,248,266-267,270-272,276,278,281,300,308,388-394,400-406,414,418,428,432,446,448,452,462,474,478,500,503,517,520-521,523,526,529,537,539,543,546,562,570-571,574,577,582,585,588,608-609,612,615-616,626,628,631,638-640,643,645,667-673,680-687,693-700
+Sources/WallumeAppSupport/Resources/en.lproj/Localizable.strings
+  759cfd31977bff9c 78-305
+Sources/WallumeAppSupport/UI/SettingsView.swift
+  759cfd31977bff9c 16,36-38,132,258,271,275,279,283,288,295-296,341,375-377,380-381,383,397,403-404,461,464-465
+Sources/WallumeAppSupport/UI/PerformanceView.swift
+  759cfd31977bff9c 52-53,62-63,72,80,103,121,130,140-143,151,153,156-157,166,168-169,171,177,179,189-194,200-204,226
+Sources/WallumeAppSupport/UI/ImportTaskDrawer.swift
+  759cfd31977bff9c 13,19-20,36,40,53,56,62
+Sources/WallumeAppSupport/UI/GalleryView.swift
+  759cfd31977bff9c 33,37,39,42,45,54,76,80,82,112,115,117,131,134,147,151,183,242,376
+Sources/WallumeAppSupport/UI/FeatureRegistry.swift
+  759cfd31977bff9c 16-20
+NativeWallpaperProvider/WallumeNativeWallpaperExtension/RendererMetrics.swift
+  759cfd31977bff9c 22-25,48-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "a95554c9a12a19910e982f6faceb47b47ec7d853",
+  "prompts": {
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "759cfd31977bff9c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01e4c-f07a-7e91-ac2a-955b36061a6b",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 541,
+      "total_deletions": 288,
+      "accepted_lines": 614,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/UI/SettingsView.swift": {
+          "additions": 26,
+          "deletions": 26,
+          "accepted_lines": 26
+        },
+        "Sources/WallumeAppSupport/UI/WallumeDesign.swift": {
+          "additions": 27,
+          "deletions": 8,
+          "accepted_lines": 27
+        },
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/RendererMetrics.swift": {
+          "additions": 9,
+          "deletions": 3,
+          "accepted_lines": 9
+        },
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 5,
+          "deletions": 5,
+          "accepted_lines": 5
+        },
+        "Sources/WallumeAppSupport/Resources/en.lproj/Localizable.strings": {
+          "additions": 228,
+          "accepted_lines": 228
+        },
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/VideoRenderer.swift": {
+          "accepted_lines": 74
+        },
+        "Sources/WallumeAppSupport/UI/DisplaySelectorView.swift": {
+          "additions": 3,
+          "deletions": 3,
+          "accepted_lines": 3
+        },
+        "Sources/WallumeAppSupport/UI/MediaDetailView.swift": {
+          "additions": 10,
+          "deletions": 10,
+          "accepted_lines": 10
+        },
+        "Sources/WallumeAppSupport/UI/FeatureRegistry.swift": {
+          "additions": 5,
+          "deletions": 5,
+          "accepted_lines": 5
+        },
+        "Sources/WallumeAppSupport/UI/PerformanceView.swift": {
+          "additions": 35,
+          "deletions": 35,
+          "accepted_lines": 35
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 2
+        },
+        "Sources/WallumeAppSupport/UI/GalleryView.swift": {
+          "additions": 20,
+          "deletions": 20,
+          "accepted_lines": 19
+        },
+        "Sources/WallumeAppSupport/UI/ImportTaskDrawer.swift": {
+          "additions": 8,
+          "deletions": 8,
+          "accepted_lines": 8
+        },
+        "Sources/WallumeAppSupport/UI/LockScreenView.swift": {
+          "additions": 121,
+          "deletions": 121,
+          "accepted_lines": 121
+        },
+        "Sources/WallumeAppSupport/AppKit/StatusItemController.swift": {
+          "additions": 14,
+          "deletions": 14,
+          "accepted_lines": 14
+        },
+        "Sources/WallumeAppSupport/UI/DisplaysView.swift": {
+          "additions": 28,
+          "deletions": 28,
+          "accepted_lines": 28
+        }
+      }
+    }
+  }
+}
