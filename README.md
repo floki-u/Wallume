@@ -23,7 +23,7 @@ Wallume 只处理本地文件，不上传视频，也不会自行替你修改 ma
 
    ```bash
    cd ~/Downloads
-   mkdir -p Wallume-1.1.0
+   mkdir -p Wallume-1.2.9
    ditto -x -k "下载的文件名.zip" Wallume
    ```
 
