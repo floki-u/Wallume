@@ -141,13 +141,17 @@ public struct LockScreenView: View {
     private func nativeProviderBody(_ provider: NativeWallpaperProviderStore) -> some View {
         ScrollView {
             ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 72) { lockPreview(provider); lockCopy(provider) }.frame(minWidth: 900)
+                HStack(alignment: .center, spacing: 48) {
+                    lockPreview(provider).frame(width: 620)
+                    lockCopy(provider).frame(width: 430)
+                }
+                .frame(minWidth: 1_098)
                 VStack(alignment: .leading, spacing: 32) { lockPreview(provider); lockCopy(provider) }
             }
-            .frame(maxWidth: 1_180)
+            .frame(maxWidth: 1_220)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.horizontal, 32)
-            .padding(.vertical, 40)
+            .padding(.vertical, 32)
 
             nativeStaticFallbackCard(provider)
 
@@ -213,24 +217,96 @@ public struct LockScreenView: View {
         ZStack(alignment: .top) {
             nativeCanvas(provider)
             VStack(spacing: 3) {
-                Text(Date.now.formatted(date: .omitted, time: .shortened)).font(.system(size: 44, weight: .medium, design: .rounded))
+                Text(Date.now.formatted(date: .omitted, time: .shortened))
+                    .font(.system(size: 54, weight: .regular, design: .rounded))
+                    .monospacedDigit()
                 Text(Date.now.formatted(.dateTime.month().day().weekday())).font(.caption)
             }
-            .foregroundStyle(.white).padding(.top, 58)
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.28), radius: 18, y: 5)
+            .padding(.top, 48)
         }
-        .frame(maxWidth: 620)
+        .aspectRatio(16 / 10, contentMode: .fit)
+        .frame(maxWidth: 660)
+        .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.largeCornerRadius, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: WallumeDesign.largeCornerRadius, style: .continuous).strokeBorder(.white.opacity(0.1)) }
     }
 
     private func lockCopy(_ provider: NativeWallpaperProviderStore) -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            wallumeText("让画面\n自然延续。")
-                .font(.system(size: 46, weight: .bold, design: .serif))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("MACOS HANDOFF")
+                    .font(.caption2.weight(.bold))
+                    .tracking(1.6)
+                    .foregroundStyle(.tertiary)
+                wallumeText("三步完成锁屏同步")
+                    .font(.system(size: 30, weight: .semibold))
+                    .tracking(-0.7)
+                wallumeText("Wallume 只准备素材，最终选择始终在“系统设置 → 墙纸”中完成。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            nativeHandoffSteps(provider.status)
             nativeSafetyRail(provider)
-            wallumeText("Wallume 仅会写入你确认的专属资源槽，并保留可验证的恢复锚点。")
-                .foregroundStyle(.secondary).frame(maxWidth: 360, alignment: .leading)
             nativePrimaryAction(provider)
         }
-        .frame(maxWidth: 380, alignment: .leading)
+        .frame(maxWidth: 430, alignment: .leading)
+    }
+
+    private func nativeHandoffSteps(_ status: NativeWallpaperProviderStatus) -> some View {
+        let stage = handoffStage(status)
+        return VStack(alignment: .leading, spacing: 0) {
+            handoffStep(index: 0, title: wallumeLocalized("准备素材"), detail: wallumeLocalized("创建系统专用副本"), stage: stage)
+            handoffStep(index: 1, title: wallumeLocalized("系统确认"), detail: wallumeLocalized("在系统设置中选择 Wallume"), stage: stage)
+            handoffStep(index: 2, title: wallumeLocalized("状态核验"), detail: wallumeLocalized("读取系统实际选择状态"), stage: stage)
+        }
+    }
+
+    private func handoffStep(index: Int, title: String, detail: String, stage: Int) -> some View {
+        let isDone = stage > index || (stage == 3 && index == 2)
+        let isCurrent = stage == index
+        return HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(isDone ? WallumeDesign.accent : WallumeDesign.surface3)
+                    .frame(width: 28, height: 28)
+                if isDone {
+                    Image(systemName: "checkmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.black.opacity(0.76))
+                } else {
+                    Text("\(index + 1)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(isCurrent ? WallumeDesign.accent : .secondary)
+                }
+            }
+            .overlay { Circle().strokeBorder(isCurrent ? WallumeDesign.accent : WallumeDesign.line, lineWidth: isCurrent ? 1.5 : 1) }
+            .overlay(alignment: .bottom) {
+                if index < 2 {
+                    Rectangle()
+                        .fill(stage > index ? WallumeDesign.accent : WallumeDesign.lineStrong)
+                        .frame(width: 1, height: 28)
+                        .offset(y: 28)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.subheadline.weight(.semibold))
+                Text(detail).font(.caption).foregroundStyle(.tertiary)
+            }
+            .padding(.top, 3)
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: index < 2 ? 62 : 36, alignment: .top)
+    }
+
+    private func handoffStage(_ status: NativeWallpaperProviderStatus) -> Int {
+        switch status {
+        case .needsMedia, .readyToPrepare, .unavailable, .failure: 0
+        case .preparedForSystemSelection, .systemSelectionNeedsUpdate: 1
+        case .activeInSystem, .resetConfirmed: 3
+        }
     }
 
     private func providerResetSheet(_ provider: NativeWallpaperProviderStore) -> some View {
@@ -317,31 +393,30 @@ public struct LockScreenView: View {
                 if let media = provider.media, let image = NSImage(contentsOf: media.coverURL) {
                     Image(nsImage: image).resizable().scaledToFill()
                 } else {
-                    Color(nsColor: .underPageBackgroundColor)
+                    WallumeDesign.inset
                 }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 248)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(nativeStatusTitle(provider.status))
-                    .font(.title2.weight(.bold))
-                Text(nativeStatusDetail(provider.status))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.12), .black.opacity(0.72)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            HStack(spacing: 7) {
+                Image(systemName: "lock.fill")
+                wallumeText("锁屏预览")
+                Spacer()
                 if let media = provider.media {
-                    Label(media.displayName, systemImage: "film")
-                        .font(.subheadline.weight(.medium))
+                    Text(media.displayName).lineLimit(1)
                 }
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.ultraThinMaterial)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.white.opacity(0.82))
+            .padding(16)
         }
-        .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous).strokeBorder(.primary.opacity(0.08)) }
-        .wallumeInteractiveSurface()
     }
 
     private func nativeSafetyRail(_ provider: NativeWallpaperProviderStore) -> some View {
@@ -361,7 +436,9 @@ public struct LockScreenView: View {
             Image(systemName: "checkmark.shield")
                 .foregroundStyle(WallumeDesign.accent)
         }
-        .wallumeCard()
+        .padding(14)
+        .background(WallumeDesign.inset, in: RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous).strokeBorder(WallumeDesign.line) }
     }
 
     private func nativeSafetyIcon(_ status: NativeWallpaperProviderStatus) -> String {
@@ -459,7 +536,6 @@ public struct LockScreenView: View {
         let page = LockScreenPageViewState(state: store.state)
         return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                WallumePageHeader(wallumeLocalized("锁屏同步"), subtitle: wallumeLocalized("仅在系统安全支持时写入锁屏配置")) { EmptyView() }
                 statusCard(page)
                 probeCard(page)
                 slotsCard(page)

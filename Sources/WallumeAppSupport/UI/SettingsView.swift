@@ -254,17 +254,39 @@ public struct SettingsView: View {
             exportState: exportController.state
         )
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 18) {
-                WallumePageHeader(wallumeLocalized("设置"), subtitle: wallumeLocalized("启动、播放与本地数据")) { EmptyView() }
-                appearanceCard
-                languageCard
-                preferencesCard(page)
-                directoriesCard(page)
-                diagnosticsCard(page)
-                Text(page.buildInfo.displayText).font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("GENERAL")
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.6)
+                        .foregroundStyle(.tertiary)
+                    wallumeText("通用")
+                        .font(.system(size: 28, weight: .semibold))
+                        .tracking(-0.6)
+                }
+
+                settingsSurface {
+                    appearanceCard
+                    Divider().opacity(0.55)
+                    languageCard
+                    Divider().opacity(0.55)
+                    preferencesCard(page)
+                }
+
+                settingsSurface {
+                    directoriesCard(page)
+                    Divider().opacity(0.55)
+                    diagnosticsCard(page)
+                }
+
+                Text(page.buildInfo.displayText)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
-            .frame(maxWidth: 760, alignment: .leading)
-            .padding(24)
+            .frame(maxWidth: 820, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 28)
         }
         .wallumePageBackground()
         .onAppear(perform: migrateLegacyThemeIfNeeded)
@@ -299,6 +321,12 @@ public struct SettingsView: View {
         }
     }
 
+    private func settingsSurface<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0, content: content)
+            .background(WallumeDesign.surface2, in: RoundedRectangle(cornerRadius: WallumeDesign.largeCornerRadius, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: WallumeDesign.largeCornerRadius, style: .continuous).strokeBorder(WallumeDesign.line) }
+    }
+
     private var appearanceCard: some View {
         let selectedTheme = WallumeTheme.fromStoredValue(themeName)
         return VStack(alignment: .leading, spacing: 12) {
@@ -311,13 +339,13 @@ public struct SettingsView: View {
                 Circle().fill(WallumeDesign.accent).frame(width: 9, height: 9)
             }
             Picker(wallumeLocalized("主题"), selection: $themeName) {
-                ForEach(WallumeTheme.allCases) { theme in
+                ForEach([WallumeTheme.nocturne, .dawn, .system]) { theme in
                     Text(wallumeLocalized(theme.title)).tag(theme.rawValue)
                 }
             }
             .pickerStyle(.segmented)
         }
-        .wallumeCard()
+        .padding(20)
     }
 
     private var languageCard: some View {
@@ -333,7 +361,7 @@ public struct SettingsView: View {
             }
             .pickerStyle(.segmented)
         }
-        .wallumeCard()
+        .padding(20)
     }
 
     private func preferencesCard(_ page: SettingsPageViewState) -> some View {
@@ -344,10 +372,13 @@ public struct SettingsView: View {
                     Toggle(presentation.title, isOn: preferenceBinding(for: control))
                         .disabled(!presentation.isEnabled)
                         .accessibilityIdentifier(presentation.id)
+                    if presentation.id != page.preferenceControls.last?.id {
+                        Divider().opacity(0.45)
+                    }
                 }
             }
         }
-        .wallumeCard()
+        .padding(20)
     }
 
     private func preferenceBinding(for control: SettingsPreferenceControl) -> Binding<Bool> {
@@ -384,7 +415,7 @@ public struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .wallumeCard()
+        .padding(20)
     }
 
     private func directoryRow(title: String, path: String, url: URL) -> some View {
@@ -418,7 +449,7 @@ public struct SettingsView: View {
                 }
             }
         }
-        .wallumeCard()
+        .padding(20)
     }
 
     private func performDiagnosticsAction(_ action: SettingsDiagnosticsAction) {

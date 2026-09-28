@@ -38,18 +38,46 @@ public struct DisplaysView: View {
                 )
             } else {
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 22) {
-                        VStack(alignment: .leading, spacing: 16) {
-                            wallumeText("显示器").font(.system(size: 38, weight: .bold, design: .serif))
-                            Text(wallumeLocalized("已连接 %lld 块显示器；每块屏幕都可独立播放与设置画面。", store.cards.count))
-                                .foregroundStyle(.secondary).frame(maxWidth: 520, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 24) {
+                        HStack(alignment: .bottom, spacing: 20) {
+                            VStack(alignment: .leading, spacing: 7) {
+                                Text("YOUR SPACE")
+                                    .font(.caption2.weight(.bold))
+                                    .tracking(1.6)
+                                    .foregroundStyle(.tertiary)
+                                wallumeText("当前空间")
+                                    .font(.system(size: 30, weight: .semibold))
+                                    .tracking(-0.7)
+                            }
+                            Spacer()
+                            WallumeStatusBadge(
+                                wallumeLocalized(store.cards.allSatisfy { $0.connection == .connected } ? "全部在线" : "部分离线"),
+                                systemImage: store.cards.allSatisfy { $0.connection == .connected } ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
+                                tint: store.cards.allSatisfy { $0.connection == .connected } ? WallumeDesign.success : WallumeDesign.warning
+                            )
                         }
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 360, maximum: 640), spacing: 18)], spacing: 18) {
-                            ForEach(store.cards) { roomCard($0) }
+
+                        if let primaryCard {
+                            projectionStage(primaryCard)
                         }
+
+                        if !secondaryCards.isEmpty {
+                            VStack(alignment: .leading, spacing: 10) {
+                                wallumeText("其他显示器")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 460), spacing: 12)], spacing: 12) {
+                                    ForEach(secondaryCards) { secondaryDisplayCard($0) }
+                                }
+                            }
+                        }
+
                         sharedPlaybackControl
                     }
-                    .frame(maxWidth: 1_420, alignment: .leading).padding(.horizontal, 32).padding(.vertical, 32)
+                    .frame(maxWidth: 1_280, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 28)
                 }
             }
         }
@@ -78,46 +106,18 @@ public struct DisplaysView: View {
         }
     }
 
-    private var playbackStatus: some View {
-        HStack {
-            if !store.effectivePauseReasons.isEmpty {
-                Label(wallumeLocalized("已暂停"), systemImage: "pause.circle.fill").foregroundStyle(.secondary)
-            }
-            Button(wallumeLocalized(store.userPaused ? "继续播放" : "暂停播放")) {
-                Task { await store.setUserPaused(!store.userPaused) }
-            }
-        }
-    }
-
-    private func roomCard(_ card: DisplayCardState) -> some View {
-        VStack(spacing: 0) {
-            ZStack(alignment: .topLeading) {
-                displayImage(card).aspectRatio(1.75, contentMode: .fit).clipped()
-                Text(wallumeLocalized(card.display.isMain ? "主显示器" : "外接显示器")).font(.caption2.weight(.semibold)).foregroundStyle(.white).padding(7).background(.black.opacity(0.38)).padding(12)
-            }
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(card.display.name.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(WallumeDesign.accent)
-                    Text(card.wallpaperTitle).font(.headline).lineLimit(1)
-                    Text(wallumeLocalized("%@ · Muted · %@", card.presentationMode.displayTitle, wallumeLocalized(card.connection == .connected ? "正在播放" : "离线"))).font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button(wallumeLocalized("更换画面")) { if gallery != nil { pickingDisplay = card } else { onChooseWallpaper(card.id) } }.buttonStyle(.bordered)
-            }
-            .padding(16)
-        }
-        .frame(maxWidth: .infinity)
-        .wallumeCard()
-    }
-
     private var sharedPlaybackControl: some View {
         HStack {
-            Image(systemName: store.userPaused ? "play.fill" : "pause.fill").frame(width: 28, height: 28).background(WallumeDesign.accent.opacity(0.16))
+            Image(systemName: store.userPaused ? "play.fill" : "pause.fill")
+                .frame(width: 36, height: 36)
+                .background(WallumeDesign.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 3) { wallumeText("播放控制").font(.subheadline.weight(.semibold)); wallumeText("暂停会保留每块屏幕当前的画面与设置。").font(.caption).foregroundStyle(.secondary) }
             Spacer()
             Button(wallumeLocalized(store.userPaused ? "继续全部" : "暂停全部")) { Task { await store.setUserPaused(!store.userPaused) } }.buttonStyle(.bordered)
         }
-        .padding(.vertical, 18).overlay(alignment: .top) { Divider() }.overlay(alignment: .bottom) { Divider() }
+        .padding(18)
+        .background(WallumeDesign.surface1, in: RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous).strokeBorder(WallumeDesign.line) }
     }
 
     private var primaryCard: DisplayCardState? {
@@ -133,7 +133,7 @@ public struct DisplaysView: View {
         VStack(spacing: 0) {
             ZStack(alignment: .topLeading) {
                 displayImage(card)
-                .frame(height: 390)
+                .frame(height: 420)
                 .frame(maxWidth: .infinity)
                 .clipped()
                 LinearGradient(colors: [.black.opacity(0.12), .clear, .black.opacity(0.65)], startPoint: .top, endPoint: .bottom)
@@ -200,9 +200,9 @@ public struct DisplaysView: View {
                 .padding(.bottom, 18)
             }
         }
-        .background(Color.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.13)) }
+        .background(WallumeDesign.surface1, in: RoundedRectangle(cornerRadius: WallumeDesign.largeCornerRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.largeCornerRadius, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: WallumeDesign.largeCornerRadius, style: .continuous).strokeBorder(.white.opacity(0.1)) }
         .wallumeInteractiveSurface()
     }
 
@@ -228,8 +228,9 @@ public struct DisplaysView: View {
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.secondary)
             }
-            .padding(10)
-            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(12)
+            .background(WallumeDesign.surface1, in: RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous).strokeBorder(WallumeDesign.line) }
         }
         .buttonStyle(.plain)
         .disabled(card.connection != .connected)

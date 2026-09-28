@@ -44,6 +44,7 @@ public enum WallumeTheme: String, CaseIterable, Identifiable {
         case "tide": .nocturne
         case "grove": .dawn
         case "graphite": .system
+        case WallumeTheme.ember.rawValue: .nocturne
         default: Self(rawValue: rawValue) ?? .nocturne
         }
     }
@@ -59,8 +60,8 @@ public enum WallumeTheme: String, CaseIterable, Identifiable {
 
     public var detail: String {
         switch self {
-        case .nocturne: wallumeLocalized("深色幕布与暖金强调，适合专注观看。")
-        case .dawn: wallumeLocalized("轻盈的雾白与青绿，适合明亮桌面。")
+        case .nocturne: wallumeLocalized("沉浸式幕布与珊瑚强调，让画面成为焦点。")
+        case .dawn: wallumeLocalized("暖白表面与珊瑚强调，适合明亮桌面。")
         case .ember: wallumeLocalized("在当前 macOS 外观中加入温暖的余烬色调。")
         case .system: wallumeLocalized("完全跟随 macOS 的浅色与深色外观。")
         }
@@ -87,17 +88,17 @@ public struct WallumeThemePalette {
         switch theme {
         case .nocturne:
             return .init(
-                canvas: [Color(red: 0.035, green: 0.043, blue: 0.062), Color(red: 0.065, green: 0.075, blue: 0.095)],
-                panel: Color(red: 0.063, green: 0.075, blue: 0.102),
-                panelRaised: Color(red: 0.09, green: 0.106, blue: 0.14),
-                line: .white.opacity(0.12), accent: WallumeDesign.accent
+                canvas: [WallumeDesign.canvas, WallumeDesign.canvas],
+                panel: WallumeDesign.surface1,
+                panelRaised: WallumeDesign.surface2,
+                line: WallumeDesign.line, accent: WallumeDesign.accent
             )
         case .dawn:
             return .init(
                 canvas: [Color(red: 0.92, green: 0.95, blue: 0.93), Color(red: 0.97, green: 0.98, blue: 0.95)],
                 panel: Color(red: 0.96, green: 0.97, blue: 0.94),
                 panelRaised: .white.opacity(0.78),
-                line: .black.opacity(0.10), accent: Color(red: 0.12, green: 0.38, blue: 0.35)
+                line: .black.opacity(0.10), accent: WallumeDesign.accent
             )
         case .ember:
             return .init(
@@ -111,7 +112,7 @@ public struct WallumeThemePalette {
                 canvas: isDark ? [Color(red: 0.055, green: 0.065, blue: 0.08), Color(red: 0.09, green: 0.1, blue: 0.12)] : [Color(red: 0.94, green: 0.95, blue: 0.97), Color(red: 0.98, green: 0.98, blue: 0.99)],
                 panel: isDark ? Color(red: 0.08, green: 0.09, blue: 0.11) : .white.opacity(0.8),
                 panelRaised: isDark ? Color(red: 0.12, green: 0.13, blue: 0.16) : .white,
-                line: isDark ? .white.opacity(0.12) : .black.opacity(0.10), accent: .accentColor
+                line: isDark ? .white.opacity(0.12) : .black.opacity(0.10), accent: WallumeDesign.accent
             )
         }
     }
@@ -140,12 +141,59 @@ public enum WallumeAppLanguage: String, CaseIterable, Identifiable {
 /// Shared presentation primitives. These keep the feature pages visually coherent while
 /// leaving all feature state and actions in their existing stores.
 public enum WallumeDesign {
-    public static let accent = Color(red: 0.9, green: 0.78, blue: 0.48)
-    public static let warmAccent = Color(red: 1.0, green: 0.51, blue: 0.39)
+    private static func adaptive(light: NSColor, dark: NSColor) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+        })
+    }
+
+    public static let canvas = adaptive(
+        light: NSColor(srgbRed: 0.961, green: 0.957, blue: 0.945, alpha: 1),
+        dark: NSColor(srgbRed: 0.035, green: 0.035, blue: 0.031, alpha: 1)
+    )
+    public static let surface1 = adaptive(
+        light: NSColor(srgbRed: 0.937, green: 0.929, blue: 0.914, alpha: 1),
+        dark: NSColor(srgbRed: 0.067, green: 0.067, blue: 0.059, alpha: 1)
+    )
+    public static let surface2 = adaptive(
+        light: .white,
+        dark: NSColor(srgbRed: 0.09, green: 0.09, blue: 0.078, alpha: 1)
+    )
+    public static let surface3 = adaptive(
+        light: NSColor(srgbRed: 0.91, green: 0.902, blue: 0.878, alpha: 1),
+        dark: NSColor(srgbRed: 0.137, green: 0.133, blue: 0.118, alpha: 1)
+    )
+    public static let inset = adaptive(
+        light: NSColor(srgbRed: 0.922, green: 0.914, blue: 0.894, alpha: 1),
+        dark: NSColor(srgbRed: 0.071, green: 0.071, blue: 0.063, alpha: 1)
+    )
+    public static let accent = adaptive(
+        light: NSColor(srgbRed: 0.72, green: 0.27, blue: 0.20, alpha: 1),
+        dark: NSColor(srgbRed: 0.937, green: 0.431, blue: 0.329, alpha: 1)
+    )
+    public static let warmAccent = accent
+    public static let success = adaptive(
+        light: NSColor(srgbRed: 0.196, green: 0.471, blue: 0.314, alpha: 1),
+        dark: NSColor(srgbRed: 0.412, green: 0.725, blue: 0.541, alpha: 1)
+    )
+    public static let warning = adaptive(
+        light: NSColor(srgbRed: 0.616, green: 0.392, blue: 0.161, alpha: 1),
+        dark: NSColor(srgbRed: 0.831, green: 0.604, blue: 0.325, alpha: 1)
+    )
+    public static let destructive = adaptive(
+        light: NSColor(srgbRed: 0.702, green: 0.306, blue: 0.271, alpha: 1),
+        dark: NSColor(srgbRed: 0.859, green: 0.427, blue: 0.38, alpha: 1)
+    )
+    public static let line = Color.primary.opacity(0.085)
+    public static let lineStrong = Color.primary.opacity(0.14)
     public static let ink = Color(nsColor: .labelColor)
-    public static let motion = Animation.spring(response: 0.42, dampingFraction: 0.82)
+    public static let motion = Animation.easeOut(duration: 0.18)
+    public static let smallCornerRadius: CGFloat = 6
     public static let cardCornerRadius: CGFloat = 10
+    public static let largeCornerRadius: CGFloat = 16
     public static let contentWidth: CGFloat = 1120
+    public static let sidebarWidth: CGFloat = 76
+    public static let toolbarHeight: CGFloat = 62
 }
 
 public struct WallumeMark: View {
@@ -158,12 +206,12 @@ public struct WallumeMark: View {
     public var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
-                .fill(Color(red: 0.035, green: 0.043, blue: 0.062))
+                .fill(WallumeDesign.surface1)
             RoundedRectangle(cornerRadius: size * 0.2, style: .continuous)
                 .stroke(WallumeDesign.accent, lineWidth: size * 0.075)
                 .padding(size * 0.18)
             WaveMark()
-                .stroke(Color(red: 0.17, green: 0.78, blue: 0.68), style: StrokeStyle(lineWidth: size * 0.1, lineCap: .round))
+                .stroke(.white.opacity(0.78), style: StrokeStyle(lineWidth: size * 0.1, lineCap: .round))
                 .padding(size * 0.09)
             Circle()
                 .fill(WallumeDesign.warmAccent)
@@ -253,9 +301,9 @@ public struct WallumeNowPlayingRail: View {
     public var body: some View {
         HStack(spacing: 10) {
             Circle()
-                .fill(Color.green)
+                .fill(WallumeDesign.success)
                 .frame(width: 7, height: 7)
-                .shadow(color: .green.opacity(0.45), radius: 4)
+                .shadow(color: WallumeDesign.success.opacity(0.45), radius: 4)
             Text(wallumeLocalized("正在播放"))
                 .font(.caption.weight(.semibold))
             Text("\(mediaName) · \(displayName)")
@@ -311,10 +359,7 @@ private struct WallumeThemeSurface: ViewModifier {
         let palette = WallumeThemePalette.resolve(theme, scheme: colorScheme)
         content
             .preferredColorScheme(theme.preferredColorScheme)
-            .background(
-                LinearGradient(colors: palette.canvas, startPoint: .topLeading, endPoint: .bottomTrailing)
-                    .ignoresSafeArea()
-            )
+            .background(palette.canvas[0].ignoresSafeArea())
             .tint(palette.accent)
     }
 
@@ -338,8 +383,8 @@ private struct WallumeInteractiveSurface: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .scaleEffect(isHovered ? 1.012 : 1)
-            .shadow(color: .black.opacity(isHovered ? 0.08 : 0.02), radius: isHovered ? 10 : 2, y: isHovered ? 5 : 1)
+            .scaleEffect(isHovered ? 1.006 : 1)
+            .brightness(isHovered ? 0.025 : 0)
             .animation(WallumeDesign.motion, value: isHovered)
             .onHover { isHovered = $0 }
     }

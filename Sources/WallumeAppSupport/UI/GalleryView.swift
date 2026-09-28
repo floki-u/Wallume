@@ -97,63 +97,63 @@ public struct GalleryView: View {
     }
 
     private var projectionLibrary: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 56) { projectionCopy; projectionFeature }.frame(minWidth: 1_180)
-            VStack(alignment: .leading, spacing: 24) { projectionCopy; projectionFeature }
-        }
-        .frame(maxWidth: 2_200)
+        projectionFeature
+        .frame(maxWidth: 1_620)
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 32)
-        .padding(.vertical, 28)
-    }
-
-    private var projectionCopy: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            wallumeText("选一段画面，\n留住此刻的空间。")
-                .font(.system(size: 44, weight: .bold, design: .serif))
-                .fixedSize(horizontal: false, vertical: true)
-            wallumeText("本地素材不会上传。预览一段画面，再将它投放到指定显示器。")
-                .foregroundStyle(.secondary).frame(maxWidth: 350, alignment: .leading)
-            Button(wallumeLocalized("预览当前画面"), systemImage: "play.fill") { if let item = carouselItem { gallery.selectedItem = item } }
-                .buttonStyle(.borderedProminent).tint(WallumeDesign.accent)
-        }
-        .frame(width: 420, alignment: .leading)
+        .padding(.horizontal, 24)
+        .padding(.top, 18)
     }
 
     private var projectionFeature: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                if let item = carouselItem { GalleryCarouselSlide(item: item, displayName: playbackSummary?.displayName) }
+        ZStack(alignment: .bottomTrailing) {
+            if let item = carouselItem {
+                GalleryCarouselSlide(item: item, displayName: playbackSummary?.displayName)
             }
-            .aspectRatio(16 / 9, contentMode: .fit)
+
             HStack(spacing: 8) {
                 carouselButton("chevron.left", action: previousCarouselItem)
-                wallumeText("画面轮播")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Button(wallumeLocalized(isAutoCycling ? "暂停轮播" : "自动轮播"), systemImage: isAutoCycling ? "pause.fill" : "play.fill") { isAutoCycling.toggle() }
-                    .buttonStyle(.bordered)
+                Button { isAutoCycling.toggle() } label: {
+                    Image(systemName: isAutoCycling ? "pause.fill" : "play.fill")
+                        .frame(width: 40, height: 40)
+                        .background(.black.opacity(0.58), in: Circle())
+                        .overlay { Circle().strokeBorder(.white.opacity(0.14)) }
+                }
+                .buttonStyle(.plain)
+                .help(wallumeLocalized(isAutoCycling ? "暂停轮播" : "自动轮播"))
                 carouselButton("chevron.right", action: nextCarouselItem)
-                Spacer()
+                Button { if let item = carouselItem { gallery.selectedItem = item } } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .frame(width: 48, height: 48)
+                        .background(.white, in: Circle())
+                        .foregroundStyle(.black.opacity(0.78))
+                }
+                .buttonStyle(.plain)
+                .help(wallumeLocalized("预览当前画面"))
             }
+            .foregroundStyle(.white)
+            .padding(24)
         }
-        .frame(minWidth: 700, maxWidth: .infinity)
+        .aspectRatio(16 / 9, contentMode: .fit)
+        .frame(minHeight: 360)
     }
 
     private var projectionFilmstrip: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
             HStack {
-                HStack(spacing: 7) {
-                    wallumeText("本地画面").font(.caption).foregroundStyle(.secondary)
-                    Text(gallery.filteredItems.count.formatted()).font(.caption.weight(.bold)).foregroundStyle(WallumeDesign.accent)
+                VStack(alignment: .leading, spacing: 3) {
+                    wallumeText("所有画面").font(.headline)
+                    Text(wallumeLocalized("%@ 段本地视频 · 选择一段画面进行预览或投放", gallery.filteredItems.count.formatted()))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
                 Spacer()
-                wallumeText("全部").font(.caption.weight(.semibold))
-                    .padding(.bottom, 5)
-                    .overlay(alignment: .bottom) { Rectangle().fill(WallumeDesign.accent).frame(height: 1) }
+                Image(systemName: "square.grid.2x2")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 34, height: 34)
+                    .background(WallumeDesign.surface2, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
-            .overlay(alignment: .top) { Divider().offset(y: -16) }
-            .padding(.horizontal, 32)
+            .padding(.horizontal, 24)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
                 ForEach(gallery.filteredItems) { item in
@@ -164,9 +164,10 @@ public struct GalleryView: View {
                 }
                 }
             }
-            .padding(.horizontal, 32)
+            .padding(.horizontal, 24)
         }
-        .padding(.bottom, 28)
+        .padding(.top, 26)
+        .padding(.bottom, 32)
     }
 
     private var carouselItem: MediaItem? {
@@ -176,10 +177,12 @@ public struct GalleryView: View {
     private func carouselButton(_ systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.title3.weight(.semibold))
-                .frame(width: 36, height: 36)
+                .font(.subheadline.weight(.semibold))
+                .frame(width: 40, height: 40)
+                .background(.black.opacity(0.58), in: Circle())
+                .overlay { Circle().strokeBorder(.white.opacity(0.14)) }
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.plain)
         .help(wallumeLocalized(systemImage == "chevron.left" ? "上一段视频" : "下一段视频"))
     }
 
@@ -327,22 +330,41 @@ private struct ProjectionFilmstripTile: View {
     let isSelected: Bool
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            if let image = NSImage(contentsOf: item.thumbnailURL) {
-                Image(nsImage: image).resizable().scaledToFill()
-            } else { Color(nsColor: .underPageBackgroundColor) }
-            LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .center, endPoint: .bottom)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.displayName.uppercased()).font(.caption2.weight(.bold)).lineLimit(1)
-                Text(item.durationSeconds.formatted()).font(.caption2)
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack(alignment: .bottomTrailing) {
+                if let image = NSImage(contentsOf: item.thumbnailURL) {
+                    Image(nsImage: image).resizable().scaledToFill()
+                } else { WallumeDesign.inset }
+                Text(item.durationSeconds.formatted())
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.88))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 3)
+                    .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    .padding(8)
             }
-            .foregroundStyle(.white).padding(10)
+            .frame(width: 230)
+            .aspectRatio(1.6, contentMode: .fit)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous)
+                    .strokeBorder(isSelected ? WallumeDesign.accent : .white.opacity(0.1), lineWidth: isSelected ? 2 : 1)
+            }
+            .shadow(color: isSelected ? WallumeDesign.accent.opacity(0.18) : .clear, radius: 0, x: 0, y: 3)
+
+            Text(item.displayName)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .frame(width: 230, alignment: .leading)
+            Text("\(item.pixelWidth) × \(item.pixelHeight) · \(item.frameRate.formatted()) fps")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .frame(width: 230, alignment: .leading)
         }
-        .frame(width: 270)
-        .aspectRatio(1.75, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(isSelected ? WallumeDesign.accent : .clear, lineWidth: 2) }
-        .opacity(isSelected ? 1 : 0.78)
+        .opacity(isSelected ? 1 : 0.72)
+        .animation(WallumeDesign.motion, value: isSelected)
     }
 }
 
@@ -361,33 +383,54 @@ private struct GalleryCarouselSlide: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
-            .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.largeCornerRadius, style: .continuous))
 
             LinearGradient(
-                colors: [.clear, .black.opacity(0.78)],
-                startPoint: .center,
+                colors: [.clear, .black.opacity(0.16), .black.opacity(0.9)],
+                startPoint: .top,
                 endPoint: .bottom
             )
-            .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.largeCornerRadius, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 7) {
-                    Circle().fill(.green).frame(width: 7, height: 7)
-                    wallumeText("正在放映").font(.caption.weight(.semibold))
-                    if let displayName {
-                        Text(displayName).font(.caption).foregroundStyle(.white.opacity(0.6))
-                    }
+            VStack {
+                HStack(spacing: 8) {
+                    Circle().fill(WallumeDesign.success).frame(width: 7, height: 7)
+                    Text(displayName.map { wallumeLocalized("正在 %@ 放映", $0) } ?? wallumeLocalized("准备放映"))
+                        .font(.caption.weight(.medium))
+                        .lineLimit(1)
+                    Spacer()
                 }
-                Text(item.displayName).font(.title3.weight(.semibold)).lineLimit(1)
-                Text("\(item.pixelWidth) x \(item.pixelHeight)  ·  \(item.frameRate.formatted()) fps")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.88))
+                .padding(.horizontal, 11)
+                .frame(height: 28)
+                .background(.black.opacity(0.48), in: Capsule())
+                .overlay { Capsule().strokeBorder(.white.opacity(0.12)) }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer()
             }
-            .padding(18)
+            .padding(16)
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text("NOW PROJECTING")
+                    .font(.caption2.weight(.bold))
+                    .tracking(1.7)
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(item.displayName)
+                    .font(.system(size: 38, weight: .semibold))
+                    .tracking(-1.1)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text("\(item.pixelWidth) x \(item.pixelHeight)  ·  \(item.frameRate.formatted()) fps")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.58))
+            }
+            .padding(28)
+            .padding(.trailing, 210)
             .frame(maxWidth: .infinity, alignment: .leading)
             .foregroundStyle(.white)
         }
-        .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.cardCornerRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: WallumeDesign.largeCornerRadius, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: WallumeDesign.largeCornerRadius, style: .continuous).strokeBorder(.white.opacity(0.1)) }
     }
 }
 
