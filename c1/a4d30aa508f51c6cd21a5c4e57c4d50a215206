@@ -1,0 +1,120 @@
+Sources/WallumeAppSupport/UI/SettingsView.swift
+  0960b03f2bbeb236 257-284,286-289,324-329,342,348,364,375-377,381,418,452
+Sources/WallumeAppSupport/UI/PerformanceView.swift
+  0960b03f2bbeb236 40-53,55,58,71-103,105-107,110-127,131-133,136-150,152,155-161,248-250
+Sources/WallumeAppSupport/UI/WallumeDesign.swift
+  0960b03f2bbeb236 47,63-64,91-94,101,115,144-188,190-191,193,195-196,209,214,304,306,362,386-387
+Sources/WallumeAppSupport/UI/LockScreenView.swift
+  0960b03f2bbeb236 144-148,151,154,220-222,225-227,229-232,237-250,254-308,396,399,402-411,413,416-418,439-441
+Sources/WallumeAppSupport/UI/GalleryView.swift
+  0960b03f2bbeb236 100-101,103-104,108-110,112,115-122,124-131,133-134,136-137,141,143-147,150-154,156,167,169-170,180-183,185,333-352,354-364,366-367,386,389-390,393,395-401,403-422,424-425,427-428,432-433
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  0960b03f2bbeb236 287-288,291-294,296-307,324,401,403-488,502-510,513-521,523-528,530-537,539-540,542-543,546-550,559-563,565-566,570,572-576,581-587,609-648,655-685
+Sources/WallumeAppSupport/Resources/en.lproj/Localizable.strings
+  0960b03f2bbeb236 306-344
+Sources/WallumeAppSupport/UI/DisplaysView.swift
+  0960b03f2bbeb236 41-61,63-72,74,77-80,111-113,118-120,136,203-205,231-233
+Sources/WallumeAppSupport/Resources/zh-Hans.lproj/Localizable.strings
+  0960b03f2bbeb236 21-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "c1a4d30aa508f51c6cd21a5c4e57c4d50a215206",
+  "prompts": {
+    "0960b03f2bbeb236": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0ccee-fc39-7413-8717-8d40fcc74213",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 862,
+      "total_deletions": 424,
+      "accepted_lines": 820,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeAppSupport/Resources/en.lproj/Localizable.strings": {
+          "additions": 39,
+          "accepted_lines": 39
+        },
+        "Sources/WallumeAppSupport/UI/DisplaysView.swift": {
+          "additions": 51,
+          "deletions": 50,
+          "accepted_lines": 49
+        },
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 263,
+          "deletions": 115,
+          "accepted_lines": 242
+        },
+        "Sources/WallumeAppSupport/UI/PerformanceView.swift": {
+          "additions": 118,
+          "deletions": 102,
+          "accepted_lines": 114
+        },
+        "Sources/WallumeAppSupport/UI/LockScreenView.swift": {
+          "additions": 110,
+          "deletions": 34,
+          "accepted_lines": 106
+        },
+        "Sources/WallumeAppSupport/UI/SettingsView.swift": {
+          "additions": 48,
+          "deletions": 17,
+          "accepted_lines": 47
+        },
+        "Sources/WallumeAppSupport/UI/GalleryView.swift": {
+          "additions": 118,
+          "deletions": 75,
+          "accepted_lines": 118
+        },
+        "Sources/WallumeAppSupport/UI/WallumeDesign.swift": {
+          "additions": 76,
+          "deletions": 31,
+          "accepted_lines": 66
+        },
+        "Sources/WallumeAppSupport/Resources/zh-Hans.lproj/Localizable.strings": {
+          "additions": 39,
+          "accepted_lines": 39
+        }
+      }
+    },
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "759cfd31977bff9c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01e4c-f07a-7e91-ac2a-955b36061a6b",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 74,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/VideoRenderer.swift": {
+          "accepted_lines": 74
+        }
+      }
+    }
+  }
+}
