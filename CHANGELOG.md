@@ -6,6 +6,11 @@
 
 - Add native PNG, JPG, JPEG, and HEIC wallpaper import with direct, zero-player desktop rendering and static lock-screen handoff through System Settings.
 
+### Fixes
+
+- Keep uninstall working after Wallume.app is moved into Applications by shipping a standalone cleanup helper and falling back to the installed app for older packages.
+- Remove the native wallpaper extension's persisted preferences together with its provider documents during cleanup.
+
 ## 1.2.9 - 2026-09-28
 
 ### Features

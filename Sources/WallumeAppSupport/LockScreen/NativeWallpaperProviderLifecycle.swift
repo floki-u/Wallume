@@ -13,18 +13,22 @@ public struct NativeWallpaperProviderPaths: Sendable, Equatable {
     public let providerStateFile: URL
     public let resetConfirmationFile: URL
     public let mediaDirectory: URL
+    public let preferencesFile: URL
 
     public init(
         homeDirectory: URL,
         providerIdentifier: String = "com.wallume.app.wallpaper"
     ) {
         self.providerIdentifier = providerIdentifier
-        root = homeDirectory
-            .appending(path: "Library/Containers/\(providerIdentifier)/Data/Documents", directoryHint: .isDirectory)
+        let dataRoot = homeDirectory
+            .appending(path: "Library/Containers/\(providerIdentifier)/Data", directoryHint: .isDirectory)
+        root = dataRoot.appending(path: "Documents", directoryHint: .isDirectory)
         stateFile = root.appending(path: "wallume-deployment.json")
         providerStateFile = root.appending(path: "wallume-provider-state.json")
         resetConfirmationFile = root.appending(path: "wallume-reset-confirmed.json")
         mediaDirectory = root.appending(path: "videos", directoryHint: .isDirectory)
+        preferencesFile = dataRoot
+            .appending(path: "Library/Preferences/\(providerIdentifier).plist")
     }
 
     public func mediaDirectory(for id: UUID) -> URL {
@@ -258,21 +262,33 @@ public actor NativeWallpaperProviderLifecycle {
         try json.write(ResetConfirmation(confirmedAt: now()), to: paths.resetConfirmationFile)
     }
 
-    /// Removes only the deterministic Wallume provider directory. It never removes media from
-    /// the main Wallume library. `confirmSystemReset()` is the user-confirmed authorization
-    /// boundary: WallpaperAgent can keep an extension process alive briefly after a wallpaper
-    /// change and let it rewrite a stale provider-state hint. Do not re-evaluate that racy hint
-    /// here, or a confirmed uninstall can never make progress.
+    /// Removes only the deterministic Wallume provider directory and its extension preferences.
+    /// It never removes media from the main Wallume library. `confirmSystemReset()` is the
+    /// user-confirmed authorization boundary: WallpaperAgent can keep an extension process alive
+    /// briefly after a wallpaper change and let it rewrite a stale provider-state hint. Do not
+    /// re-evaluate that racy hint here, or a confirmed uninstall can never make progress.
     public func cleanupAfterReset() throws {
         let resetConfirmed = try hasResetConfirmation()
         if !resetConfirmed, try deployment()?.isActiveInSystem == true {
             throw NativeWallpaperProviderLifecycleError.resetRequired
         }
-        guard files.exists(paths.root) else { return }
-        guard try files.hasNoSymlinkComponents(paths.root), try files.identity(of: paths.root).isDirectory else {
+
+        if files.exists(paths.root),
+           !(try files.hasNoSymlinkComponents(paths.root) && files.identity(of: paths.root).isDirectory) {
             throw NativeWallpaperProviderLifecycleError.unsupportedState
         }
-        try files.remove(paths.root)
+        if files.exists(paths.preferencesFile),
+           !(try files.hasNoSymlinkComponents(paths.preferencesFile)
+                && files.identity(of: paths.preferencesFile).isRegularFile) {
+            throw NativeWallpaperProviderLifecycleError.unsupportedState
+        }
+
+        if files.exists(paths.root) {
+            try files.remove(paths.root)
+        }
+        if files.exists(paths.preferencesFile) {
+            try files.remove(paths.preferencesFile)
+        }
     }
 
     /// Reports whether any Wallume provider context is still being rendered by the system.

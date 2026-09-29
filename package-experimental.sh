@@ -10,6 +10,7 @@ VERSION="$1"
 BUILD_DIRECTORY="$(swift build --show-bin-path)"
 APP_PATH="$BUILD_DIRECTORY/Wallume.app"
 UNINSTALLER="$BUILD_DIRECTORY/uninstall-wallume.sh"
+CLEANUP_TOOL="$APP_PATH/Contents/Resources/wallume-provider-cleanup"
 ARTIFACTS_DIRECTORY="$PWD/.artifacts"
 PAYLOAD_NAME="Wallume-${VERSION}"
 OUTPUT_PATH="$ARTIFACTS_DIRECTORY/${PAYLOAD_NAME}.zip"
@@ -21,7 +22,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ ! -d "$APP_PATH" || ! -x "$UNINSTALLER" ]]; then
+if [[ ! -d "$APP_PATH" || ! -x "$UNINSTALLER" || ! -x "$CLEANUP_TOOL" ]]; then
     echo "Build Wallume first with ./build-app.sh" >&2
     exit 1
 fi
@@ -37,6 +38,8 @@ mkdir -p "$PAYLOAD_DIRECTORY" "$ARTIFACTS_DIRECTORY"
 ditto "$APP_PATH" "$PAYLOAD_DIRECTORY/Wallume.app"
 cp "$UNINSTALLER" "$PAYLOAD_DIRECTORY/uninstall-wallume.sh"
 chmod +x "$PAYLOAD_DIRECTORY/uninstall-wallume.sh"
+ditto "$CLEANUP_TOOL" "$PAYLOAD_DIRECTORY/wallume-provider-cleanup"
+chmod +x "$PAYLOAD_DIRECTORY/wallume-provider-cleanup"
 ditto -c -k --sequesterRsrc --keepParent "$PAYLOAD_DIRECTORY" "$OUTPUT_PATH"
 
 shasum -a 256 "$OUTPUT_PATH"

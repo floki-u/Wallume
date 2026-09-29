@@ -20,22 +20,21 @@ Wallume 只处理本地文件，不上传图片或视频，也不会自行替你
 ## 下载与安装
 
 1. 打开 [Releases](https://github.com/floki-u/Wallume/releases)，下载最新标为 **Pre-release** 的 ZIP 压缩包。
-2. **不要双击压缩包解压。** 打开“终端”，依次执行：
+2. **不要双击压缩包解压。** 打开“终端”，执行：
 
    ```bash
    cd ~/Downloads
-   mkdir -p Wallume-1.2.9
-   ditto -x -k "下载的文件名.zip" Wallume
+   ditto -x -k "下载的文件名.zip" .
    ```
 
-   将 `下载的文件名.zip` 替换成 Release 中实际下载的文件名。若刚才已经双击且 Finder 一直显示“正在解压缩”，先终止它再执行上面命令：
+   将 `下载的文件名.zip` 替换成 Release 中实际下载的文件名。ZIP 已包含版本目录，无需预先创建目标文件夹。若刚才已经双击且 Finder 一直显示“正在解压缩”，先终止它再执行上面命令：
 
    ```bash
    killall "Archive Utility" 2>/dev/null || true
    ```
 
    已经产生的半成品文件夹可手动移到废纸篓；这不会影响原始 ZIP 文件。
-3. 打开刚解压出的目录，将 `Wallume.app` 拖到“应用程序”。保留同目录的 `uninstall-wallume.sh`，卸载前需要它。
+3. 打开刚解压出的目录，将 `Wallume.app` 拖到“应用程序”。保留同目录的 `uninstall-wallume.sh` 和 `wallume-provider-cleanup`，卸载前需要它们；同一磁盘内拖动后，原目录中的 `Wallume.app` 消失是正常的。
 4. 第一次打开前，在“终端”执行：
 
    ```bash
@@ -71,7 +70,7 @@ Wallume 不会越过系统直接替换锁屏。切换到新素材、改回系统
 
 1. 在“系统设置 → 墙纸”选择非 Wallume 墙纸。
 2. 退出 Wallume。
-3. 需要释放原生墙纸副本时，在解压目录运行：
+3. 需要释放原生墙纸副本时，在保留了 `uninstall-wallume.sh` 和 `wallume-provider-cleanup` 的解压目录运行：
 
    ```bash
    ./uninstall-wallume.sh /Applications/Wallume.app
@@ -81,13 +80,13 @@ Wallume 不会越过系统直接替换锁屏。切换到新素材、改回系统
 
 ### 完整卸载
 
-仍保留 `Wallume.app` 时，在解压目录运行：
+`/Applications/Wallume.app` 仍存在时，在保留了卸载脚本和清理工具的解压目录运行：
 
 ```bash
 ./uninstall-wallume.sh --purge-data /Applications/Wallume.app
 ```
 
-先按提示确认系统已改用非 Wallume 墙纸；再输入 `DELETE`，Wallume 的素材库、缓存、诊断和偏好会被移到废纸篓。外部位置的原始图片和视频不会删除。脚本结束后，再将 `/Applications/Wallume.app` 拖到废纸篓。
+先按提示确认系统已改用非 Wallume 墙纸；再输入 `DELETE`，Wallume 的素材库、缓存、诊断和偏好会被移到废纸篓，墙纸扩展的提供者副本和偏好会由清理工具删除。外部位置的原始图片和视频不会删除。脚本结束后，再将 `/Applications/Wallume.app` 拖到废纸篓。macOS 可能保留不含 Wallume 用户数据的空沙盒容器元数据，这是系统管理记录，不代表扩展仍在运行。
 
 ## 常见问题
 

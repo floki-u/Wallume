@@ -4,6 +4,8 @@
 .DS_Store
 .swiftpm/
 .vscode/
+xcuserdata/
+*.xcuserstate
 NativeWallpaperProvider/build/
 DerivedData/
 *.app/

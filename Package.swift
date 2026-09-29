@@ -43,5 +43,6 @@ let package = Package(
         ),
         .executableTarget(name: "WallumeApp", dependencies: ["WallumeCore", "WallumeAppSupport"]),
         .testTarget(name: "WallumeCoreTests", dependencies: ["WallumeCore"]),
+        .testTarget(name: "WallumeAppSupportTests", dependencies: ["WallumeAppSupport"]),
     ]
 )

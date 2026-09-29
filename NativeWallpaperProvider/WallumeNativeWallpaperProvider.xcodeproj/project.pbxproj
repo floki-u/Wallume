@@ -56,7 +56,7 @@
 			path = WallumeNativeWallpaperExtension;
 			sourceTree = "<group>";
 		};
-		AA9B91CB2E900B9E008812A9 /* WallumeProviderHost */ = {
+		AA9B91CB2E900B9E008812A9 /* WallumeProviderHostMinimal */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = WallumeProviderHostMinimal;
 			sourceTree = "<group>";
@@ -80,7 +80,7 @@
 		AA9B91C02E900B9E008812A9 = {
 			isa = PBXGroup;
 			children = (
-				AA9B91CB2E900B9E008812A9 /* WallumeProviderHost */,
+				AA9B91CB2E900B9E008812A9 /* WallumeProviderHostMinimal */,
 				0B3364842F4FCB4B00060732 /* WallumeNativeWallpaperExtension */,
 				AA9B91CA2E900B9E008812A9 /* Products */,
 			);
@@ -131,7 +131,7 @@
 				0B3364892F4FCB4B00060732 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				AA9B91CB2E900B9E008812A9 /* WallumeProviderHost */,
+				AA9B91CB2E900B9E008812A9 /* WallumeProviderHostMinimal */,
 			);
 			name = WallumeProviderHost;
 			productName = WallumeProviderHost;
@@ -156,7 +156,7 @@
 					};
 				};
 			};
-			buildConfigurationList = AA9B91C42E900B9E008812A9 /* Build configuration list for PBXProject "WallumeProviderHost" */;
+			buildConfigurationList = AA9B91C42E900B9E008812A9 /* Build configuration list for PBXProject "WallumeNativeWallpaperProvider" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -279,7 +279,7 @@
 			};
 			name = Release;
 		};
-		AA9B91D22E900B9F008812A9 /* Debug configuration for PBXProject "WallumeProviderHost" */ = {
+		AA9B91D22E900B9F008812A9 /* Debug configuration for PBXProject "WallumeNativeWallpaperProvider" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -351,7 +351,7 @@
 			};
 			name = Debug;
 		};
-		AA9B91D32E900B9F008812A9 /* Release configuration for PBXProject "WallumeProviderHost" */ = {
+		AA9B91D32E900B9F008812A9 /* Release configuration for PBXProject "WallumeNativeWallpaperProvider" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -513,11 +513,11 @@
 			);
 			defaultConfigurationName = Release;
 		};
-		AA9B91C42E900B9E008812A9 /* Build configuration list for PBXProject "WallumeProviderHost" */ = {
+		AA9B91C42E900B9E008812A9 /* Build configuration list for PBXProject "WallumeNativeWallpaperProvider" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				AA9B91D22E900B9F008812A9 /* Debug configuration for PBXProject "WallumeProviderHost" */,
-				AA9B91D32E900B9F008812A9 /* Release configuration for PBXProject "WallumeProviderHost" */,
+				AA9B91D22E900B9F008812A9 /* Debug configuration for PBXProject "WallumeNativeWallpaperProvider" */,
+				AA9B91D32E900B9F008812A9 /* Release configuration for PBXProject "WallumeNativeWallpaperProvider" */,
 			);
 			defaultConfigurationName = Release;
 		};
