@@ -80,7 +80,7 @@ public struct LocalImportScanner: ImportScanning {
     }
 
     private static func isSupportedMedia(_ url: URL) -> Bool {
-        ["mov", "mp4"].contains(url.pathExtension.lowercased())
+        MediaKind.infer(from: url) != nil
     }
 
     private static func pathOrder(_ lhs: URL, _ rhs: URL) -> Bool {

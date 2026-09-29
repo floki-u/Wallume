@@ -95,9 +95,9 @@ public struct RuntimeFailure: Equatable, Sendable {
 public struct RuntimeDisplaySession: Equatable, Sendable {
     public let displayID: DisplayID
     public let mediaID: UUID
-    public let resourceID: UUID
+    public let resourceID: UUID?
 
-    public init(displayID: DisplayID, mediaID: UUID, resourceID: UUID) {
+    public init(displayID: DisplayID, mediaID: UUID, resourceID: UUID?) {
         self.displayID = displayID
         self.mediaID = mediaID
         self.resourceID = resourceID

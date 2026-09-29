@@ -181,16 +181,23 @@ public struct LockScreenView: View {
     private func nativeStaticFallbackCard(_ provider: NativeWallpaperProviderStore) -> some View {
         if let media = provider.media, shouldOfferStaticFallback(for: provider.status) {
             VStack(alignment: .leading, spacing: 10) {
-                Label(wallumeLocalized("改用静态封面"), systemImage: "photo")
+                Label(
+                    wallumeLocalized(media.kind == .image ? "使用静态图片" : "改用静态封面"),
+                    systemImage: "photo"
+                )
                     .font(.headline)
-                Text(wallumeLocalized("动态锁屏当前无法安全启用。你可以在系统墙纸设置中手动选择“%@”的静态封面；Wallume 不会自动替换系统墙纸。", media.displayName))
+                Text(media.kind == .image
+                    ? wallumeLocalized("请在系统墙纸设置中手动选择“%@”；Wallume 不会替你修改系统墙纸。", media.displayName)
+                    : wallumeLocalized("动态锁屏当前无法安全启用。你可以在系统墙纸设置中手动选择“%@”的静态封面；Wallume 不会自动替换系统墙纸。", media.displayName))
                     .foregroundStyle(.secondary)
-                wallumeText("清理锁屏动态资源不会删除此封面。若已将它设为系统墙纸，请先不要删除原素材。")
+                Text(media.kind == .image
+                    ? wallumeLocalized("桌面显示器会直接使用原始图片，不会创建循环视频。")
+                    : wallumeLocalized("清理锁屏动态资源不会删除此封面。若已将它设为系统墙纸，请先不要删除原素材。"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack {
-                    Button(wallumeLocalized("显示静态封面"), systemImage: "folder") {
-                        revealStaticFallback(media.coverURL)
+                    Button(wallumeLocalized(media.kind == .image ? "显示原始图片" : "显示静态封面"), systemImage: "folder") {
+                        revealStaticFallback(media.kind == .image ? media.variantURL : media.coverURL)
                     }
                     Button(wallumeLocalized("打开系统墙纸设置"), systemImage: "gearshape") {
                         openSystemWallpaperSettings()
@@ -206,7 +213,7 @@ public struct LockScreenView: View {
 
     private func shouldOfferStaticFallback(for status: NativeWallpaperProviderStatus) -> Bool {
         switch status {
-        case .unavailable, .failure:
+        case .staticImageReady, .unavailable, .failure:
             true
         default:
             false
@@ -242,7 +249,9 @@ public struct LockScreenView: View {
                 wallumeText("三步完成锁屏同步")
                     .font(.system(size: 30, weight: .semibold))
                     .tracking(-0.7)
-                wallumeText("Wallume 只准备素材，最终选择始终在“系统设置 → 墙纸”中完成。")
+                Text(provider.media?.kind == .image
+                    ? wallumeLocalized("静态图片会直接用于桌面；锁屏最终选择在“系统设置 → 墙纸”中完成。")
+                    : wallumeLocalized("Wallume 只准备素材，最终选择始终在“系统设置 → 墙纸”中完成。"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -304,7 +313,7 @@ public struct LockScreenView: View {
     private func handoffStage(_ status: NativeWallpaperProviderStatus) -> Int {
         switch status {
         case .needsMedia, .readyToPrepare, .unavailable, .failure: 0
-        case .preparedForSystemSelection, .systemSelectionNeedsUpdate: 1
+        case .staticImageReady, .preparedForSystemSelection, .systemSelectionNeedsUpdate: 1
         case .activeInSystem, .resetConfirmed: 3
         }
     }
@@ -444,6 +453,7 @@ public struct LockScreenView: View {
     private func nativeSafetyIcon(_ status: NativeWallpaperProviderStatus) -> String {
         switch status {
         case .activeInSystem: "checkmark.shield.fill"
+        case .staticImageReady: "photo"
         case .readyToPrepare, .preparedForSystemSelection, .systemSelectionNeedsUpdate: "shield"
         case .needsMedia: "display"
         case .resetConfirmed: "checkmark.circle"
@@ -456,13 +466,14 @@ public struct LockScreenView: View {
         case .activeInSystem, .resetConfirmed: .green
         case .unavailable, .failure: .red
         case .needsMedia: .secondary
-        case .readyToPrepare, .preparedForSystemSelection, .systemSelectionNeedsUpdate: WallumeDesign.accent
+        case .staticImageReady, .readyToPrepare, .preparedForSystemSelection, .systemSelectionNeedsUpdate: WallumeDesign.accent
         }
     }
 
     private func nativeSafetyTitle(_ status: NativeWallpaperProviderStatus) -> String {
         switch status {
         case .activeInSystem: wallumeLocalized("锁屏已启用且可验证")
+        case .staticImageReady: wallumeLocalized("静态图片可以交给系统设置")
         case .readyToPrepare: wallumeLocalized("已准备安全投放")
         case .preparedForSystemSelection: wallumeLocalized("等待系统设置确认")
         case .systemSelectionNeedsUpdate: wallumeLocalized("需要更新系统锁屏素材")
@@ -475,6 +486,7 @@ public struct LockScreenView: View {
     private func nativeSafetyDetail(_ status: NativeWallpaperProviderStatus) -> String {
         switch status {
         case .activeInSystem: wallumeLocalized("Wallume 会保留恢复锚点，方便在需要时恢复原有资源。")
+        case .staticImageReady: wallumeLocalized("桌面会直接显示原图；锁屏由你在系统设置中手动选择。")
         case .readyToPrepare: wallumeLocalized("只会使用已经确认的 Wallume 专属资源槽。")
         case .preparedForSystemSelection: wallumeLocalized("请在系统设置中选择 Wallume 的动态画面。")
         case .systemSelectionNeedsUpdate: wallumeLocalized("当前画面已变化；更新后会再次引导你确认。")
@@ -491,6 +503,18 @@ public struct LockScreenView: View {
             Label(wallumeLocalized("先在显示器页选择素材"), systemImage: "display")
                 .foregroundStyle(.secondary)
                 .wallumeCard()
+        case .staticImageReady:
+            HStack {
+                if let media = provider.media {
+                    Button(wallumeLocalized("显示原始图片"), systemImage: "folder") {
+                        revealStaticFallback(media.variantURL)
+                    }
+                }
+                Button(wallumeLocalized("打开系统墙纸设置"), systemImage: "gearshape") {
+                    openSystemWallpaperSettings()
+                }
+                .buttonStyle(.borderedProminent)
+            }
         case .readyToPrepare:
             Button(wallumeLocalized("用于锁屏"), systemImage: "lock") {
                 Task {
@@ -742,6 +766,7 @@ public struct LockScreenView: View {
         switch status {
         case .unavailable: wallumeLocalized("此版本暂不支持锁屏")
         case .needsMedia: wallumeLocalized("还没有可用于锁屏的素材")
+        case .staticImageReady: wallumeLocalized("静态图片可以用于系统墙纸")
         case .readyToPrepare: wallumeLocalized("当前素材可用于锁屏")
         case .preparedForSystemSelection: wallumeLocalized("等待你在系统设置中启用")
         case .systemSelectionNeedsUpdate: wallumeLocalized("锁屏仍在使用另一段素材")
@@ -755,6 +780,7 @@ public struct LockScreenView: View {
         switch status {
         case .unavailable: wallumeLocalized("可在系统设置中使用其他壁纸。")
         case .needsMedia: wallumeLocalized("先为主显示器应用一个素材。")
+        case .staticImageReady: wallumeLocalized("请在系统墙纸设置中手动选择当前图片。")
         case .readyToPrepare: wallumeLocalized("启用后，当前素材会同时用于桌面与锁屏。")
         case .preparedForSystemSelection: wallumeLocalized("系统设置已打开后，在 Wallume 分类中选择当前素材。")
         case .systemSelectionNeedsUpdate: wallumeLocalized("已选择的新素材可立即用于桌面；更新锁屏后，在系统设置中选择它即可完成切换。")
@@ -768,6 +794,7 @@ public struct LockScreenView: View {
         switch status {
         case .unavailable: wallumeLocalized("不可用")
         case .needsMedia: wallumeLocalized("需要视频")
+        case .staticImageReady: wallumeLocalized("静态图片")
         case .readyToPrepare: wallumeLocalized("可以准备")
         case .preparedForSystemSelection: wallumeLocalized("等待系统选择")
         case .systemSelectionNeedsUpdate: wallumeLocalized("需要更新")
@@ -781,7 +808,7 @@ public struct LockScreenView: View {
         switch status {
         case .activeInSystem: .green
         case .failure, .unavailable: .red
-        case .preparedForSystemSelection, .readyToPrepare, .systemSelectionNeedsUpdate: WallumeDesign.accent
+        case .staticImageReady, .preparedForSystemSelection, .readyToPrepare, .systemSelectionNeedsUpdate: WallumeDesign.accent
         case .needsMedia, .resetConfirmed: .secondary
         }
     }
@@ -790,6 +817,7 @@ public struct LockScreenView: View {
         switch status {
         case .activeInSystem: "checkmark.circle.fill"
         case .failure, .unavailable: "exclamationmark.triangle.fill"
+        case .staticImageReady: "photo"
         case .preparedForSystemSelection, .systemSelectionNeedsUpdate: "gearshape.2"
         default: "lock.display"
         }

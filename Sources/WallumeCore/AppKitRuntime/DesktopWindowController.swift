@@ -42,9 +42,19 @@ public final class DesktopWindowController {
             let mode: WallpaperPresentationMode
             if let session = sessions[displayID], let media = mediaByID[session.mediaID] {
                 mode = modesByDisplay[displayID] ?? .fill
-                presentation = PlaybackPresentation(resourceID: session.resourceID)
-                fallbackURL = media.coverURL
-                desired = .playback(resourceID: session.resourceID, fallbackURL: media.coverURL, mode: mode)
+                if media.kind == .image {
+                    presentation = nil
+                    fallbackURL = media.variantURL
+                    desired = .fallback(url: media.variantURL, mode: mode)
+                } else if let resourceID = session.resourceID {
+                    presentation = PlaybackPresentation(resourceID: resourceID)
+                    fallbackURL = media.coverURL
+                    desired = .playback(resourceID: resourceID, fallbackURL: media.coverURL, mode: mode)
+                } else {
+                    presentation = nil
+                    fallbackURL = media.coverURL
+                    desired = .fallback(url: media.coverURL, mode: mode)
+                }
             } else if let failure = failures[displayID], let media = mediaByID[failure.mediaID] {
                 mode = modesByDisplay[displayID] ?? .fill
                 presentation = nil

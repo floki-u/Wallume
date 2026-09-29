@@ -101,6 +101,7 @@ public struct MediaCommand {
             output.writeStdout(
                 """
                 id: \(item.id.uuidString)
+                kind: \(item.kind.rawValue)
                 displayName: \(item.displayName)
                 sourceURL: \(item.sourceURL.path)
                 sourceHash: \(item.sourceHash)

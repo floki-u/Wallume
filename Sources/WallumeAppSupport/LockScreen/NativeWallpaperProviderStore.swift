@@ -5,6 +5,7 @@ import WallumeCore
 public enum NativeWallpaperProviderStatus: Equatable, Sendable {
     case unavailable
     case needsMedia
+    case staticImageReady
     case readyToPrepare
     case preparedForSystemSelection
     case systemSelectionNeedsUpdate
@@ -48,6 +49,10 @@ public final class NativeWallpaperProviderStore {
         guard status != .unavailable else { return }
         guard let media else {
             status = .needsMedia
+            return
+        }
+        guard media.kind == .video else {
+            status = .staticImageReady
             return
         }
         do {
@@ -99,7 +104,7 @@ public final class NativeWallpaperProviderStore {
         do {
             try await lifecycle.cleanupAfterReset()
             deployment = nil
-            status = media == nil ? .needsMedia : .readyToPrepare
+            status = media == nil ? .needsMedia : media?.kind == .image ? .staticImageReady : .readyToPrepare
             notifyActivationIfNeeded(false)
         } catch {
             status = .failure(error.localizedDescription)
@@ -107,6 +112,11 @@ public final class NativeWallpaperProviderStore {
     }
 
     private func reloadDeployment() async {
+        if media?.kind == .image {
+            status = .staticImageReady
+            notifyActivationIfNeeded(false)
+            return
+        }
         do {
             deployment = try await lifecycle.reconcileSystemSelection()
             let hasActiveSystemSelection = try await lifecycle.hasActiveSystemSelection()

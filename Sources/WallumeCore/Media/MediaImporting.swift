@@ -70,6 +70,11 @@ public protocol ArtworkGenerating: Sendable {
     func generateArtwork(for variant: URL, thumbnail: URL, cover: URL) async throws
 }
 
+public protocol ImageMediaProcessing: Sendable {
+    func inspect(_ source: URL) async throws -> MediaInspection
+    func generateArtwork(for source: URL, thumbnail: URL, cover: URL) async throws
+}
+
 public struct MediaImportResult: Sendable, Equatable {
     public let source: URL
     public let status: MediaImportStatus
@@ -100,6 +105,7 @@ public actor MediaImporter {
     private let inspector: any MediaInspecting
     private let transcoder: any MediaTranscoding
     private let artwork: any ArtworkGenerating
+    private let imageProcessor: any ImageMediaProcessing
     private let idGenerator: @Sendable () -> UUID
     private let date: @Sendable () -> Date
 
@@ -111,6 +117,7 @@ public actor MediaImporter {
         inspector: any MediaInspecting,
         transcoder: any MediaTranscoding,
         artwork: any ArtworkGenerating,
+        imageProcessor: any ImageMediaProcessing = ImageIOMediaProcessor(),
         idGenerator: @escaping @Sendable () -> UUID = UUID.init,
         date: @escaping @Sendable () -> Date = Date.init
     ) {
@@ -121,6 +128,7 @@ public actor MediaImporter {
         self.inspector = inspector
         self.transcoder = transcoder
         self.artwork = artwork
+        self.imageProcessor = imageProcessor
         self.idGenerator = idGenerator
         self.date = date
     }
@@ -154,11 +162,15 @@ public actor MediaImporter {
         }
 
         let id = idGenerator()
+        guard let kind = MediaKind.infer(from: source) else {
+            return MediaImportResult(source: source, status: .skipped, message: "Unsupported media type.")
+        }
+        let variantExtension = kind == .video ? "mov" : source.pathExtension.lowercased()
         let workDirectory = paths.importWork(id: id)
-        let stagedVariant = workDirectory.appending(path: "variant.mov")
+        let stagedVariant = workDirectory.appending(path: "variant.\(variantExtension)")
         let stagedThumbnail = workDirectory.appending(path: "thumbnail.jpg")
         let stagedCover = workDirectory.appending(path: "cover.jpg")
-        let installedVariant = paths.variant(id: id)
+        let installedVariant = paths.variant(id: id, fileExtension: variantExtension)
         let installedThumbnail = paths.thumbnail(id: id)
         let installedCover = paths.cover(id: id)
 
@@ -167,20 +179,36 @@ public actor MediaImporter {
             try files.createDirectory(paths.importWorkRoot)
             try files.createPrivateDirectory(workDirectory)
             onEvent(.stage(.inspecting, progress: nil))
-            let sourceInspection = try await inspector.inspect(source)
-            try Task.checkCancellation()
-            onEvent(.stage(.transcoding, progress: nil))
-            try await transcoder.transcode(
-                source,
-                to: stagedVariant,
-                policy: .singleVariant
-            ) { progress in
-                onEvent(.stage(.transcoding, progress: min(max(progress, 0), 1)))
+            let sourceInspection: MediaInspection
+            let variantInspection: MediaInspection
+            switch kind {
+            case .video:
+                sourceInspection = try await inspector.inspect(source)
+                try Task.checkCancellation()
+                onEvent(.stage(.transcoding, progress: nil))
+                try await transcoder.transcode(
+                    source,
+                    to: stagedVariant,
+                    policy: .singleVariant
+                ) { progress in
+                    onEvent(.stage(.transcoding, progress: min(max(progress, 0), 1)))
+                }
+                try Task.checkCancellation()
+                variantInspection = try await inspector.inspect(stagedVariant)
+                onEvent(.stage(.artwork, progress: nil))
+                try await artwork.generateArtwork(for: stagedVariant, thumbnail: stagedThumbnail, cover: stagedCover)
+            case .image:
+                sourceInspection = try await imageProcessor.inspect(source)
+                try Task.checkCancellation()
+                try files.copyExclusively(source, to: stagedVariant)
+                variantInspection = sourceInspection
+                onEvent(.stage(.artwork, progress: nil))
+                try await imageProcessor.generateArtwork(
+                    for: stagedVariant,
+                    thumbnail: stagedThumbnail,
+                    cover: stagedCover
+                )
             }
-            try Task.checkCancellation()
-            let variantInspection = try await inspector.inspect(stagedVariant)
-            onEvent(.stage(.artwork, progress: nil))
-            try await artwork.generateArtwork(for: stagedVariant, thumbnail: stagedThumbnail, cover: stagedCover)
             try Task.checkCancellation()
             onEvent(.stage(.committing, progress: nil))
             try verifyStagedArtifacts([stagedVariant, stagedThumbnail, stagedCover])
@@ -192,6 +220,7 @@ public actor MediaImporter {
             try files.installExclusively(installedCover, from: stagedCover)
             let item = MediaItem(
                 id: id,
+                kind: kind,
                 sourceHash: sourceHash,
                 sourceURL: source,
                 displayName: source.deletingPathExtension().lastPathComponent,
@@ -238,7 +267,7 @@ public actor MediaImporter {
         let safety = PathSafetyValidator(files: files)
         for url in urls {
             guard try safety.accepts(url, as: .existingRegularFile) else {
-                throw MediaImportError.notFound(UUID())
+                throw MediaImportError.artifactMissing(url)
             }
         }
     }

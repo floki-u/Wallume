@@ -397,7 +397,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             .flatMap { selectedID in media.first(where: { $0.id == selectedID }) }
         if ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 26,
            let selectedID = primaryAssignment?.mediaID ?? latestAssignments.records.compactMap(\.mediaID).first,
-           let selectedMedia = media.first(where: { $0.id == selectedID }) {
+           let selectedMedia = media.first(where: { $0.id == selectedID }),
+           selectedMedia.kind == .video {
             try? screenSaverConfigurationPublisher.publish(media: selectedMedia)
         }
         displayStore.update(
@@ -410,7 +411,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         await lockScreenService.apply(input: LockScreenSyncInput(
             assignments: latestAssignments,
             screens: currentScreens,
-            media: media
+            media: media.filter { $0.kind == .video }
         ))
         await nativeWallpaperProviderStore.update(mainMedia: primaryMedia)
         lockScreenDiagnosticsSnapshot.update(await lockScreenService.snapshot())
@@ -421,6 +422,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         artworkRepairTask = Task { [library, gallery] in
             let fileManager = FileManager.default
             let generator = AVFoundationArtworkGenerator()
+            let imageProcessor = ImageIOMediaProcessor()
             guard let media = try? library.list() else { return }
 
             var repairedAnything = false
@@ -430,11 +432,19 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 guard !thumbnailExists || !coverExists else { continue }
 
                 do {
-                    try await generator.generateArtwork(
-                        for: item.variantURL,
-                        thumbnail: item.thumbnailURL,
-                        cover: item.coverURL
-                    )
+                    if item.kind == .image {
+                        try await imageProcessor.generateArtwork(
+                            for: item.variantURL,
+                            thumbnail: item.thumbnailURL,
+                            cover: item.coverURL
+                        )
+                    } else {
+                        try await generator.generateArtwork(
+                            for: item.variantURL,
+                            thumbnail: item.thumbnailURL,
+                            cover: item.coverURL
+                        )
+                    }
                     repairedAnything = true
                 } catch {
                     // A broken source must not prevent the rest of the gallery from recovering.

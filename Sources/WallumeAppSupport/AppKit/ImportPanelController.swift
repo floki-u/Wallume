@@ -20,7 +20,9 @@ public final class ImportPanelController {
         panel.allowsMultipleSelection = configuration.allowsMultipleSelection
         panel.canChooseDirectories = configuration.canChooseDirectories
         panel.canChooseFiles = configuration.canChooseFiles
-        panel.allowedContentTypes = configuration.canChooseFiles ? [.mpeg4Movie, .quickTimeMovie] : []
+        panel.allowedContentTypes = configuration.canChooseFiles
+            ? [.mpeg4Movie, .quickTimeMovie, .png, .jpeg, .heic]
+            : []
         NSApplication.shared.activate(ignoringOtherApps: true)
         return panel.runModal() == .OK ? panel.urls : []
     }

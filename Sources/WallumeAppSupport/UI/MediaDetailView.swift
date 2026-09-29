@@ -32,10 +32,12 @@ public struct MediaDetailView: View {
                 .frame(maxWidth: .infinity)
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .clipped()
-                Button(wallumeLocalized("播放"), systemImage: "play.fill") { preview.play(item.variantURL) }
-                    .buttonStyle(.borderedProminent)
-                    .tint(WallumeDesign.accent)
-                    .padding(18)
+                if item.kind == .video {
+                    Button(wallumeLocalized("播放"), systemImage: "play.fill") { preview.play(item.variantURL) }
+                        .buttonStyle(.borderedProminent)
+                        .tint(WallumeDesign.accent)
+                        .padding(18)
+                }
             }
 
             VStack(alignment: .leading, spacing: 18) {
@@ -45,7 +47,9 @@ public struct MediaDetailView: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(WallumeDesign.accent)
                         Text(item.displayName).font(.title2.weight(.bold))
-                        Text("\(item.pixelWidth) × \(item.pixelHeight)  ·  \(item.codec)  ·  \(item.frameRate.formatted()) fps")
+                        Text(item.kind == .image
+                            ? "\(item.pixelWidth) × \(item.pixelHeight) · \(item.codec) · \(wallumeLocalized("静态图片"))"
+                            : "\(item.pixelWidth) × \(item.pixelHeight) · \(item.codec) · \(item.frameRate.formatted()) fps")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -58,7 +62,10 @@ public struct MediaDetailView: View {
                 }
 
                 Grid(alignment: .leading, horizontalSpacing: 30, verticalSpacing: 8) {
-                    GridRow { wallumeText("时长").foregroundStyle(.secondary); Text(item.durationSeconds.formatted()) }
+                    GridRow {
+                        wallumeText(item.kind == .image ? "类型" : "时长").foregroundStyle(.secondary)
+                        Text(item.kind == .image ? wallumeLocalized("静态图片") : item.durationSeconds.formatted())
+                    }
                     GridRow { wallumeText("文件大小").foregroundStyle(.secondary); Text(ByteCountFormatter.string(fromByteCount: item.sourceByteCount, countStyle: .file)) }
                     GridRow { wallumeText("源文件").foregroundStyle(.secondary); Text(item.sourceURL.path).lineLimit(1).textSelection(.enabled) }
                 }

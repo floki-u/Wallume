@@ -552,7 +552,7 @@ private struct ProjectionTopbar: View {
 
     private var importMenu: some View {
         Menu {
-            Button(wallumeLocalized("导入视频"), systemImage: "film") { onImportFiles() }
+            Button(wallumeLocalized("导入图片或视频"), systemImage: "photo.on.rectangle") { onImportFiles() }
             Button(wallumeLocalized("导入文件夹"), systemImage: "folder") { onImportFolder() }
         } label: {
             Label(wallumeLocalized("导入"), systemImage: "plus")
@@ -564,7 +564,7 @@ private struct ProjectionTopbar: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help(wallumeLocalized("导入视频或文件夹"))
+        .help(wallumeLocalized("导入图片、视频或文件夹"))
     }
 
     private func projectionSubtitle(for id: WallumeFeatureID) -> String {

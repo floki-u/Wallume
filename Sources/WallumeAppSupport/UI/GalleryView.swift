@@ -34,12 +34,12 @@ public struct GalleryView: View {
             } else if gallery.items.isEmpty {
                 VStack(spacing: 20) {
                     ContentUnavailableView(
-                        wallumeLocalized("导入第一段动态画面"),
-                        systemImage: "film.stack",
-                        description: wallumeText("支持 MOV 和 MP4；也可以选择文件夹，Wallume 会递归识别其中的视频。")
+                        wallumeLocalized("导入第一段画面"),
+                        systemImage: "photo.on.rectangle.angled",
+                        description: wallumeText("支持 PNG、JPG、HEIC、MOV 和 MP4；也可以选择文件夹递归导入。")
                     )
                     HStack(spacing: 12) {
-                        Button(wallumeLocalized("导入视频"), systemImage: "film") { onImportFiles() }
+                        Button(wallumeLocalized("导入图片或视频"), systemImage: "photo.on.rectangle") { onImportFiles() }
                             .buttonStyle(.borderedProminent)
                             .tint(WallumeDesign.accent)
                         Button(wallumeLocalized("导入文件夹"), systemImage: "folder") { onImportFolder() }
@@ -335,7 +335,7 @@ private struct ProjectionFilmstripTile: View {
                 if let image = NSImage(contentsOf: item.thumbnailURL) {
                     Image(nsImage: image).resizable().scaledToFill()
                 } else { WallumeDesign.inset }
-                Text(item.durationSeconds.formatted())
+                Text(item.kind == .image ? wallumeLocalized("静图") : item.durationSeconds.formatted())
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.white.opacity(0.88))
                     .padding(.horizontal, 5)
@@ -357,7 +357,9 @@ private struct ProjectionFilmstripTile: View {
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
                 .frame(width: 230, alignment: .leading)
-            Text("\(item.pixelWidth) × \(item.pixelHeight) · \(item.frameRate.formatted()) fps")
+            Text(item.kind == .image
+                ? "\(item.pixelWidth) × \(item.pixelHeight) · \(item.codec)"
+                : "\(item.pixelWidth) × \(item.pixelHeight) · \(item.frameRate.formatted()) fps")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
@@ -420,7 +422,9 @@ private struct GalleryCarouselSlide: View {
                     .tracking(-1.1)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-                Text("\(item.pixelWidth) x \(item.pixelHeight)  ·  \(item.frameRate.formatted()) fps")
+                Text(item.kind == .image
+                    ? "\(item.pixelWidth) × \(item.pixelHeight) · \(item.codec)"
+                    : "\(item.pixelWidth) × \(item.pixelHeight) · \(item.frameRate.formatted()) fps")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.58))
             }

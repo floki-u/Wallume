@@ -27,6 +27,10 @@ public struct MediaPaths: Sendable {
         variantsDirectory.appending(path: "\(id.uuidString).mov")
     }
 
+    public func variant(id: UUID, fileExtension: String) -> URL {
+        variantsDirectory.appending(path: "\(id.uuidString).\(fileExtension)")
+    }
+
     public func thumbnail(id: UUID) -> URL {
         thumbnailsDirectory.appending(path: "\(id.uuidString).jpg")
     }

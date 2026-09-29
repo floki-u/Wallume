@@ -40,8 +40,16 @@ public actor RuntimeCoordinator {
                     failures.append(.init(displayID: assignment.displayID, mediaID: assignment.mediaID, message: "Media item is unavailable."))
                     continue
                 }
-                let lease = try await pool.acquire(media: item)
-                let previous = sessions.updateValue(.init(displayID: assignment.displayID, mediaID: assignment.mediaID, resourceID: lease.resourceID), forKey: assignment.displayID)
+                let resourceID: UUID?
+                if item.kind == .video {
+                    resourceID = try await pool.acquire(media: item).resourceID
+                } else {
+                    resourceID = nil
+                }
+                let previous = sessions.updateValue(
+                    .init(displayID: assignment.displayID, mediaID: assignment.mediaID, resourceID: resourceID),
+                    forKey: assignment.displayID
+                )
                 if let previous { await pool.release(mediaID: previous.mediaID) }
             } catch {
                 failures.append(.init(displayID: assignment.displayID, mediaID: assignment.mediaID, message: String(describing: error)))

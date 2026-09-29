@@ -42,5 +42,6 @@ let package = Package(
             resources: [.process("Resources")]
         ),
         .executableTarget(name: "WallumeApp", dependencies: ["WallumeCore", "WallumeAppSupport"]),
+        .testTarget(name: "WallumeCoreTests", dependencies: ["WallumeCore"]),
     ]
 )

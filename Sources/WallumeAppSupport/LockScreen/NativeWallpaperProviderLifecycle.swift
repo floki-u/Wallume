@@ -71,6 +71,7 @@ public struct NativeWallpaperProviderDeployment: Codable, Equatable, Sendable {
 
 public enum NativeWallpaperProviderLifecycleError: LocalizedError, Equatable {
     case unsafeSource(URL)
+    case unsupportedMediaKind
     case invalidProviderIdentifier
     case resetRequired
     case unsupportedState
@@ -79,6 +80,8 @@ public enum NativeWallpaperProviderLifecycleError: LocalizedError, Equatable {
         switch self {
         case .unsafeSource:
             "Wallume 资源无法安全读取。"
+        case .unsupportedMediaKind:
+            "原生动态墙纸提供者只接受视频素材。"
         case .invalidProviderIdentifier:
             "Wallume 提供者标识不匹配。"
         case .resetRequired:
@@ -133,6 +136,9 @@ public actor NativeWallpaperProviderLifecycle {
     ) throws -> NativeWallpaperProviderDeployment {
         guard providerIdentifier == paths.providerIdentifier else {
             throw NativeWallpaperProviderLifecycleError.invalidProviderIdentifier
+        }
+        guard media.kind == .video else {
+            throw NativeWallpaperProviderLifecycleError.unsupportedMediaKind
         }
         guard try isSafeRegularFile(media.variantURL), try isSafeRegularFile(media.coverURL) else {
             throw NativeWallpaperProviderLifecycleError.unsafeSource(media.variantURL)
