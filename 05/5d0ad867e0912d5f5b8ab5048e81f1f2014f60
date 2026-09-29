@@ -1,0 +1,250 @@
+Sources/WallumeCore/Media/MediaImporting.swift
+  0960b03f2bbeb236 73-77,108,120,131,165-168,170,173,182-210,223,270
+Sources/WallumeAppSupport/Resources/en.lproj/Localizable.strings
+  0960b03f2bbeb236 345-360
+Tests/WallumeCoreTests/StaticImageMediaTests.swift
+  0960b03f2bbeb236 1-259
+Sources/WallumeAppSupport/AppKit/ImportPanelController.swift
+  0960b03f2bbeb236 23-25
+CHANGELOG.md
+  0960b03f2bbeb236 3-8
+Sources/WallumeCore/Media/MediaPaths.swift
+  0960b03f2bbeb236 30-33
+Sources/WallumeCore/AppKitRuntime/DesktopWindowController.swift
+  0960b03f2bbeb236 45-57
+Sources/WallumeCore/Runtime/RuntimeCoordinator.swift
+  0960b03f2bbeb236 43-52
+Sources/WallumeCore/Media/MediaCommand.swift
+  0960b03f2bbeb236 104
+Sources/WallumeAppSupport/UI/LockScreenView.swift
+  0960b03f2bbeb236 184-187,189-191,193-195,199-200,216,252-254,316,456,469,476,489,506-517,769,783,797,811,820
+Sources/WallumeAppSupport/UI/MediaDetailView.swift
+  0960b03f2bbeb236 35-40,50-52,65-68
+Sources/WallumeCore/Media/ImportScanner.swift
+  0960b03f2bbeb236 83
+Sources/WallumeApp/ApplicationController.swift
+  0960b03f2bbeb236 400-401,414,425,435-447
+Sources/WallumeAppSupport/LockScreen/NativeWallpaperProviderLifecycle.swift
+  0960b03f2bbeb236 74,83-84,140-141
+Sources/WallumeAppSupport/UI/ApplicationShellView.swift
+  0960b03f2bbeb236 555,567
+Sources/WallumeCore/Media/ImageIOMedia.swift
+  0960b03f2bbeb236 1-97
+Package.swift
+  0960b03f2bbeb236 45
+Sources/WallumeCore/Runtime/RuntimeModels.swift
+  0960b03f2bbeb236 98,100
+Sources/WallumeCore/Media/MediaModels.swift
+  0960b03f2bbeb236 4,13-30,33-43,48,65,81,96-119,133
+README.md
+  0960b03f2bbeb236 3,5,7,11-12
+Sources/WallumeAppSupport/Resources/zh-Hans.lproj/Localizable.strings
+  0960b03f2bbeb236 60-75
+Sources/WallumeAppSupport/LockScreen/NativeWallpaperProviderStore.swift
+  0960b03f2bbeb236 8,54-57,107,115-119
+Sources/WallumeAppSupport/UI/GalleryView.swift
+  0960b03f2bbeb236 37-39,42,338,360-362,425-427
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "055d0ad867e0912d5f5b8ab5048e81f1f2014f60",
+  "prompts": {
+    "0960b03f2bbeb236": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0ccee-fc39-7413-8717-8d40fcc74213",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 645,
+      "total_deletions": 70,
+      "accepted_lines": 641,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "Sources/WallumeCore/AppKitRuntime/DesktopWindowController.swift": {
+          "additions": 13,
+          "deletions": 3,
+          "accepted_lines": 13
+        },
+        "Sources/WallumeAppSupport/Resources/en.lproj/Localizable.strings": {
+          "additions": 16,
+          "accepted_lines": 16
+        },
+        "Sources/WallumeCore/Media/ImageIOMedia.swift": {
+          "additions": 97,
+          "accepted_lines": 97
+        },
+        "Sources/WallumeApp/ApplicationController.swift": {
+          "additions": 17,
+          "deletions": 7,
+          "accepted_lines": 17
+        },
+        "Sources/WallumeCore/Media/MediaPaths.swift": {
+          "additions": 4,
+          "accepted_lines": 4
+        },
+        "Sources/WallumeCore/Media/MediaModels.swift": {
+          "additions": 61,
+          "deletions": 1,
+          "accepted_lines": 61
+        },
+        "Sources/WallumeCore/Media/ImportScanner.swift": {
+          "additions": 1,
+          "deletions": 1,
+          "accepted_lines": 1
+        },
+        "Tests/WallumeCoreTests/StaticImageMediaTests.swift": {
+          "additions": 263,
+          "deletions": 4,
+          "accepted_lines": 259
+        },
+        "Sources/WallumeAppSupport/UI/ApplicationShellView.swift": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 2
+        },
+        "README.md": {
+          "additions": 8,
+          "deletions": 7,
+          "accepted_lines": 8
+        },
+        "Package.swift": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        "Sources/WallumeAppSupport/AppKit/ImportPanelController.swift": {
+          "additions": 3,
+          "deletions": 1,
+          "accepted_lines": 3
+        },
+        "Sources/WallumeCore/Media/MediaImporting.swift": {
+          "additions": 45,
+          "deletions": 16,
+          "accepted_lines": 45
+        },
+        "Sources/WallumeAppSupport/UI/MediaDetailView.swift": {
+          "additions": 13,
+          "deletions": 6,
+          "accepted_lines": 13
+        },
+        "CHANGELOG.md": {
+          "additions": 6,
+          "accepted_lines": 6
+        },
+        "Sources/WallumeCore/Media/MediaCommand.swift": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        "Sources/WallumeAppSupport/UI/LockScreenView.swift": {
+          "additions": 38,
+          "deletions": 10,
+          "accepted_lines": 38
+        },
+        "Sources/WallumeAppSupport/LockScreen/NativeWallpaperProviderStore.swift": {
+          "additions": 11,
+          "deletions": 1,
+          "accepted_lines": 11
+        },
+        "Sources/WallumeCore/Runtime/RuntimeCoordinator.swift": {
+          "additions": 10,
+          "deletions": 2,
+          "accepted_lines": 10
+        },
+        "Sources/WallumeAppSupport/LockScreen/NativeWallpaperProviderLifecycle.swift": {
+          "additions": 6,
+          "accepted_lines": 6
+        },
+        "Sources/WallumeAppSupport/UI/GalleryView.swift": {
+          "additions": 11,
+          "deletions": 7,
+          "accepted_lines": 11
+        },
+        "Sources/WallumeAppSupport/Resources/zh-Hans.lproj/Localizable.strings": {
+          "additions": 16,
+          "accepted_lines": 16
+        },
+        "Sources/WallumeCore/Runtime/RuntimeModels.swift": {
+          "additions": 2,
+          "deletions": 2,
+          "accepted_lines": 2
+        }
+      }
+    },
+    "4c288492ba891351": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e6eb-0664-77b0-b571-0ad7de504b1d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 131,
+      "total_deletions": 22,
+      "accepted_lines": 131,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "uninstall-wallume.sh": {
+          "additions": 29,
+          "deletions": 14,
+          "accepted_lines": 29
+        },
+        "CHANGELOG.md": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        "Tests/Scripts/uninstall-wallume-test.sh": {
+          "additions": 91,
+          "accepted_lines": 91
+        },
+        "package-experimental.sh": {
+          "additions": 4,
+          "deletions": 1,
+          "accepted_lines": 4
+        },
+        "README.md": {
+          "additions": 6,
+          "deletions": 7,
+          "accepted_lines": 6
+        }
+      }
+    },
+    "6abcc4200bc2e5c1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa36a-821e-7500-b0c8-529c2fab652d",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeProviderHostMinimal/WallumeProviderHost.entitlements": {
+          "accepted_lines": 5
+        }
+      }
+    },
+    "759cfd31977bff9c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01e4c-f07a-7e91-ac2a-955b36061a6b",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "floki-u",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 74,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "NativeWallpaperProvider/WallumeNativeWallpaperExtension/VideoRenderer.swift": {
+          "accepted_lines": 74
+        }
+      }
+    }
+  }
+}
