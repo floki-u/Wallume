@@ -9,7 +9,7 @@ public protocol LockScreenSystemClient: Sendable {
     func restore(transactionID: UUID) throws -> RecoveryReport
 }
 
-/// Isolated system boundary for macOS 26's user-level Aerial registration experiment.
+/// Isolated system boundary for the user-level Aerial registration experiment on macOS 26+.
 ///
 /// It is intentionally separate from `LockScreenSystemClient`: the older workflow overwrites a
 /// selected Apple slot and is prohibited on Tahoe, whereas this workflow creates an owned asset
@@ -87,10 +87,10 @@ public struct ProcessLockScreenSystemClient: LockScreenSystemClient, TahoeLockSc
     public func inspectRecovery() throws -> [RecoveryCandidate] {
         let placeholderPaths = AerialPaths(homeDirectory: homeDirectory, userGeneratedID: "UNKNOWN")
         var candidates: [RecoveryCandidate] = []
-        // Tahoe uses a different, additive transaction format. Legacy journals on a Tahoe
-        // machine came from the old slot-overwrite implementation and must never block the new
+        // macOS 26 and later use a different, additive transaction format. Legacy journals
+        // came from the old slot-overwrite implementation and must never block the new
         // registration mode; they remain available through wallume-restore for explicit repair.
-        if systemVersion.majorVersion != 26,
+        if systemVersion.majorVersion < 26,
            FileManager.default.fileExists(atPath: placeholderPaths.transactionsDirectory.path) {
             let paths = try paths()
             let files = LocalFileStore()
@@ -103,7 +103,7 @@ public struct ProcessLockScreenSystemClient: LockScreenSystemClient, TahoeLockSc
                 refresher: ProcessWallpaperRefresher()
             ).inspect()
         }
-        if systemVersion.majorVersion == 26 {
+        if systemVersion.majorVersion >= 26 {
             candidates += try inspectTahoeRecovery().map {
                 RecoveryCandidate(id: $0.id, phase: $0.phase, aerialID: $0.assetID, createdAt: $0.createdAt)
             }
@@ -112,7 +112,7 @@ public struct ProcessLockScreenSystemClient: LockScreenSystemClient, TahoeLockSc
     }
 
     public func restore(transactionID: UUID) throws -> RecoveryReport {
-        if systemVersion.majorVersion == 26,
+        if systemVersion.majorVersion >= 26,
            try inspectTahoeRecovery().contains(where: { $0.id == transactionID }) {
             let report = try resetTahoe(transactionID: transactionID)
             return RecoveryReport(restored: report.restored, conflicts: report.conflicts, retainedBackups: [])

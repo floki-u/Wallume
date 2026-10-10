@@ -14,7 +14,7 @@ public enum NativeWallpaperProviderStatus: Equatable, Sendable {
     case failure(String)
 }
 
-/// Main-actor presentation model for the macOS 26 native wallpaper provider.
+/// Main-actor presentation model for the macOS 26 and later native wallpaper provider.
 ///
 /// This intentionally never selects or resets a system wallpaper itself. It stages Wallume-owned
 /// data and learns about a completed selection from the extension's path-free state signal.

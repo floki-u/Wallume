@@ -827,7 +827,7 @@ public struct LockScreenView: View {
         switch generation {
         case .sonoma: "Sonoma"
         case .sequoia: "Sequoia"
-        case .tahoe: "Tahoe"
+        case .tahoe: "macOS 26+"
         case let .unsupported(version): "不支持的版本 \(version)"
         }
     }
