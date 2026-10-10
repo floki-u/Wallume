@@ -1,0 +1,22 @@
+{
+  "type": "design",
+  "designSystems": [],
+  "primaryDesignSystem": null,
+  "assets": {
+    "Wallume 产品展示与模拟录屏": {
+      "versions": [
+        {
+          "path": "index.html",
+          "createdAt": "2026-10-10T08:15:09.755Z",
+          "status": "needs-review",
+          "viewport": {
+            "width": 1600,
+            "height": 1100
+          }
+        }
+      ]
+    }
+  },
+  "createdAt": "2026-10-10T08:15:09.755Z",
+  "updatedAt": "2026-10-10T08:34:29.283Z"
+}

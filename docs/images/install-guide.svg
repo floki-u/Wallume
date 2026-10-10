@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">Wallume 安装文件位置</title>
+  <desc id="desc">解压文件夹中有应用、卸载脚本和清理工具。只将 Wallume.app 移到应用程序，两个卸载文件保留在下载文件夹。脚本和应用不需要在同一目录。</desc>
+  <rect width="1200" height="420" rx="20" fill="#F3F0E9"/>
+  <g font-family="-apple-system, SF Pro Text, PingFang SC, sans-serif" fill="#25241F">
+    <text x="44" y="52" font-size="25" font-weight="600">只移动应用，保留卸载文件</text>
+    <rect x="44" y="80" width="495" height="243" rx="12" fill="#FFFFFF" stroke="#D9D5CC"/>
+    <path d="M68 112v-12h28l8 8h38v24H68z" fill="#6E9CC3"/>
+    <text x="161" y="124" font-size="22" font-weight="600">下载 / Wallume-版本号</text>
+    <path d="M90 153v130m0-119h27m-27 60h27m-27 59h27" stroke="#CBC7BC" stroke-width="2" fill="none"/>
+    <rect x="121" y="143" width="389" height="42" rx="7" fill="#FCEAE4"/>
+    <text x="136" y="171" font-size="22" font-weight="600">Wallume.app</text>
+    <text x="136" y="230" font-size="20">uninstall-wallume.sh</text>
+    <text x="136" y="290" font-size="20">wallume-provider-cleanup</text>
+    <path d="M554 164h129m-14-12 14 12-14 12" stroke="#DC755D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <text x="556" y="204" font-size="18" fill="#89604F">拖入应用程序</text>
+    <rect x="698" y="80" width="458" height="243" rx="12" fill="#FFFFFF" stroke="#D9D5CC"/>
+    <text x="726" y="124" font-size="22" font-weight="600">应用程序 / Applications</text>
+    <rect x="726" y="143" width="402" height="42" rx="7" fill="#FCEAE4"/>
+    <text x="743" y="171" font-size="22" font-weight="600">Wallume.app</text>
+    <text x="726" y="231" font-size="20" fill="#77736A">最终安装路径</text>
+    <text x="726" y="269" font-size="21">/Applications/Wallume.app</text>
+    <text x="46" y="365" font-size="21" fill="#77736A">Finder 中可能显示为“Wallume”；卸载脚本与 App 可以分开放。</text>
+  </g>
+</svg>
