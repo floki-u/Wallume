@@ -12,7 +12,9 @@
 - 提供预览缓存、诊断数据和锁屏提供者副本的独立清理路径。
 
 当前不承诺所有显示器组合或所有视频编码格式都可稳定工作；macOS 14/15 不提供 macOS 26 的原生墙纸提供者功能，原生锁屏是否生效始终以系统设置中的实际选择为准。
-<img width="478" height="285" alt="image" src="https://github.com/user-attachments/assets/ce17344a-f324-46c9-95c4-55bc6c12fea7" />
+
+<img width="956" height="570" alt="image" src="https://github.com/user-attachments/assets/ce17344a-f324-46c9-95c4-55bc6c12fea7" />
+
 
 ## 下载与安装
 
